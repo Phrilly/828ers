@@ -1,4 +1,3 @@
-<script type="text/javascript">
 const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php";
 
 /* --------------------------
@@ -163,4 +162,3 @@ function escapeHtml(v) {
 function escapeAttr(v) {
   return escapeHtml(v);
 }
-</script>
