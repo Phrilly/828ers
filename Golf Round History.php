@@ -1,0 +1,211 @@
+/**
+ * Golf Round History
+ */
+/* =======================================================
+   GOLF HISTORY – AJAX (NO CACHE VERSION)
+   (Paste this entire block into Code Snippets)
+======================================================= */
+
+/* -------------------------------------------------------
+   PART 1: THE SHORTCODE (Frontend)
+------------------------------------------------------- */
+add_shortcode('golf_round_history', function () {
+    global $wpdb;
+
+    // Fetch players for the dropdown
+    $player_list = $wpdb->get_results("SELECT player_id, name FROM wp_golf_players ORDER BY name ASC");
+
+    ob_start(); ?>
+    
+    <div id="golf-history-app" data-page="1" data-player="0">
+        
+        <div class="history-filter-bar">
+            <label>Filter Player:</label>
+            <select id="gh-filter">
+                <option value="0">-- All Players --</option>
+                <?php if ($player_list): foreach ($player_list as $p): ?>
+                    <option value="<?= (int) $p->player_id ?>">
+                        <?= esc_html($p->name) ?>
+                    </option>
+                <?php endforeach; endif; ?>
+            </select>
+        </div>
+
+        <div id="gh-range" class="history-range" style="margin: 10px 0; font-style: italic;"></div>
+
+        <div class="history-scroll" id="gh-table-wrap" style="min-height: 200px; position: relative;">
+            <p id="gh-loading">Loading stats...</p>
+        </div>
+
+        <div class="history-pagination" id="gh-pagination"></div>
+    </div>
+
+    <script>
+    (function(){
+        const app    = document.getElementById('golf-history-app');
+        const table  = document.getElementById('gh-table-wrap');
+        const pager  = document.getElementById('gh-pagination');
+        const range  = document.getElementById('gh-range');
+        const filter = document.getElementById('gh-filter');
+
+        // Main Load Function
+        function load(page = 1, player = 0){
+            table.style.opacity = '0.5';
+            app.dataset.page = page;
+
+            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+                method: 'POST',
+                headers: {'Content-Type':'application/x-www-form-urlencoded'},
+                body: new URLSearchParams({
+                    action: 'gh_load_history',
+                    page: page,
+                    player: player,
+                    // SECURITY: Nonce
+                    gh_nonce: '<?php echo wp_create_nonce('gh_ajax_nonce'); ?>'
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                table.innerHTML = d.table;
+                pager.innerHTML = d.pagination;
+                range.innerHTML = d.range;
+                table.style.opacity = '1';
+
+                if(page > 1) {
+                    app.scrollIntoView({behavior:'smooth', block:'start'});
+                }
+            });
+        }
+
+        // Handle Pagination Clicks
+        pager.addEventListener('click', e => {
+            const target = e.target.closest('[data-page]');
+            if (!target) return;
+            e.preventDefault();
+            load(parseInt(target.dataset.page, 10), filter.value);
+        });
+
+        // Handle Filter Change
+        filter.addEventListener('change', () => {
+            load(1, filter.value);
+        });
+
+        // Initial Load
+        load();
+    })();
+    </script>
+
+    <?php
+    return ob_get_clean();
+});
+
+/* -------------------------------------------------------
+   PART 2: THE AJAX HANDLER (Backend - NO CACHE)
+------------------------------------------------------- */
+add_action('wp_ajax_gh_load_history', 'gh_load_history');
+add_action('wp_ajax_nopriv_gh_load_history', 'gh_load_history');
+
+function gh_load_history() {
+    // SECURITY: Verify request
+    check_ajax_referer('gh_ajax_nonce', 'gh_nonce');
+
+    global $wpdb;
+
+    $limit  = 20;
+    $page   = max(1, intval($_POST['page'] ?? 1));
+    $player = intval($_POST['player'] ?? 0);
+    $offset = ($page - 1) * $limit;
+
+    $where  = $player ? $wpdb->prepare("WHERE player_id = %d", $player) : "";
+
+    /* ---------- QUERY (Direct DB Hit - No Caching) ---------- */
+    $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM wp_golf_dashboard_history $where");
+
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT * FROM wp_golf_dashboard_history $where ORDER BY date_played DESC LIMIT %d OFFSET %d",
+            $limit, $offset
+        ),
+        ARRAY_A
+    );
+
+    $total_pages = max(1, ceil($total / $limit));
+    $start_row   = $offset + 1;
+    $end_row     = min($offset + $limit, $total);
+
+    /* ---------- HTML: TABLE ---------- */
+    ob_start(); ?>
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th>Date</th><th>Player</th><th>Tee</th>
+                <th class="tc">Gross</th><th class="tc">Nett</th>
+                <th class="tc">Diff</th><th class="tc">Putts</th>
+                <th class="tc">GIR</th><th class="tc">Count</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php if ($rows): foreach ($rows as $r): ?>
+            <tr>
+                <td><?= esc_html(date('j M Y', strtotime($r['date_played']))) ?></td>
+                <td><strong><?= esc_html($r['player_name']) ?></strong></td>
+                <td><span class="tee-badge tee-<?= esc_attr(strtolower($r['tee_colour'])) ?>"><?= esc_html($r['tee_colour']) ?></span></td>
+                <td class="tc"><?= (int) $r['gross_score'] ?></td>
+                <td class="tc"><?= (int) $r['net_score'] ?></td>
+                <td class="tc"><?= number_format($r['differential'], 1) ?></td>
+                <td class="tc"><?= (int) $r['putts'] ?></td>
+                <td class="tc"><?= (int) $r['gir'] ?></td>
+                <td class="tc"><?= $r['is_counting'] ? '<span class="counting-dot"></span>' : '' ?></td>
+            </tr>
+        <?php endforeach; else: ?>
+            <tr><td colspan="9">No rounds found.</td></tr>
+        <?php endif; ?>
+        </tbody>
+    </table>
+    <?php
+    $table_html = ob_get_clean();
+
+    /* ---------- HTML: PAGINATION ---------- */
+    ob_start();
+
+    $window = 2;
+    $start  = max(1, $page - $window);
+    $end    = min($total_pages, $page + $window);
+
+    if ($page > 1) {
+        echo "<a class='page-numbers prev' data-page='".($page-1)."'>« Prev</a>";
+    }
+
+    if ($start > 1) {
+        echo "<a class='page-numbers' data-page='1'>1</a>";
+        if ($start > 2) echo "<span class='page-numbers dots'>…</span>";
+    }
+
+    for ($i = $start; $i <= $end; $i++) {
+        if ($i === $page) {
+            echo "<span class='page-numbers current'>{$i}</span>";
+        } else {
+            echo "<a class='page-numbers' data-page='{$i}'>{$i}</a>";
+        }
+    }
+
+    if ($end < $total_pages) {
+        if ($end < $total_pages - 1) echo "<span class='page-numbers dots'>…</span>";
+        echo "<a class='page-numbers' data-page='{$total_pages}'>{$total_pages}</a>";
+    }
+
+    if ($page < $total_pages) {
+        echo "<a class='page-numbers next' data-page='".($page+1)."'>Next »</a>";
+    }
+
+    $pagination_html = ob_get_clean();
+
+    /* ---------- RESPONSE ---------- */
+    $payload = [
+        'table'      => $table_html,
+        'pagination' => $pagination_html,
+        'range'      => "Showing {$start_row}–{$end_row} of {$total}"
+    ];
+
+    wp_send_json($payload);
+}
