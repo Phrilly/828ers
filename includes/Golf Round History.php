@@ -1,33 +1,34 @@
+<?php
 /**
  * Golf Round History
+ * Shortcode: [golf_round_history]
+ * AJAX action: gh_load_history
  */
-/* =======================================================
-   GOLF HISTORY – AJAX (NO CACHE VERSION)
-   (Paste this entire block into Code Snippets)
-======================================================= */
 
-/* -------------------------------------------------------
-   PART 1: THE SHORTCODE (Frontend)
-------------------------------------------------------- */
 add_shortcode('golf_round_history', function () {
     global $wpdb;
 
-    // Fetch players for the dropdown
-    $player_list = $wpdb->get_results("SELECT player_id, name FROM wp_golf_players ORDER BY name ASC");
+    $players_table = $wpdb->prefix . 'golf_players';
 
-    ob_start(); ?>
-    
+    // Fetch players for the dropdown
+    $player_list = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name ASC");
+
+    $nonce = wp_create_nonce('gh_ajax_nonce');
+
+    ob_start();
+    ?>
     <div id="golf-history-app" data-page="1" data-player="0">
-        
         <div class="history-filter-bar">
             <label>Filter Player:</label>
             <select id="gh-filter">
                 <option value="0">-- All Players --</option>
-                <?php if ($player_list): foreach ($player_list as $p): ?>
-                    <option value="<?= (int) $p->player_id ?>">
-                        <?= esc_html($p->name) ?>
-                    </option>
-                <?php endforeach; endif; ?>
+                <?php if ($player_list): ?>
+                    <?php foreach ($player_list as $p): ?>
+                        <option value="<?php echo (int) $p->player_id; ?>">
+                            <?php echo esc_html($p->name); ?>
+                        </option>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </select>
         </div>
 
@@ -41,100 +42,113 @@ add_shortcode('golf_round_history', function () {
     </div>
 
     <script>
-    (function(){
+    (function () {
         const app    = document.getElementById('golf-history-app');
         const table  = document.getElementById('gh-table-wrap');
         const pager  = document.getElementById('gh-pagination');
         const range  = document.getElementById('gh-range');
         const filter = document.getElementById('gh-filter');
 
-        // Main Load Function
-        function load(page = 1, player = 0){
+        function load(page = 1, player = 0) {
             table.style.opacity = '0.5';
             app.dataset.page = page;
 
-            fetch('<?php echo admin_url('admin-ajax.php'); ?>', {
+            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
                 method: 'POST',
-                headers: {'Content-Type':'application/x-www-form-urlencoded'},
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
                     action: 'gh_load_history',
                     page: page,
                     player: player,
-                    // SECURITY: Nonce
-                    gh_nonce: '<?php echo wp_create_nonce('gh_ajax_nonce'); ?>'
+                    gh_nonce: '<?php echo esc_js($nonce); ?>'
                 })
             })
             .then(r => r.json())
             .then(d => {
-                table.innerHTML = d.table;
-                pager.innerHTML = d.pagination;
-                range.innerHTML = d.range;
+                table.innerHTML = d.table || '';
+                pager.innerHTML = d.pagination || '';
+                range.innerHTML = d.range || '';
                 table.style.opacity = '1';
 
-                if(page > 1) {
-                    app.scrollIntoView({behavior:'smooth', block:'start'});
+                if (page > 1) {
+                    app.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+            })
+            .catch(() => {
+                table.innerHTML = '<p>Failed to load.</p>';
+                table.style.opacity = '1';
             });
         }
 
-        // Handle Pagination Clicks
-        pager.addEventListener('click', e => {
+        pager.addEventListener('click', (e) => {
             const target = e.target.closest('[data-page]');
             if (!target) return;
             e.preventDefault();
             load(parseInt(target.dataset.page, 10), filter.value);
         });
 
-        // Handle Filter Change
         filter.addEventListener('change', () => {
             load(1, filter.value);
         });
 
-        // Initial Load
         load();
     })();
     </script>
-
     <?php
     return ob_get_clean();
 });
 
-/* -------------------------------------------------------
-   PART 2: THE AJAX HANDLER (Backend - NO CACHE)
-------------------------------------------------------- */
 add_action('wp_ajax_gh_load_history', 'gh_load_history');
 add_action('wp_ajax_nopriv_gh_load_history', 'gh_load_history');
 
 function gh_load_history() {
-    // SECURITY: Verify request
     check_ajax_referer('gh_ajax_nonce', 'gh_nonce');
-
     global $wpdb;
 
     $limit  = 20;
-    $page   = max(1, intval($_POST['page'] ?? 1));
-    $player = intval($_POST['player'] ?? 0);
+    $page   = max(1, (int) ($_POST['page'] ?? 1));
+    $player = (int) ($_POST['player'] ?? 0);
     $offset = ($page - 1) * $limit;
 
-    $where  = $player ? $wpdb->prepare("WHERE player_id = %d", $player) : "";
+    $history_view = $wpdb->prefix . 'golf_dashboard_history';
 
-    /* ---------- QUERY (Direct DB Hit - No Caching) ---------- */
-    $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM wp_golf_dashboard_history $where");
+    $where_sql = '';
+    $where_args = [];
+    if ($player) {
+        $where_sql = 'WHERE player_id = %d';
+        $where_args[] = $player;
+    }
 
-    $rows = $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT * FROM wp_golf_dashboard_history $where ORDER BY date_played DESC LIMIT %d OFFSET %d",
-            $limit, $offset
-        ),
-        ARRAY_A
-    );
+    // Total rows
+    if ($where_sql) {
+        $total = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$history_view} {$where_sql}", ...$where_args));
+    } else {
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$history_view}");
+    }
 
-    $total_pages = max(1, ceil($total / $limit));
-    $start_row   = $offset + 1;
+    // Rows
+    if ($where_sql) {
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$history_view} {$where_sql} ORDER BY date_played DESC LIMIT %d OFFSET %d",
+            ...array_merge($where_args, [$limit, $offset])
+        );
+    } else {
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$history_view} ORDER BY date_played DESC LIMIT %d OFFSET %d",
+            $limit,
+            $offset
+        );
+    }
+
+    $rows = $wpdb->get_results($sql, ARRAY_A);
+
+    $total_pages = max(1, (int) ceil($total / $limit));
+    $start_row   = $total ? ($offset + 1) : 0;
     $end_row     = min($offset + $limit, $total);
 
-    /* ---------- HTML: TABLE ---------- */
-    ob_start(); ?>
+    // Table HTML
+    ob_start();
+    ?>
     <table class="history-table">
         <thead>
             <tr>
@@ -145,19 +159,21 @@ function gh_load_history() {
             </tr>
         </thead>
         <tbody>
-        <?php if ($rows): foreach ($rows as $r): ?>
-            <tr>
-                <td><?= esc_html(date('j M Y', strtotime($r['date_played']))) ?></td>
-                <td><strong><?= esc_html($r['player_name']) ?></strong></td>
-                <td><span class="tee-badge tee-<?= esc_attr(strtolower($r['tee_colour'])) ?>"><?= esc_html($r['tee_colour']) ?></span></td>
-                <td class="tc"><?= (int) $r['gross_score'] ?></td>
-                <td class="tc"><?= (int) $r['net_score'] ?></td>
-                <td class="tc"><?= number_format($r['differential'], 1) ?></td>
-                <td class="tc"><?= (int) $r['putts'] ?></td>
-                <td class="tc"><?= (int) $r['gir'] ?></td>
-                <td class="tc"><?= $r['is_counting'] ? '<span class="counting-dot"></span>' : '' ?></td>
-            </tr>
-        <?php endforeach; else: ?>
+        <?php if ($rows): ?>
+            <?php foreach ($rows as $r): ?>
+                <tr>
+                    <td><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
+                    <td><strong><?php echo esc_html($r['player_name']); ?></strong></td>
+                    <td><span class="tee-badge tee-<?php echo esc_attr(strtolower($r['tee_colour'] ?? '')); ?>"><?php echo esc_html($r['tee_colour'] ?? ''); ?></span></td>
+                    <td class="tc"><?php echo (int) ($r['gross_score'] ?? 0); ?></td>
+                    <td class="tc"><?php echo (int) ($r['net_score'] ?? 0); ?></td>
+                    <td class="tc"><?php echo esc_html(number_format((float) ($r['differential'] ?? 0), 1)); ?></td>
+                    <td class="tc"><?php echo (int) ($r['putts'] ?? 0); ?></td>
+                    <td class="tc"><?php echo (int) ($r['gir'] ?? 0); ?></td>
+                    <td class="tc"><?php echo !empty($r['is_counting']) ? '<span class="counting-dot"></span>' : ''; ?></td>
+                </tr>
+            <?php endforeach; ?>
+        <?php else: ?>
             <tr><td colspan="9">No rounds found.</td></tr>
         <?php endif; ?>
         </tbody>
@@ -165,7 +181,7 @@ function gh_load_history() {
     <?php
     $table_html = ob_get_clean();
 
-    /* ---------- HTML: PAGINATION ---------- */
+    // Pagination HTML
     ob_start();
 
     $window = 2;
@@ -173,11 +189,11 @@ function gh_load_history() {
     $end    = min($total_pages, $page + $window);
 
     if ($page > 1) {
-        echo "<a class='page-numbers prev' data-page='".($page-1)."'>« Prev</a>";
+        echo "<a class='page-numbers prev' href='#' data-page='" . ($page - 1) . "'>« Prev</a>";
     }
 
     if ($start > 1) {
-        echo "<a class='page-numbers' data-page='1'>1</a>";
+        echo "<a class='page-numbers' href='#' data-page='1'>1</a>";
         if ($start > 2) echo "<span class='page-numbers dots'>…</span>";
     }
 
@@ -185,27 +201,24 @@ function gh_load_history() {
         if ($i === $page) {
             echo "<span class='page-numbers current'>{$i}</span>";
         } else {
-            echo "<a class='page-numbers' data-page='{$i}'>{$i}</a>";
+            echo "<a class='page-numbers' href='#' data-page='{$i}'>{$i}</a>";
         }
     }
 
     if ($end < $total_pages) {
         if ($end < $total_pages - 1) echo "<span class='page-numbers dots'>…</span>";
-        echo "<a class='page-numbers' data-page='{$total_pages}'>{$total_pages}</a>";
+        echo "<a class='page-numbers' href='#' data-page='{$total_pages}'>{$total_pages}</a>";
     }
 
     if ($page < $total_pages) {
-        echo "<a class='page-numbers next' data-page='".($page+1)."'>Next »</a>";
+        echo "<a class='page-numbers next' href='#' data-page='" . ($page + 1) . "'>Next »</a>";
     }
 
     $pagination_html = ob_get_clean();
 
-    /* ---------- RESPONSE ---------- */
-    $payload = [
+    wp_send_json([
         'table'      => $table_html,
         'pagination' => $pagination_html,
-        'range'      => "Showing {$start_row}–{$end_row} of {$total}"
-    ];
-
-    wp_send_json($payload);
+        'range'      => "Showing {$start_row}–{$end_row} of {$total}",
+    ]);
 }
