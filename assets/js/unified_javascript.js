@@ -42,11 +42,15 @@ function ajaxUpdate(scoreId) {
   saveBtn.text('SAVING...').prop('disabled', true);
 
   jQuery.post(GOLF_AJAX_URL, data, function(res) {
-    if (!res || !res.success) {
-      alert((res && res.data && res.data.message) ? res.data.message : "Update failed.");
-      saveBtn.text('SAVE').prop('disabled', false);
+    console.log('SAVE raw response:', res);
+
+    if (!res || res.success !== true) {
+      alert('Update failed. See console.');
       return;
     }
+
+    alert('Update success!');
+  });
 
     // Update computed fields returned by PHP
     row.find('.ed-net').text(res.data.net_score);
