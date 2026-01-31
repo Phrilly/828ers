@@ -164,7 +164,7 @@ function golfSaveAll() {
               ? '<span class="count-dot" aria-label="Counting round"></span>'
               : "";
 
-          // IMPORTANT FIX: add "edit-row" so inserted rows match existing row styling
+          // FIX: add "edit-row" so inserted rows match existing grid styling
           const rowHtml = `
             <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
               <div><strong>${escapeHtml(r.player_name)}</strong></div>
@@ -185,6 +185,10 @@ function golfSaveAll() {
           `;
 
           $header.after(rowHtml);
+
+          // Belt-and-braces: force the class even if something strips it
+          jQuery("#row-" + r.score_id).addClass("edit-row");
+
           jQuery("#row-" + r.score_id).find(".ed-tee").val(String(r.tee_id));
         });
 
