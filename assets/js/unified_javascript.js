@@ -164,8 +164,9 @@ function golfSaveAll() {
               ? '<span class="count-dot" aria-label="Counting round"></span>'
               : "";
 
+          // IMPORTANT FIX: add "edit-row" so inserted rows match existing row styling
           const rowHtml = `
-            <div class="golf-grid-row" id="row-${escapeAttr(r.score_id)}">
+            <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
               <div><strong>${escapeHtml(r.player_name)}</strong></div>
               <input type="date" class="golf-input ed-date" value="${escapeAttr(r.date_played)}">
               <select class="golf-input ed-tee">${teeOptionsHtml}</select>
@@ -177,12 +178,8 @@ function golfSaveAll() {
               <div class="computed ed-diff">${escapeHtml(r.differential)}</div>
               <div class="tc ed-count">${countHtml}</div>
               <div class="tc action-btns">
-                <button class="golf-btn btn-save" onclick="ajaxUpdate(${escapeAttr(
-                  r.score_id
-                )})">SAVE</button>
-                <button class="golf-btn btn-del" onclick="ajaxDelete(${escapeAttr(
-                  r.score_id
-                )})">DEL</button>
+                <button class="golf-btn btn-save" onclick="ajaxUpdate(${escapeAttr(r.score_id)})">SAVE</button>
+                <button class="golf-btn btn-del" onclick="ajaxDelete(${escapeAttr(r.score_id)})">DEL</button>
               </div>
             </div>
           `;
