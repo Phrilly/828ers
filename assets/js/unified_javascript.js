@@ -1,3 +1,6 @@
+// DEPLOY TEST (change this string every push)
+window.__GOLF_BUILD_ID__ = "2026-01-31_1842_a";
+console.log("828ers JS loaded. Build:", window.__GOLF_BUILD_ID__);
 const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php";
 
 /* --------------------------
