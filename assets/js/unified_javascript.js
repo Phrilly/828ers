@@ -4,12 +4,12 @@ const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php";
    Delete a historic round
    -------------------------- */
 function ajaxDelete(scoreId) {
-  if (!confirm("Are you sure you want to delete round " + scoreId + "?")) return;
+  if (!confirm("Delete round " + scoreId + "?")) return;
 
   jQuery.post(GOLF_AJAX_URL, { action: 'golf_final_action_delete', score_id: scoreId }, function(res) {
     if (res && res.success) {
       jQuery('#row-' + scoreId).remove();
-      // Confirmation Alert
+      // Added confirmation alert
       alert("Round " + scoreId + " has been successfully deleted.");
     } else {
       alert("Delete failed.");
@@ -19,7 +19,6 @@ function ajaxDelete(scoreId) {
 
 /* --------------------------
    Update a historic round
-   (with button feedback)
    -------------------------- */
 function ajaxUpdate(scoreId) {
   const row = jQuery('#row-' + scoreId);
@@ -36,7 +35,7 @@ function ajaxUpdate(scoreId) {
     gir: row.find('.ed-gir').val()
   };
 
-  // Set button to "Saving" state
+  // Immediate feedback
   saveBtn.text('SAVING...').prop('disabled', true);
 
   jQuery.post(GOLF_AJAX_URL, data, function(res) {
@@ -57,12 +56,11 @@ function ajaxUpdate(scoreId) {
       countCell.append('<span class="count-dot" aria-label="Counting round"></span>');
     }
 
-    // Visual Confirmation: Change button to green "SAVED!"
-    saveBtn.text('SAVED!').css('background-color', '#28a745').prop('disabled', false);
+    // Added visual confirmation: Turn button green and show "SAVED!"
+    saveBtn.text('SAVED!').css({'background-color': '#28a745', 'color': '#fff'}).prop('disabled', false);
     
-    // Reset button after 2 seconds
     setTimeout(function() {
-      saveBtn.text('SAVE').css('background-color', '');
+      saveBtn.text('SAVE').css({'background-color': '', 'color': ''});
     }, 2000);
   });
 }
@@ -101,8 +99,8 @@ function golfSaveAll() {
       return;
     }
 
-    // Confirmation Alert for bulk save
-    alert("Successfully saved " + rounds.length + " new round(s).");
+    // Added confirmation alert for new rounds
+    alert("Successfully saved " + rounds.length + " round(s).");
 
     const $anyTeeSelect = jQuery('.golf-edit-box .ed-tee').first();
     const teeOptionsHtml = $anyTeeSelect.length ? $anyTeeSelect.html() : '';
