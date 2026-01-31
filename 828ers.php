@@ -15,8 +15,8 @@ require_once plugin_dir_path(__FILE__) . 'includes/Download Excel Sheet.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Handicap Index Chart.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Show admin bar.php';
 
-// Load your CSS and JS (This makes them work on the front-end)
-add_action('wp_enqueue_scripts', function() {
+// Load your CSS and JS (front-end)
+add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('828ers-css', plugin_dir_url(__FILE__) . 'assets/css/unified_css.css');
     wp_enqueue_script('828ers-js', plugin_dir_url(__FILE__) . 'assets/js/unified_javascript.js', array(), '1.0', true);
 });
