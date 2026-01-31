@@ -1,3 +1,4 @@
+<?php
 /**
  * GOLF DATA EXPORT ENGINE
  * Action: admin_post_export_golf_data
