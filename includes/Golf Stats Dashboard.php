@@ -1,5 +1,4 @@
 <?php
-
 add_shortcode('golf_stats_dashboard', function () {
     global $wpdb;
 

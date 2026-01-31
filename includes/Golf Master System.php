@@ -3,7 +3,6 @@
    GOLF MASTER SHORTCODES + AJAX
    (Entry form + Edit grid + Save/Update/Delete)
    ====================================================== */
-
 /* ============================
    1) TOP FORM: 4-Row Entry
    Shortcode: [golf_scorecard_entry]
