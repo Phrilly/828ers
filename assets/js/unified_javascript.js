@@ -1,6 +1,6 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-01-31_1842_b";
-console.log("828ers JS loaded. Build:  THIS IS BUILD B", window.__GOLF_BUILD_ID__);
+window.__GOLF_BUILD_ID__ = "2026-01-31_1842_c";
+console.log("828ers JS loaded. Build: THIS IS BUILD C", window.__GOLF_BUILD_ID__);
 
 // NOTE: Better long-term is to inject this via wp_localize_script(admin_url('admin-ajax.php'))
 const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php";
@@ -23,9 +23,7 @@ function ajaxDelete(scoreId) {
           alert("Round " + scoreId + " has been successfully deleted.");
         } else {
           alert(
-            (res && res.data && res.data.message)
-              ? res.data.message
-              : "Delete failed."
+            (res && res.data && res.data.message) ? res.data.message : "Delete failed."
           );
         }
       },
@@ -83,9 +81,7 @@ function ajaxUpdate(scoreId) {
         const countCell = row.find(".ed-count");
         countCell.empty();
         if (parseInt(res.data.is_counting, 10) === 1) {
-          countCell.append(
-            '<span class="count-dot" aria-label="Counting round"></span>'
-          );
+          countCell.append('<span class="count-dot" aria-label="Counting round"></span>');
         }
 
         // Visual confirmation: Turn button green and show "SAVED!"
@@ -165,6 +161,7 @@ function golfSaveAll() {
               : "";
 
           // FIX: add "edit-row" so inserted rows match existing grid styling
+          // FIX: add "tc" to NET and DIFF so they align with the centered columns
           const rowHtml = `
             <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
               <div><strong>${escapeHtml(r.player_name)}</strong></div>
@@ -174,8 +171,8 @@ function golfSaveAll() {
               <input type="number" class="golf-input ed-pcc tc" value="${escapeAttr(r.pcc_adjustment)}">
               <input type="number" class="golf-input ed-putts tc" value="${escapeAttr(r.putts)}">
               <input type="number" class="golf-input ed-gir tc" value="${escapeAttr(r.gir)}">
-              <div class="computed ed-net">${escapeHtml(r.net_score)}</div>
-              <div class="computed ed-diff">${escapeHtml(r.differential)}</div>
+              <div class="computed ed-net tc">${escapeHtml(r.net_score)}</div>
+              <div class="computed ed-diff tc">${escapeHtml(r.differential)}</div>
               <div class="tc ed-count">${countHtml}</div>
               <div class="tc action-btns">
                 <button class="golf-btn btn-save" onclick="ajaxUpdate(${escapeAttr(r.score_id)})">SAVE</button>
