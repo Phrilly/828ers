@@ -17,6 +17,30 @@ require_once plugin_dir_path(__FILE__) . 'includes/Show admin bar.php';
 
 // Load your CSS and JS (front-end)
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('828ers-css', plugin_dir_url(__FILE__) . 'assets/css/unified_css.css');
-    wp_enqueue_script('828ers-js', plugin_dir_url(__FILE__) . 'assets/js/unified_javascript.js', array(), '1.0.99', true);
+    $base_url  = plugin_dir_url(__FILE__);
+    $base_path = plugin_dir_path(__FILE__);
+
+    $css_rel = 'assets/css/unified_css.css';
+    $js_rel  = 'assets/js/unified_javascript.js';
+
+    $css_path = $base_path . $css_rel;
+    $js_path  = $base_path . $js_rel;
+
+    $css_ver = file_exists($css_path) ? filemtime($css_path) : null;
+    $js_ver  = file_exists($js_path)  ? filemtime($js_path)  : null;
+
+    wp_enqueue_style(
+        '828ers-css',
+        $base_url . $css_rel,
+        array(),
+        $css_ver
+    );
+
+    wp_enqueue_script(
+        '828ers-js',
+        $base_url . $js_rel,
+        array('jquery'),
+        $js_ver,
+        true
+    );
 });
