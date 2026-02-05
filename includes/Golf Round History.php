@@ -153,28 +153,56 @@ function gh_load_history() {
         <thead>
             <tr>
                 <th>Date</th><th>Player</th><th>Tee</th>
+                <th class="tc">HI</th>
                 <th class="tc">Gross</th><th class="tc">Nett</th>
                 <th class="tc">Diff</th><th class="tc">Putts</th>
-                <th class="tc">GIR</th><th class="tc">Count</th>
+                <th class="tc">GIR</th><th class="tc">Adj</th><th class="tc">Count</th>
             </tr>
         </thead>
         <tbody>
         <?php if ($rows): ?>
             <?php foreach ($rows as $r): ?>
-                <tr>
+                <?php
+                $cap = !empty($r['cap_applied']);
+                $esr = !empty($r['esr_applied']);
+
+                $row_class = '';
+                if ($cap) $row_class .= ' is-cap';
+                if ($esr) $row_class .= ' is-esr';
+
+                $adj = '';
+                if ($esr) $adj .= 'E';
+                if ($cap) $adj .= 'C';
+
+                $hi = isset($r['starting_index']) ? number_format((float)$r['starting_index'], 1) : '-';
+                ?>
+                <tr class="<?php echo esc_attr(trim($row_class)); ?>">
                     <td><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
                     <td><strong><?php echo esc_html($r['player_name']); ?></strong></td>
-                    <td><span class="tee-badge tee-<?php echo esc_attr(strtolower($r['tee_colour'] ?? '')); ?>"><?php echo esc_html($r['tee_colour'] ?? ''); ?></span></td>
+                    <td>
+                        <span class="tee-badge tee-<?php echo esc_attr(strtolower($r['tee_colour'] ?? '')); ?>">
+                            <?php echo esc_html($r['tee_colour'] ?? ''); ?>
+                        </span>
+                    </td>
+
+                    <td class="tc"><?php echo esc_html($hi); ?></td>
                     <td class="tc"><?php echo (int) ($r['gross_score'] ?? 0); ?></td>
                     <td class="tc"><?php echo (int) ($r['net_score'] ?? 0); ?></td>
                     <td class="tc"><?php echo esc_html(number_format((float) ($r['differential'] ?? 0), 1)); ?></td>
                     <td class="tc"><?php echo (int) ($r['putts'] ?? 0); ?></td>
                     <td class="tc"><?php echo (int) ($r['gir'] ?? 0); ?></td>
+
+                    <td class="tc">
+                        <?php if ($adj !== ''): ?>
+                            <span class="adj-badge"><?php echo esc_html($adj); ?></span>
+                        <?php endif; ?>
+                    </td>
+
                     <td class="tc"><?php echo !empty($r['is_counting']) ? '<span class="counting-dot"></span>' : ''; ?></td>
                 </tr>
             <?php endforeach; ?>
         <?php else: ?>
-            <tr><td colspan="9">No rounds found.</td></tr>
+            <tr><td colspan="11">No rounds found.</td></tr>
         <?php endif; ?>
         </tbody>
     </table>
