@@ -716,3 +716,19 @@ body #grp5 .grp5-page.disabled{
 #grp5-pager .grp5-page.disabled{
   opacity:.45;
 }
+/* Subtle row tinting for ESR/Cap */
+.history-table tbody tr.is-esr { background: #eef6ff; }
+.history-table tbody tr.is-cap { background: #fff7e8; }
+.history-table tbody tr.is-esr.is-cap { background: #f3efff; }
+
+/* EC badge */
+.history-table .adj-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.2;
+    border: 1px solid rgba(0,0,0,.12);
+    background: #fff;
+    color: #333;
+}
