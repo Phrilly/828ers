@@ -92,22 +92,7 @@ function grp5_load() {
     $page   = max(1, (int) ($_POST['page'] ?? 1));
     $offset = ($page - 1) * $limit;
 
-    // Discover player slots from view columns: p1_name, p2_name, ...
-    $cols = $wpdb->get_col($wpdb->prepare("
-        SELECT COLUMN_NAME
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = %s
-        ORDER BY ORDINAL_POSITION
-    ", $view));
-
-    $playerIds = [];
-    foreach ($cols as $c) {
-        if (preg_match('/^p(\\d+)_name$/i', $c, $m)) {
-            $playerIds[] = (int) $m[1];
-        }
-    }
-    sort($playerIds);
+    $playerIds = [1, 2, 3, 4];
 
     // Total rows for paging
     $total      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$view}");
