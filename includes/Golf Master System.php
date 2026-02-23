@@ -145,7 +145,7 @@ add_shortcode('golf_edit_grid', function () {
                     <?php
                     $pcc_current = (int) $r->pcc_adjustment;
                     foreach ([-1, 0, 1, 2, 3] as $val) {
-                        $sel = ($pcc_current === $val) ? 'selected' : '';
+                        $sel     = ($pcc_current === $val) ? 'selected' : '';
                         $display = ($val > 0) ? "+{$val}" : $val;
                         echo "<option value='{$val}' {$sel}>{$display}</option>";
                     }
@@ -186,14 +186,14 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
     $scores_table = $wpdb->prefix . 'golf_scores';
     $history_view = $wpdb->prefix . 'golf_dashboard_history';
 
-    $rounds = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
+    $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
 
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
-        $date   = isset($r['date']) ? sanitize_text_field($r['date']) : '';
-        $tee    = isset($r['tee']) ? (int) $r['tee'] : 0;
-        $gross  = isset($r['gross']) ? (int) $r['gross'] : 0;
+        $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
+        $tee    = isset($r['tee'])       ? (int) $r['tee'] : 0;
+        $gross  = isset($r['gross'])     ? (int) $r['gross'] : 0;
 
         if (!$player || !$date || !$tee || !$gross) {
             continue;
@@ -206,7 +206,7 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             'gross_score'    => $gross,
             'pcc_adjustment' => 0,
             'putts'          => isset($r['putts']) ? (int) $r['putts'] : 0,
-            'gir'            => isset($r['gir']) ? (int) $r['gir'] : 0,
+            'gir'            => isset($r['gir'])   ? (int) $r['gir']   : 0,
         ]);
 
         if ($ok) {
@@ -218,28 +218,13 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         wp_send_json_error(['message' => 'No valid rounds to save.']);
     }
 
-    $affected_players = $wpdb->get_results($wpdb->prepare(
-        "SELECT DISTINCT player_id, MIN(date_played) as earliest 
-         FROM {$scores_table}
-         WHERE score_id IN (" . implode(',', array_fill(0, count($inserted_ids), '%d')) . ") 
-         GROUP BY player_id",
-        ...$inserted_ids
-    ));
-
-    foreach ($affected_players as $ap) {
-        $wpdb->query($wpdb->prepare(
-            "CALL repair_handicap_history(%d, %s)",
-            $ap->player_id,
-            $ap->earliest
-        ));
-    }
-
+    // Trigger fires automatically on INSERT — no CALL needed here.
+    // Just read back the rows to return to the UI.
     $placeholders = implode(',', array_fill(0, count($inserted_ids), '%d'));
     $query = $wpdb->prepare(
-        "SELECT * FROM {$history_view} WHERE score_id IN ($placeholders) ORDER BY date_played DESC, score_id DESC",
+        "SELECT * FROM {$history_view} WHERE score_id IN ({$placeholders}) ORDER BY date_played DESC, score_id DESC",
         ...$inserted_ids
     );
-
     $rows = $wpdb->get_results($query);
 
     wp_send_json_success(['inserted_ids' => $inserted_ids, 'rows' => $rows]);
@@ -250,32 +235,21 @@ add_action('wp_ajax_golf_final_action_delete', function () {
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
-    $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
 
+    $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
-    $round = $wpdb->get_row($wpdb->prepare(
-        "SELECT player_id, date_played FROM {$scores_table} WHERE score_id = %d",
-        $score_id
-    ));
-
     $deleted = $wpdb->delete($scores_table, ['score_id' => $score_id], ['%d']);
 
+    // Trigger fires automatically on DELETE — no CALL needed here.
+
     if ($deleted === false) {
-        wp_send_json_error(['message' => 'Database delete failed', 'dberror' => $wpdb->last_error]);
+        wp_send_json_error(['message' => 'Database delete failed', 'db_error' => $wpdb->last_error]);
     }
     if ($deleted === 0) {
         wp_send_json_error(['message' => 'No rows deleted (not found)', 'score_id' => $score_id]);
-    }
-
-    if ($round) {
-        $wpdb->query($wpdb->prepare(
-            "CALL repair_handicap_history(%d, %s)",
-            $round->player_id,
-            $round->date_played
-        ));
     }
 
     wp_send_json_success(['deleted' => (int) $deleted, 'score_id' => $score_id]);
@@ -293,30 +267,17 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
-    $old_round = $wpdb->get_row($wpdb->prepare(
-        "SELECT player_id, date_played FROM {$scores_table} WHERE score_id = %d",
-        $score_id
-    ));
+    $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : date('Y-m-d');
 
-    $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : ($old_round ? $old_round->date_played : date('Y-m-d'));
-
+    // Trigger fires automatically on UPDATE — no CALL needed here.
     $wpdb->update($scores_table, [
         'date_played'    => $new_date,
-        'tee_id'         => isset($_POST['tee']) ? (int) $_POST['tee'] : 0,
-        'gross_score'    => isset($_POST['gross']) ? (int) $_POST['gross'] : 0,
-        'pcc_adjustment' => isset($_POST['pcc']) ? (int) $_POST['pcc'] : 0,
-        'putts'          => isset($_POST['putts']) ? (int) $_POST['putts'] : 0,
-        'gir'            => isset($_POST['gir']) ? (int) $_POST['gir'] : 0,
+        'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
+        'gross_score'    => isset($_POST['gross'])  ? (int) $_POST['gross']  : 0,
+        'pcc_adjustment' => isset($_POST['pcc'])    ? (int) $_POST['pcc']    : 0,
+        'putts'          => isset($_POST['putts'])  ? (int) $_POST['putts']  : 0,
+        'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
     ], ['score_id' => $score_id], null, ['%d']);
-
-    if ($old_round) {
-        $earliest = (strtotime($new_date) < strtotime($old_round->date_played)) ? $new_date : $old_round->date_played;
-        $wpdb->query($wpdb->prepare(
-            "CALL repair_handicap_history(%d, %s)",
-            $old_round->player_id,
-            $earliest
-        ));
-    }
 
     $row = $wpdb->get_row(
         $wpdb->prepare(
