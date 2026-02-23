@@ -1,4 +1,6 @@
-``` mermaid
+```mermaid
+flowchart TD
+
 %% ==========================================
     %% DIAGRAM 4: KNOWN DUPLICATES AND CONFLICTS
     %% ==========================================

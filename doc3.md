@@ -1,4 +1,6 @@
-``` mermaid
+```mermaid
+flowchart TD
+
 %% ==========================================
     %% DIAGRAM 3: HANDICAP CALCULATION CHAIN
     %% ==========================================
