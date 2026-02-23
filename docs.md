@@ -1,3 +1,4 @@
+```mermaid
 flowchart TD
 
     %% ==========================================
@@ -5,64 +6,69 @@ flowchart TD
     %% ==========================================
     subgraph D1 ["Diagram 1 — Site Overview"]
         direction TB
-        Site["828ers.im"] --> Home["🏠 Home Page"]
-        Site --> Scorecard["📋 Scorecard Page"]
-        Site --> Rounds["📊 Rounds Page"]
+        D1_Site["828ers.im"] --> D1_Home["🏠 Home Page"]
+        D1_Site --> D1_Scorecard["📋 Scorecard Page"]
+        D1_Site --> D1_Rounds["📊 Rounds Page"]
         
-        Home --> SC1["[golf_stats_dashboard]"]
-        Home --> SC2["[golf_round_history]"]
-        Home --> SC3["[golf_hcp_chart]"]
-        Home --> SC4["[golf_rounds_pivot]"]
+        %% Home Page Elements
+        D1_Home --> D1_SC1["Golf Dashboard\n(#golf-dashboard)"]
+        D1_Home --> D1_SC2["Round History\n(#golf-history-app)"]
+        D1_Home --> D1_SC3["Handicap Chart\n(#hcp-chart)"]
         
-        Scorecard --> SC5["[golf_scorecard_entry]"]
-        Scorecard --> SC6["[golf_edit_grid]"]
+        %% Scorecard Page Elements
+        D1_Scorecard --> D1_SC5["Scorecard Entry\n(.golf-entry-box)"]
+        D1_Scorecard --> D1_SC6["Edit Grid\n(.golf-edit-box)"]
         
-        SC1 --> F1["Golf Stats Dashboard.php"]
-        SC2 --> F2["Golf Round History.php"]
-        SC3 --> F3["Handicap Index Chart.php"]
-        SC4 --> F4["Golf Rounds Pivot.php"]
-        SC5 --> F5["Golf Master System.php"]
-        SC6 --> F5
+        %% Rounds Page Elements
+        D1_Rounds --> D1_SC4["Rounds List / Pivot\n(#grp5-app)"]
+        
+        %% File Mapping
+        D1_SC1 --> D1_F1["Golf Stats Dashboard.php"]
+        D1_SC2 --> D1_F2["Golf Round History.php"]
+        D1_SC3 --> D1_F3["Handicap Index Chart.php"]
+        D1_SC4 --> D1_F4["Golf Rounds Pivot.php"]
+        D1_SC5 --> D1_F5["Golf Master System.php"]
+        D1_SC6 --> D1_F5
     end
 
     %% ==========================================
-    %% DIAGRAM 2: SCORECARD DATA FLOW (Converted to Flow)
+    %% DIAGRAM 2: SCORECARD DATA FLOW
     %% ==========================================
     subgraph D2 ["Diagram 2 — Scorecard Data Flow"]
         direction TB
         
-        subgraph Flow_Save ["1. Save New Score"]
+        subgraph D2_Save ["1. Save New Score"]
             direction TB
-            U1["User: Fill form + click Save All"] --> J1["JS: POST action=golf_final_action_bulk_save"]
-            J1 --> W1["WP: admin-ajax.php"] --> P1["PHP: golf_final_action_bulk_save()"]
-            P1 --> DB1[("DB: INSERT into wp_golf_scores")]
-            DB1 --> T1["TRG: AFTER INSERT (trg_scores_after_insert)"]
-            T1 --> SP1A["SP: CALL sp_update_low_hi_365()"]
-            T1 --> SP1B["SP: CALL sp_calculate_single_score_hcp()"]
-            SP1B --> HH1[("HH: UPDATE wp_golf_handicap_history")]
-            HH1 --> P1R["PHP: JSON success + row data"] --> J1R["JS: New row appears in edit grid"]
+            D2_U1["User: Fill form + click Save All"] --> D2_J1["JS: POST action=golf_final_action_bulk_save"]
+            D2_J1 --> D2_W1["WP: admin-ajax.php"] --> D2_P1["PHP: golf_final_action_bulk_save()"]
+            D2_P1 --> D2_DB1[("DB: INSERT wp_golf_scores")]
+            D2_DB1 --> D2_T1["TRG: AFTER INSERT"]
+            D2_T1 --> D2_SP1A["CALL sp_update_low_hi_365()"]
+            D2_T1 --> D2_SP1B["CALL sp_calculate_single_score_hcp()"]
+            D2_SP1B --> D2_HH1[("HH: UPDATE wp_golf_handicap_history")]
+            D2_HH1 --> D2_P1R["PHP: JSON success + row data"] --> D2_J1R["JS: New row appears in edit grid"]
         end
 
-        subgraph Flow_Update ["2. Update Existing Score"]
+        subgraph D2_Update ["2. Update Existing Score"]
             direction TB
-            U2["User: Click SAVE on edit row"] --> J2["JS: POST action=golf_final_action_update"]
-            J2 --> W2["WP: admin-ajax.php"] --> P2["PHP: golf_final_action_update()"]
-            P2 --> DB2[("DB: UPDATE wp_golf_scores")]
-            DB2 --> T2["TRG: AFTER UPDATE (trg_scores_after_update)"]
-            T2 --> SP2["SP: CALL sp_repair_history_from_date()"]
-            SP2 --> HH2[("HH: Rebuild handicap history from date")]
-            HH2 --> P2R["PHP: JSON success + net/diff/count"] --> J2R["JS: Row updates in place"]
+            D2_U2["User: Click SAVE on edit row"] --> D2_J2["JS: POST action=golf_final_action_update"]
+            D2_J2 --> D2_W2["WP: admin-ajax.php"] --> D2_P2["PHP: golf_final_action_update()"]
+            D2_P2 --> D2_DB2[("DB: UPDATE wp_golf_scores")]
+            D2_DB2 --> D2_T2["TRG: AFTER UPDATE"]
+            D2_T2 --> D2_SP2["CALL sp_repair_history_from_date()"]
+            D2_SP2 --> D2_HH2[("HH: Rebuild history from date")]
+            D2_HH2 --> D2_P2R["PHP: JSON success + net/diff/count"] --> D2_J2R["JS: Row updates in place"]
         end
 
-        subgraph Flow_Delete ["3. Delete Score"]
+        subgraph D2_Delete ["3. Delete Score"]
             direction TB
-            U3["User: Click DEL"] --> J3["JS: POST action=golf_final_action_delete"]
-            J3 --> W3["WP: admin-ajax.php"] --> P3["PHP: golf_final_action_delete()"]
-            P3 --> DB3[("DB: DELETE from wp_golf_scores")]
-            DB3 --> T3["TRG: AFTER DELETE (trg_scores_after_delete)"]
-            T3 --> SP3["SP: CALL sp_repair_history_from_date()"]
-            SP3 --> HH3[("HH: Rebuild handicap history from date")]
-            HH3 --> P3R["PHP: JSON success"] --> J3R["JS: Row removed from grid"]
+            D2_U3["User: Click DEL"] --> D2_J3["JS: POST action=golf_final_action_delete"]
+            D2_J3 --> D2_W3["WP: admin-ajax.php"] --> D2_P3["PHP: golf_final_action_delete()"]
+            D2_P3 --> D2_DB3[("DB: DELETE from wp_golf_scores")]
+            D2_DB3 --> D2_T3["TRG: AFTER DELETE"]
+            D2_T3 --> D2_SP3["CALL sp_repair_history_from_date()"]
+            D2_SP3 --> D2_HH3[("HH: Rebuild history from date")]
+            D2_HH3 --> D2_P3R["PHP: JSON success"] --> D2_J3R["JS: Row removed from grid"]
         end
     end
 
@@ -71,36 +77,36 @@ flowchart TD
     %% ==========================================
     subgraph D3 ["Diagram 3 — Handicap Calculation Chain"]
         direction TB
-        SCORE["wp_golf_scores\nscore_id, player_id, tee_id\ngross_score, pcc_adjustment\ndate_played, putts, gir"] 
-        SCORE -->|AFTER INSERT/UPDATE/DELETE| TRG_D3["Triggers\ntrg_scores_after_insert\ntrg_scores_after_update\ntrg_scores_after_delete"]
+        D3_SCORE["wp_golf_scores\nscore_id, player_id, tee_id\ngross_score, pcc_adjustment\ndate_played, putts, gir"] 
+        D3_SCORE -->|AFTER INSERT/UPDATE/DELETE| D3_TRG["Triggers\ntrg_scores_after_insert\ntrg_scores_after_update\ntrg_scores_after_delete"]
         
-        TRG_D3 -->|"1. sp_update_low_hi_365()"| LOWHI["Set low_hi_365\nLowest hcp_after in last 365 days"]
-        TRG_D3 -->|"2. sp_repair_history_from_date()"| R1
+        D3_TRG -->|"1. sp_update_low_hi_365()"| D3_LOWHI["Set low_hi_365\nLowest hcp_after in last 365 days"]
+        D3_TRG -->|"2. sp_repair_history_from_date()"| D3_R1
         
-        subgraph REPAIR ["sp_repair_history_from_date()"]
+        subgraph D3_REPAIR ["sp_repair_history_from_date()"]
             direction TB
-            R1["Calculate diff_raw\n= 113 x slope / gross - rating - pcc"] --> R2["sp_apply_esr()\nESR -1.0 or -2.0 if diff 7-10 below HI"]
-            R2 --> R3["sp_calculate_single_score_hcp()\nBest 8 of last 20 differentials"]
-            R3 --> R4["Apply Soft Cap\n+3.0 above low_hi_365"]
-            R4 --> R5["Apply Hard Cap\n+5.0 above low_hi_365"]
-            R5 --> R6["UPDATE hcp_after, course_hcp\nplaying_hcp, net_score"]
+            D3_R1["Calculate diff_raw\n= 113 x slope / gross - rating - pcc"] --> D3_R2["sp_apply_esr()\nESR -1.0 or -2.0 if diff 7-10 below HI"]
+            D3_R2 --> D3_R3["sp_calculate_single_score_hcp()\nBest 8 of last 20 differentials"]
+            D3_R3 --> D3_R4["Apply Soft Cap\n+3.0 above low_hi_365"]
+            D3_R4 --> D3_R5["Apply Hard Cap\n+5.0 above low_hi_365"]
+            D3_R5 --> D3_R6["UPDATE hcp_after, course_hcp\nplaying_hcp, net_score"]
         end
         
-        R6 --> HH_D3["wp_golf_handicap_history\nhcp_before, hcp_after, low_hi_365\ndiff_raw, differential, esr_adj\ncap_type, cap_reduction\nis_best8, playing_hcp, net_score"]
+        D3_R6 --> D3_HH["wp_golf_handicap_history\nhcp_before, hcp_after, low_hi_365\ndiff_raw, differential, esr_adj\ncap_type, cap_reduction\nis_best8, playing_hcp, net_score"]
         
-        HH_D3 --> VDH["VIEW: wp_golf_dashboard_history\nmaster view used by all shortcodes"]
-        VDH --> V1["view_handicap_index"]
-        VDH --> V2["view_playing_handicaps"]
-        VDH --> V3["view_golf_yearly_stats"]
-        VDH --> V4["view_golf_rolling_averages"]
-        VDH --> V5["view_golf_player_records"]
-        VDH --> V6["view_golf_rounds_pivot"]
+        D3_HH --> D3_VDH["VIEW: wp_golf_dashboard_history\nmaster view used by all shortcodes"]
+        D3_VDH --> D3_V1["view_handicap_index"]
+        D3_VDH --> D3_V2["view_playing_handicaps"]
+        D3_VDH --> D3_V3["view_golf_yearly_stats"]
+        D3_VDH --> D3_V4["view_golf_rolling_averages"]
+        D3_VDH --> D3_V5["view_golf_player_records"]
+        D3_VDH --> D3_V6["view_golf_rounds_pivot"]
         
-        V1 & V2 & V3 & V4 & V5 --> DASH_D3["[golf_stats_dashboard]"]
-        VDH --> HIST_D3["[golf_round_history]"]
-        VDH --> EDIT_D3["[golf_edit_grid]"]
-        V6 --> PIVOT_D3["[golf_rounds_pivot]"]
-        HH_D3 --> CHART_D3["[golf_hcp_chart]"]
+        D3_V1 & D3_V2 & D3_V3 & D3_V4 & D3_V5 --> D3_DASH["Golf Dashboard\n(#golf-dashboard)"]
+        D3_VDH --> D3_HIST["Round History\n(#golf-history-app)"]
+        D3_VDH --> D3_EDIT["Edit Grid\n(.golf-edit-box)"]
+        D3_V6 --> D3_PIVOT["Rounds Pivot\n(#grp5-app)"]
+        D3_HH --> D3_CHART["Handicap Chart\n(#hcp-chart)"]
     end
 
     %% ==========================================
@@ -109,31 +115,32 @@ flowchart TD
     subgraph D4 ["Diagram 4 — Known Duplicates and Conflicts"]
         direction TB
         
-        subgraph LIVE ["ACTIVE — Plugin Files on GitHub"]
+        subgraph D4_LIVE ["ACTIVE — Plugin Files on GitHub"]
             direction TB
-            P1_D4["Golf Master System.php\ngolf_final_action_bulk_save\ngolf_final_action_delete\ngolf_final_action_update"]
-            P2_D4["Golf Round History.php\ngh_load_history AJAX"]
-            P3_D4["Golf Rounds Pivot.php\ngrp5_load AJAX"]
-            P4_D4["Handicap Index Chart.php\ngolf_hcp_chart shortcode"]
+            D4_P1["Golf Master System.php\ngolf_final_action_bulk_save\ngolf_final_action_delete\ngolf_final_action_update"]
+            D4_P2["Golf Round History.php\ngh_load_history AJAX"]
+            D4_P3["Golf Rounds Pivot.php\ngrp5_load AJAX"]
+            D4_P4["Handicap Index Chart.php\ngolf_hcp_chart shortcode"]
         end
 
-        subgraph DEAD ["LEGACY — wp_snippets table, should be deactivated"]
+        subgraph D4_DEAD ["LEGACY — wp_snippets table, should be deactivated"]
             direction TB
-            S1["Snippet 17: Ajax Action Handlers\ngolf_bulk_save_final\ngolf_delete_round_final\nDIFFERENT action names"]
-            S2["Snippet 18: delete receiver\ngolf_delete_round\nYET ANOTHER action name"]
-            S3["Snippet 12: Golf Round History\nDUPLICATE of Golf Round History.php"]
-            S4["Snippet 27: Handicap Index Chart\nDUPLICATE of Handicap Index Chart.php"]
-            S5["Snippet 23: Security Guard\ngolf_final_action_delete_secure\nCalls non-existent functions"]
-            S6["Snippet 7: Dashboard\nOLD dashboard shortcode"]
-            S7["Snippet 5 and 6: Form Submission\nORIGINAL form-post versions\nConflict with AJAX versions"]
+            D4_S1["Snippet 17: Ajax Action Handlers\ngolf_bulk_save_final\ngolf_delete_round_final\nDIFFERENT action names"]
+            D4_S2["Snippet 18: delete receiver\ngolf_delete_round\nYET ANOTHER action name"]
+            D4_S3["Snippet 12: Golf Round History\nDUPLICATE of Golf Round History.php"]
+            D4_S4["Snippet 27: Handicap Index Chart\nDUPLICATE of Handicap Index Chart.php"]
+            D4_S5["Snippet 23: Security Guard\ngolf_final_action_delete_secure\nCalls non-existent functions"]
+            D4_S6["Snippet 7: Dashboard\nOLD dashboard shortcode"]
+            D4_S7["Snippet 5 and 6: Form Submission\nORIGINAL form-post versions\nConflict with AJAX versions"]
         end
 
-        subgraph TRIGS ["DUPLICATE TRIGGERS on wp_golf_scores"]
+        subgraph D4_TRIGS ["DUPLICATE TRIGGERS on wp_golf_scores"]
             direction TB
-            T1_D4["trg_scores_after_insert\ntrg_scores_after_update\ntrg_scores_after_delete\nCORRECT - calls sp_repair_history_from_date"]
-            T2_D4["trg_scores_insert\ntrg_scores_update\ntrg_scores_delete\nOLDER - also calls sp_repair_history_from_date\ndouble-repair on every save"]
+            D4_T1["trg_scores_after_insert\ntrg_scores_after_update\ntrg_scores_after_delete\nCORRECT - calls sp_repair_history_from_date"]
+            D4_T2["trg_scores_insert\ntrg_scores_update\ntrg_scores_delete\nOLDER - also calls sp_repair_history_from_date\ndouble-repair on every save"]
         end
 
-        S1 -.->|"may still fire if active"| P1_D4
-        T2_D4 -.->|"fires alongside T1"| T1_D4
+        D4_S1 -.->|"may still fire if active"| D4_P1
+        D4_T2 -.->|"fires alongside T1"| D4_T1
     end
+```
