@@ -1,5 +1,6 @@
 ```mermaid
 flowchart TD
+
     Start((User Action)) --> Visit[Visit 'Rounds' Page \nor Click Pagination Link]
     
     subgraph Frontend ["Frontend (JavaScript in shortcode)"]
@@ -42,4 +43,5 @@ flowchart TD
     style Backend fill:#e8f5e9,stroke:#1b5e20
     style DOM_Update fill:#fff3e0,stroke:#e65100
     style PHP_Nonce fill:#ffe0b2,stroke:#e65100
+    
 ```
