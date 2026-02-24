@@ -279,6 +279,12 @@ add_action('wp_ajax_golf_final_action_update', function () {
         'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
     ], ['score_id' => $score_id], null, ['%d']);
 
+// ADD THIS TEMPORARILY:
+    if ($updated === false || $updated === 0) {
+    wp_send_json_error(['message' => 'Update returned: ' . var_export($updated, true) . ' | Error: ' . $wpdb->last_error . ' | Last query: ' . $wpdb->last_query]);
+    }
+
+
     $row = $wpdb->get_row(
         $wpdb->prepare(
             "SELECT score_id, net_score, differential, is_counting FROM {$history_view} WHERE score_id = %d",
