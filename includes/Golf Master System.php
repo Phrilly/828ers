@@ -11,6 +11,9 @@
 add_shortcode('golf_scorecard_entry', function () {
     global $wpdb;
 
+    define('GOLF_MASTER_PHP_BUILD', '2026-02-24 10:57 TEST-A');
+
+
     $players_table = $wpdb->prefix . 'golf_players';
     $tees_table    = $wpdb->prefix . 'golf_tees';
 
@@ -258,6 +261,9 @@ add_action('wp_ajax_golf_final_action_delete', function () {
 
 add_action('wp_ajax_golf_final_action_update', function () {
     global $wpdb;
+
+    wp_send_json_error(['message' => 'PHP BUILD: ' . GOLF_MASTER_PHP_BUILD]);
+
 
     $scores_table = $wpdb->prefix . 'golf_scores';
     $history_view = $wpdb->prefix . 'golf_dashboard_history';
