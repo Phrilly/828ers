@@ -112,12 +112,18 @@ function grp5_load() {
         LIMIT %d OFFSET %d
     ", $limit, $offset), ARRAY_A);
 
-    // Header labels (first row has pX_name values)
+    // Header labels from golf_players table (not from first pivot row)
+    $players_table = $wpdb->prefix . 'golf_players';
+    $ids = implode(',', array_map('intval', $playerIds)); // safe ints
+
+    $players = $wpdb->get_results(
+        "SELECT player_id, name FROM {$players_table} WHERE player_id IN ({$ids})",
+        OBJECT_K
+    );
+
     $labels = [];
-    if (!empty($rows)) {
-        foreach ($playerIds as $pid) {
-            $labels[$pid] = (string) ($rows[0]['p' . $pid . '_name'] ?? ('P' . $pid));
-        }
+    foreach ($playerIds as $pid) {
+        $labels[$pid] = $players[$pid]->name ?? ('P' . $pid);
     }
 
     // Render table
