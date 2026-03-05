@@ -1,9 +1,10 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-01-31_1842_c";
-console.log("828ers JS loaded. Build: THIS IS BUILD C", window.__GOLF_BUILD_ID__);
+window.__GOLF_BUILD_ID__ = "2026-03-05_nonce";
+console.log("828ers JS loaded. Build: NONCE UPDATE", window.__GOLF_BUILD_ID__);
 
-// NOTE: Better long-term is to inject this via wp_localize_script(admin_url('admin-ajax.php'))
-const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php";
+// CHANGED: was const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php"
+// Now driven by wp_localize_script in 828ers.php so it works regardless of WP install path
+const GOLF_AJAX_URL = (typeof GolfMasterAjax !== "undefined") ? GolfMasterAjax.ajaxUrl : "/wp-admin/admin-ajax.php";
 
 /* --------------------------
    Delete a historic round
@@ -14,7 +15,11 @@ function ajaxDelete(scoreId) {
   jQuery
     .post(
       GOLF_AJAX_URL,
-      { action: "golf_final_action_delete", score_id: scoreId },
+      {
+        action: "golf_final_action_delete",
+        score_id: scoreId,
+        nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
+      },
       function (res) {
         console.log("DELETE response:", res);
 
@@ -51,6 +56,7 @@ function ajaxUpdate(scoreId) {
     pcc: row.find(".ed-pcc").val(),
     putts: row.find(".ed-putts").val(),
     gir: row.find(".ed-gir").val(),
+    nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
   };
 
   // Immediate feedback
@@ -134,7 +140,11 @@ function golfSaveAll() {
   jQuery
     .post(
       GOLF_AJAX_URL,
-      { action: "golf_final_action_bulk_save", rounds: rounds },
+      {
+        action: "golf_final_action_bulk_save",
+        rounds: rounds,
+        nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
+      },
       function (res) {
         console.log("BULK SAVE response:", res);
 
@@ -160,8 +170,6 @@ function golfSaveAll() {
               ? '<span class="count-dot" aria-label="Counting round"></span>'
               : "";
 
-          // FIX: add "edit-row" so inserted rows match existing grid styling
-          // FIX: add "tc" to NET and DIFF so they align with the centered columns
           const rowHtml = `
             <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
               <div><strong>${escapeHtml(r.player_name)}</strong></div>

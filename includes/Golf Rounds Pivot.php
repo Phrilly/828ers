@@ -92,7 +92,13 @@ function grp5_load() {
     $page   = max(1, (int) ($_POST['page'] ?? 1));
     $offset = ($page - 1) * $limit;
 
-    $playerIds = [1, 2, 3, 4];
+    // Fetch player IDs dynamically — never hardcode [1, 2, 3, 4]
+    $players_table = $wpdb->prefix . 'golf_players';
+    $playerRows    = $wpdb->get_results(
+        "SELECT player_id, name FROM {$players_table} ORDER BY player_id ASC",
+        OBJECT_K
+    );
+    $playerIds = array_keys($playerRows);
 
     // Total rows for paging
     $total      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$view}");
@@ -112,18 +118,10 @@ function grp5_load() {
         LIMIT %d OFFSET %d
     ", $limit, $offset), ARRAY_A);
 
-    // Header labels from golf_players table (not from first pivot row)
-    $players_table = $wpdb->prefix . 'golf_players';
-    $ids = implode(',', array_map('intval', $playerIds)); // safe ints
-
-    $players = $wpdb->get_results(
-        "SELECT player_id, name FROM {$players_table} WHERE player_id IN ({$ids})",
-        OBJECT_K
-    );
-
+    // Build labels map from the dynamic query results
     $labels = [];
     foreach ($playerIds as $pid) {
-        $labels[$pid] = $players[$pid]->name ?? ('P' . $pid);
+        $labels[$pid] = $playerRows[$pid]->name ?? ('P' . $pid);
     }
 
     // Render table
@@ -158,14 +156,14 @@ function grp5_load() {
                         $wcol   = (string) ($r['winner_colour'] ?? '');
 
                         $winnerClasses = ['col-winner'];
-                        $winnerAttrs = '';
+                        $winnerAttrs   = '';
 
                         if ($winner === 'TIE') {
                             $winnerClasses[] = 'is-tie';
-                            $winnerAttrs .= ' data-winner="TIE"';
+                            $winnerAttrs    .= ' data-winner="TIE"';
                         } elseif ($wcol !== '') {
                             $winnerClasses[] = 'is-' . sanitize_html_class($wcol);
-                            $winnerAttrs .= ' data-winner-colour="' . esc_attr($wcol) . '"';
+                            $winnerAttrs    .= ' data-winner-colour="' . esc_attr($wcol) . '"';
                         }
                         ?>
                         <tr>

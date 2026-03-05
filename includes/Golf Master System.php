@@ -9,6 +9,11 @@
    Shortcode: [golf_scorecard_entry]
    ============================ */
 add_shortcode('golf_scorecard_entry', function () {
+    // Restrict to logged-in users who can edit posts
+    if (!current_user_can('edit_posts')) {
+        return '<p>You do not have permission to enter scores.</p>';
+    }
+
     global $wpdb;
 
     $players_table = $wpdb->prefix . 'golf_players';
@@ -95,6 +100,11 @@ add_shortcode('golf_scorecard_entry', function () {
    Shortcode: [golf_edit_grid]
    ============================ */
 add_shortcode('golf_edit_grid', function () {
+    // Restrict to logged-in users who can edit posts
+    if (!current_user_can('edit_posts')) {
+        return '<p>You do not have permission to edit scores.</p>';
+    }
+
     global $wpdb;
 
     $history_view = $wpdb->prefix . 'golf_dashboard_history';
@@ -108,6 +118,7 @@ add_shortcode('golf_edit_grid', function () {
     <div class="golf-management-root golf-edit-box">
         <div class="edit-grid-notice" style="padding:10px; margin:0 10px 12px; background:#d1ecf1; border:1px solid #bee5eb; border-radius:4px; font-size:13px; color:#0c5460;">
             💡 <strong>Edit Grid:</strong> Update PCC here the next day (typically -1, 0, +1, +2, or +3).
+            Note: after saving, refresh the page to see updated "counting" dots across all rounds.
         </div>
 
         <div class="golf-grid-header edit-header">
@@ -144,7 +155,9 @@ add_shortcode('golf_edit_grid', function () {
                 <select class="golf-input ed-pcc tc">
                     <?php
                     $pcc_current = (int) $r->pcc_adjustment;
-                    foreach ([-1, 0, 1, 2, 3] as $val) {
+                    // CHANGED: expanded from [-1,0,1,2,3] to [-2,-1,0,1,2,3,4]
+                    // to handle rare extreme England Golf PCC values
+                    foreach ([-2, -1, 0, 1, 2, 3, 4] as $val) {
                         $sel     = ($pcc_current === $val) ? 'selected' : '';
                         $display = ($val > 0) ? "+{$val}" : $val;
                         echo "<option value='{$val}' {$sel}>{$display}</option>";
@@ -181,6 +194,13 @@ add_shortcode('golf_edit_grid', function () {
    ============================ */
 
 add_action('wp_ajax_golf_final_action_bulk_save', function () {
+    check_ajax_referer('golf_master_nonce', 'nonce');
+
+    // Restrict to logged-in users who can edit posts
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Unauthorized.']);
+    }
+
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
@@ -191,9 +211,14 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
-        $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
         $tee    = isset($r['tee'])       ? (int) $r['tee'] : 0;
         $gross  = isset($r['gross'])     ? (int) $r['gross'] : 0;
+
+        // CHANGED: validate date format as YYYY-MM-DD before hitting the DB
+        $date = isset($r['date']) ? sanitize_text_field($r['date']) : '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = current_time('mysql');
+        }
 
         if (!$player || !$date || !$tee || !$gross) {
             continue;
@@ -218,8 +243,6 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         wp_send_json_error(['message' => 'No valid rounds to save.']);
     }
 
-    // Trigger fires automatically on INSERT — no CALL needed here.
-    // Just read back the rows to return to the UI.
     $placeholders = implode(',', array_fill(0, count($inserted_ids), '%d'));
     $query = $wpdb->prepare(
         "SELECT * FROM {$history_view} WHERE score_id IN ({$placeholders}) ORDER BY date_played DESC, score_id DESC",
@@ -232,6 +255,13 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
 
 add_action('wp_ajax_golf_final_action_delete', function () {
+    check_ajax_referer('golf_master_nonce', 'nonce');
+
+    // Restrict to logged-in users who can edit posts
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Unauthorized.']);
+    }
+
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
@@ -242,8 +272,6 @@ add_action('wp_ajax_golf_final_action_delete', function () {
     }
 
     $deleted = $wpdb->delete($scores_table, ['score_id' => $score_id], ['%d']);
-
-    // Trigger fires automatically on DELETE — no CALL needed here.
 
     if ($deleted === false) {
         wp_send_json_error(['message' => 'Database delete failed', 'db_error' => $wpdb->last_error]);
@@ -257,6 +285,13 @@ add_action('wp_ajax_golf_final_action_delete', function () {
 
 
 add_action('wp_ajax_golf_final_action_update', function () {
+    check_ajax_referer('golf_master_nonce', 'nonce');
+
+    // Restrict to logged-in users who can edit posts
+    if (!current_user_can('edit_posts')) {
+        wp_send_json_error(['message' => 'Unauthorized.']);
+    }
+
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
@@ -267,23 +302,33 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
-    $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : date('Y-m-d');
-
-    // Trigger fires automatically on UPDATE — no CALL needed here.
-    $wpdb->update($scores_table, [
-        'date_played'    => $new_date,
-        'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
-        'gross_score'    => isset($_POST['gross'])  ? (int) $_POST['gross']  : 0,
-        'pcc_adjustment' => isset($_POST['pcc'])    ? (int) $_POST['pcc']    : 0,
-        'putts'          => isset($_POST['putts'])  ? (int) $_POST['putts']  : 0,
-        'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
-    ], ['score_id' => $score_id], null, ['%d']);
-
-// ADD THIS TEMPORARILY:
-    if ($updated === false || $updated === 0) {
-    wp_send_json_error(['message' => 'Update returned: ' . var_export($updated, true) . ' | Error: ' . $wpdb->last_error . ' | Last query: ' . $wpdb->last_query]);
+    // CHANGED: validate date format as YYYY-MM-DD before hitting the DB
+    $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_date)) {
+        $new_date = current_time('mysql');
     }
 
+    // CHANGED: $updated is now correctly assigned (was missing before, causing undefined variable)
+    $updated = $wpdb->update(
+        $scores_table,
+        [
+            'date_played'    => $new_date,
+            'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
+            'gross_score'    => isset($_POST['gross'])  ? (int) $_POST['gross']  : 0,
+            'pcc_adjustment' => isset($_POST['pcc'])    ? (int) $_POST['pcc']    : 0,
+            'putts'          => isset($_POST['putts'])  ? (int) $_POST['putts']  : 0,
+            'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
+        ],
+        ['score_id' => $score_id],
+        null,
+        ['%d']
+    );
+
+    // CHANGED: $updated === false means a DB error; $updated === 0 means nothing changed
+    // (data was identical) which is still a valid success — do not error on 0.
+    if ($updated === false) {
+        wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
+    }
 
     $row = $wpdb->get_row(
         $wpdb->prepare(
@@ -296,6 +341,9 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Updated but view row not found']);
     }
 
+    // NOTE: is_counting and differential are returned for the updated round only.
+    // Other rows' counting dots may be visually outdated until the page is refreshed,
+    // because WHS recalculates the top 8 of 20 across all rounds on each update.
     wp_send_json_success([
         'score_id'     => (int) $row->score_id,
         'net_score'    => $row->net_score,
