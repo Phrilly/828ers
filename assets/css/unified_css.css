@@ -5,6 +5,7 @@
    - Pagination spacing fix (Prev/Next)
    ====================================================== */
 
+
 /* Global container settings */
 .golf-history-container,
 .golf-management-root,
@@ -14,13 +15,16 @@
   font-family: inherit !important;
 }
 
+
 .tc{ text-align:center; }
 .tr{ text-align:right; }
+
 
 /* ======================================================
    DASHBOARD (HOME) — cards + sections
    ====================================================== */
 .golf-dashboard-wrapper{ scroll-margin-top:50px; }
+
 
 .stats-filter-bar{
   background:#f9f9f9;
@@ -31,12 +35,14 @@
   border:1px solid #ddd;
 }
 
+
 .golf-stats-grid{
   display:grid;
   grid-template-columns:repeat(4, 1fr);
   gap:15px;
   align-items:stretch;
 }
+
 
 .golf-card{
   background:#fff;
@@ -47,6 +53,7 @@
   height:100%;
 }
 
+
 .card-header{
   background:#333;
   color:#fff;
@@ -56,7 +63,9 @@
   font-weight:bold;
 }
 
+
 .p-idx{ color:#f39c12; }
+
 
 .sect-title{
   font-size:10px;
@@ -66,12 +75,14 @@
   text-transform:uppercase;
 }
 
+
 .sect-hcap{
   padding:12px;
   background:#f9f9f9;
   border-bottom:1px solid #eee;
   min-height:125px;
 }
+
 
 .sect-averages{
   padding:12px;
@@ -82,6 +93,7 @@
 .sect-averages span{ color:#666; font-size:13px; }
 .sect-averages strong{ color:#333; }
 
+
 .sect-stats{
   padding:12px;
   border-bottom:1px solid #eee;
@@ -89,10 +101,12 @@
   flex-grow:1;
 }
 
+
 .sect-recs{
   padding:12px;
   min-height:105px;
 }
+
 
 .stats-table{
   width:100%;
@@ -104,9 +118,11 @@
 .txt-pct{ color:#999; font-size:10px; padding-right:8px; }
 .rec-sub{ color:#888; font-size:11px; display:block; margin-top:2px; }
 
+
 /* If Ultimate Member login appears anywhere */
 .um.um-login,
 .um.um-login *{ color:#ffffff; }
+
 
 /* ======================================================
    HISTORY TABLE (HOME + HISTORY)
@@ -137,6 +153,7 @@
 }
 .history-table tr:nth-child(even){ background-color:#fcfcfc; }
 
+
 /* Filter bar */
 .history-filter-bar{
   background:#f1f1f1;
@@ -154,6 +171,7 @@
   color:#333;
 }
 
+
 /* Tee badges + counting dot */
 .tee-badge{
   padding:4px 12px;
@@ -167,6 +185,7 @@
 .tee-yellow{ background:#ffeb3b; color:#333; }
 .tee-black{ background:#000; color:#fff; }
 
+
 .count-dot,
 .counting-dot{
   height:10px;
@@ -176,6 +195,7 @@
   display:inline-block;
   margin:0 auto;
 }
+
 
 /* ======================================================
    PAGINATION — FIX "Prev3Next"
@@ -187,16 +207,16 @@
   display:flex;
   justify-content:center;
   align-items:center;
-  gap:8px;                 /* key fix */
+  gap:8px;
   flex-wrap:wrap;
 }
 
-/* Ensure pagination items are button-like and spaced */
+
 .history-pagination .page-numbers{
   padding:8px 14px;
   border:1px solid #ddd;
   border-radius:6px;
-  margin:0;                /* prevent collapsing */
+  margin:0;
   background:#fff;
   color:#333;
   display:inline-flex;
@@ -215,14 +235,15 @@
   border-color:#0073aa;
 }
 
-/* If theme/plugin is removing spaces by inline rendering */
+
 .history-pagination a + a,
 .history-pagination a + span,
 .history-pagination span + a{
   margin-left:8px !important;
 }
 
-/* Common DataTables/WPDataTables pagination (if used anywhere) */
+
+/* Common DataTables/WPDataTables pagination */
 .dataTables_paginate,
 .wpDataTablesWrapper .dataTables_paginate{
   display:flex;
@@ -255,6 +276,7 @@
   border:1px solid #111827;
 }
 
+
 /* ======================================================
    INPUTS / BUTTONS / BOXES (SCORES PAGE)
    ====================================================== */
@@ -264,7 +286,10 @@
   border:1px solid #ddd;
   border-radius:4px;
   margin-bottom:40px;
+  /* CHANGED: allow horizontal scroll before content overflows */
+  overflow-x:auto;
 }
+
 
 .golf-input{
   width:100%;
@@ -274,6 +299,7 @@
   font-size:13px;
   background:#fff;
 }
+
 
 .golf-btn{
   border:none;
@@ -290,6 +316,7 @@
 .btn-save{ background:#0073aa; color:#fff; }
 .btn-del{ background:#d63638; color:#fff; }
 
+
 /* Entry footer */
 .golf-entry-box .entry-footer{
   padding:15px;
@@ -305,6 +332,7 @@
   justify-content:center;
 }
 
+
 /* ======================================================
    GRIDS (SCOPED)
    ====================================================== */
@@ -316,7 +344,8 @@
   text-transform:uppercase;
 }
 
-/* Entry grid: 8 columns */
+
+/* Entry grid: 8 columns (unchanged — no Excl in entry form) */
 .golf-entry-box .entry-header,
 .golf-entry-box .entry-row{
   display:grid;
@@ -335,37 +364,81 @@
   border-bottom:1px solid #eee;
 }
 
-/* Edit grid: 11 columns */
+
+/* CHANGED: Edit grid updated from 11 to 12 columns — added Excl (0.5fr) between GIR and Nett */
 .golf-edit-box .edit-header,
 .golf-edit-box .edit-row{
   display:grid;
   grid-template-columns:
-    1.3fr
-    1.1fr
-    0.9fr
-    0.7fr
-    0.5fr
-    0.6fr
-    0.6fr
-    0.7fr
-    0.7fr
-    0.6fr
-    1.0fr;
-  gap:10px;
-  padding:10px;
+    1.1fr   /* Player */
+    1.0fr   /* Date   */
+    0.8fr   /* Tee    */
+    0.55fr  /* Gross  */
+    0.45fr  /* PCC    */
+    0.55fr  /* Putts  */
+    0.55fr  /* GIR    */
+    0.45fr  /* Excl   */
+    0.6fr   /* Nett   */
+    0.6fr   /* Diff   */
+    0.45fr  /* Count  */
+    0.9fr;  /* Action */
+  gap:6px;  /* CHANGED: tightened from 10px to 6px to reclaim horizontal space */
+  padding:8px 10px;
   align-items:center;
   border-bottom:1px solid #eee;
+  min-width:780px; /* CHANGED: prevents collapse below usable width — box scrolls instead */
 }
+
+
+/* CHANGED: action buttons never wrap — always sit side by side */
+.action-btns{
+  display:flex;
+  gap:4px;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+}
+
+
+/* CHANGED: compact number + date inputs in edit grid to recover column space */
+.golf-edit-box .golf-input[type="number"]{
+  width:100%;
+  min-width:0;
+  padding:4px 3px;
+}
+.golf-edit-box .golf-input[type="date"]{
+  width:100%;
+  min-width:0;
+  padding:4px 3px;
+}
+.golf-edit-box select.golf-input{
+  min-width:0;
+  padding:4px 2px;
+}
+
+
+/* CHANGED: excluded rows are greyed out with strikethrough on computed fields */
+.row-excluded{
+  opacity:0.55;
+  background-color:#f8f8f8;
+}
+.row-excluded .ed-diff,
+.row-excluded .ed-net{
+  text-decoration:line-through;
+  color:#999;
+}
+
 
 /* Desktop: hide the small mobile labels */
 @media (min-width: 768px){
   .golf-entry-box .entry-row .lbl{ display:none !important; }
 }
 
+
 /* ======================================================
    MOBILE OVERRIDES
    ====================================================== */
 @media (max-width: 767px){
+
 
   /* Dashboard: stack cards */
   .golf-stats-grid{
@@ -374,6 +447,7 @@
     grid-template-columns:none !important;
     gap:15px !important;
   }
+
 
   /* Averages: tighter on mobile */
   .sect-averages{
@@ -385,6 +459,7 @@
     gap:5px;
   }
 
+
   /* History: hide unwanted columns (keeps Date | Player | Tee | Gross | Count) */
   .history-table th:nth-child(5), .history-table td:nth-child(5),
   .history-table th:nth-child(6), .history-table td:nth-child(6),
@@ -392,6 +467,7 @@
   .history-table th:nth-child(8), .history-table td:nth-child(8){
     display:none !important;
   }
+
 
   /* Tee badge initials */
   .history-table .tee-badge{
@@ -407,11 +483,13 @@
   .history-table .tee-yellow:after{ content:'Y'; color:#000; }
   .history-table .tee-white:after{  content:'W'; color:#000; }
 
+
   .history-table th,
   .history-table td{
     padding:6px 3px !important;
     font-size:11px !important;
   }
+
 
   /* Pagination: show only Prev/Current/Next */
   .history-pagination .page-numbers{ display:none !important; }
@@ -419,12 +497,15 @@
   .history-pagination .current,
   .history-pagination .next{ display:inline-flex !important; }
 
+
   /* SCORE ENTRY: ultra-compact cards */
   .golf-management-root.golf-entry-box{ margin-top:8px !important; }
+
 
   .golf-entry-box .entry-header{ display:none !important; }
   .golf-entry-box .entry-row .in-pcc,
   .golf-entry-box .entry-row .status-cell{ display:none !important; }
+
 
   .golf-entry-box .entry-row{
     display:grid !important;
@@ -442,12 +523,14 @@
     align-items:stretch !important;
   }
 
+
   .golf-entry-box .entry-row .in-player{   grid-area: player; }
   .golf-entry-box .entry-row .in-date{     grid-area: date; }
   .golf-entry-box .entry-row .field-tee{   grid-area: tee; }
   .golf-entry-box .entry-row .field-gross{ grid-area: gross; }
   .golf-entry-box .entry-row .field-putts{ grid-area: putts; }
   .golf-entry-box .entry-row .field-gir{   grid-area: gir; }
+
 
   .golf-entry-box .entry-row .field{
     width:100%;
@@ -457,6 +540,7 @@
     flex-direction:column;
     justify-content:center;
   }
+
 
   .golf-entry-box .entry-row .lbl{
     display:block;
@@ -469,6 +553,7 @@
     padding:0 !important;
   }
 
+
   .golf-entry-box .entry-row select,
   .golf-entry-box .entry-row input{
     width:100% !important;
@@ -479,36 +564,49 @@
     box-sizing:border-box !important;
   }
 
+
   .golf-entry-box .entry-footer{ padding:6px !important; }
   .golf-entry-box .entry-footer .golf-btn.btn-save{
     width:100% !important;
     min-height:40px !important;
     font-size:11px !important;
   }
+
+
+  /* CHANGED: on mobile the edit grid scrolls horizontally — hide it behind a scroll hint */
+  .golf-edit-box{
+    overflow-x:auto !important;
+  }
+  .golf-edit-box .edit-header,
+  .golf-edit-box .edit-row{
+    min-width:780px !important;
+  }
 }
+
 
 /* ======================================================
    ROUNDS PIVOT TABLE (grp5) — UPDATED WINNER STYLING
    ====================================================== */
+
 
 body .grp5,
 body .grp5 *{
   font-family: inherit !important;
 }
 
-/* Use collapsed borders so vertical dividers read as continuous lines */
+
 body .grp5 table{
   width:100%;
   border-collapse: collapse !important;
 }
 
-/* Base cell borders (very light grid) */
+
 body .grp5 table th,
 body .grp5 table td{
   border:1px solid #efefef !important;
 }
 
-/* Stop DATE wrapping */
+
 body .grp5 table th.col-date,
 body .grp5 table td.col-date,
 body .grp5 table thead th:first-child,
@@ -516,19 +614,19 @@ body .grp5 table tbody td:first-child{
   white-space:nowrap !important;
 }
 
-/* Center player name group headers */
+
 body .grp5 table thead tr:first-child th{
   text-align:center !important;
   vertical-align:middle !important;
 }
 
-/* Keep DATE + TEE left on top header row */
+
 body .grp5 table thead tr:first-child th:first-child,
 body .grp5 table thead tr:first-child th:nth-child(2){
   text-align:left !important;
 }
 
-/* Header styling */
+
 body .grp5 table thead th{
   background:#333 !important;
   color:#fff !important;
@@ -542,19 +640,18 @@ body .grp5 table thead tr:nth-child(2) th{
   font-size:10px;
 }
 
-/* Row polish */
+
 body .grp5 table tbody tr:nth-child(even) td{ background:#fafafa !important; }
 body .grp5 table tbody tr:hover td{ background:#f1f7ff !important; }
 
-/* Strong vertical separators:
-   1 DATE | 2 TEE | 3-5 P1 | 6-8 P2 | 9-11 P3 | 12-14 P4 | 15 WINNER
-*/
+
 body .grp5 table tbody td:nth-child(6),
 body .grp5 table tbody td:nth-child(9),
 body .grp5 table tbody td:nth-child(12),
 body .grp5 table tbody td:last-child{
   border-left:2px solid #c8c8c8 !important;
 }
+
 
 body .grp5 table thead tr:nth-child(2) th:nth-child(6),
 body .grp5 table thead tr:nth-child(2) th:nth-child(9),
@@ -563,7 +660,7 @@ body .grp5 table thead tr:nth-child(2) th:last-child{
   border-left:2px solid rgba(255,255,255,0.25) !important;
 }
 
-/* Make winner column stick to the right (helps with wide table) */
+
 body .grp5 table th.col-round_winner,
 body .grp5 table td.col-round_winner{
   position: sticky;
@@ -573,7 +670,7 @@ body .grp5 table td.col-round_winner{
   box-shadow: -8px 0 10px -10px rgba(0,0,0,.35);
 }
 
-/* Winner cell baseline */
+
 body .grp5 table td.col-round_winner{
   font-weight:800;
   text-align:center !important;
@@ -581,13 +678,13 @@ body .grp5 table td.col-round_winner{
   letter-spacing:.2px;
 }
 
-/* Default "winner badge" background (subtle, neutral) */
+
 body .grp5 table td.col-round_winner:not(:empty){
   background:#f8fafc !important;
   border:1px solid #e5e7eb !important;
 }
 
-/* TIE should be neutral */
+
 body .grp5 table td.col-round_winner.is-tie,
 body .grp5 table td.col-round_winner[data-winner="TIE"]{
   color:#111827 !important;
@@ -595,13 +692,14 @@ body .grp5 table td.col-round_winner[data-winner="TIE"]{
   border-color:#e5e7eb !important;
 }
 
-/* Winner colours (apply via class or data attribute) */
+
 body .grp5 table td.col-round_winner.is-blue,
 body .grp5 table td.col-round_winner[data-winner-colour="blue"]{
   color:#1d4ed8 !important;
   background:#eff6ff !important;
   border-color:#bfdbfe !important;
 }
+
 
 body .grp5 table td.col-round_winner.is-green,
 body .grp5 table td.col-round_winner[data-winner-colour="green"]{
@@ -610,6 +708,7 @@ body .grp5 table td.col-round_winner[data-winner-colour="green"]{
   border-color:#bbf7d0 !important;
 }
 
+
 body .grp5 table td.col-round_winner.is-red,
 body .grp5 table td.col-round_winner[data-winner-colour="red"]{
   color:#dc2626 !important;
@@ -617,19 +716,23 @@ body .grp5 table td.col-round_winner[data-winner-colour="red"]{
   border-color:#fecaca !important;
 }
 
+
 body .grp5 table td.col-round_winner.is-purple,
 body .grp5 table td.col-round_winner[data-winner-colour="purple"]{
   color:#7c3aed !important;
   background:#f5f3ff !important;
   border-color:#ddd6fe !important;
 }
+
+
 body #grp5 .grp5-pager{
   display:flex;
   align-items:center;
-  gap:10px;              /* fixes Prev2Next */
+  gap:10px;
   margin-top:10px;
   flex-wrap:wrap;
 }
+
 
 body #grp5 .grp5-page{
   display:inline-flex;
@@ -643,13 +746,16 @@ body #grp5 .grp5-page{
   line-height:1;
 }
 
+
 body #grp5 a.grp5-page{
   text-decoration:none;
 }
 
+
 body #grp5 a.grp5-page:hover{
   background:#f3f4f6;
 }
+
 
 body #grp5 .grp5-page.current{
   background:#111827;
@@ -659,6 +765,7 @@ body #grp5 .grp5-page.current{
   min-width:42px;
 }
 
+
 body #grp5 .grp5-page.of,
 body #grp5 .grp5-page.total{
   border:none;
@@ -667,17 +774,20 @@ body #grp5 .grp5-page.total{
   color:#6b7280;
 }
 
+
 body #grp5 .grp5-page.disabled{
   opacity:.45;
 }
-/* grp5 pager — force spacing + button styling */
+
+
 #grp5-pager{
   display:flex !important;
   align-items:center !important;
-  gap:10px !important;           /* key */
+  gap:10px !important;
   flex-wrap:wrap;
   margin-top:10px;
 }
+
 
 #grp5-pager .grp5-page{
   display:inline-flex !important;
@@ -689,11 +799,11 @@ body #grp5 .grp5-page.disabled{
   background:#fff !important;
   color:#111827 !important;
   line-height:1 !important;
-  margin:0 !important;           /* prevents collapse */
+  margin:0 !important;
   text-decoration:none !important;
 }
 
-/* current */
+
 #grp5-pager .grp5-page.current{
   background:#111827 !important;
   border-color:#111827 !important;
@@ -702,7 +812,7 @@ body #grp5 .grp5-page.disabled{
   min-width:42px;
 }
 
-/* "of" + total should be plain text (not boxed) */
+
 #grp5-pager .grp5-page.of,
 #grp5-pager .grp5-page.total{
   border:none !important;
@@ -712,14 +822,17 @@ body #grp5 .grp5-page.disabled{
   color:#6b7280 !important;
 }
 
-/* disabled */
+
 #grp5-pager .grp5-page.disabled{
   opacity:.45;
 }
+
+
 /* Subtle row tinting for ESR/Cap */
 .history-table tbody tr.is-esr { background: #eef6ff; }
 .history-table tbody tr.is-cap { background: #fff7e8; }
 .history-table tbody tr.is-esr.is-cap { background: #f3efff; }
+
 
 /* EC badge */
 .history-table .adj-badge {
