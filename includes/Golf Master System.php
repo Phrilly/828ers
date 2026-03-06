@@ -7,7 +7,7 @@
 /* ============================
    PERMISSION HELPER
    Allows: Administrator, Editor, Author, or Golf Member role.
-   Add any future roles to $allowed_roles here — one place, affects everything.
+   Add any future roles to $allowed_roles here.
    ============================ */
 function golf_828ers_can_enter_scores() {
     if (!is_user_logged_in()) return false;
@@ -41,6 +41,8 @@ add_shortcode('golf_scorecard_entry', function () {
     <div class="golf-management-root golf-entry-box">
         <div class="pcc-notice" style="padding:10px; margin:0 10px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:13px; color:#856404;">
             ℹ️ <strong>Note:</strong> PCC defaults to 0. Update it tomorrow in the edit grid once England Golf publishes the value.
+            Date and tee automatically copy from the first row to rows 2–4.
+            To exclude a round from the handicap calculation, use the Excl column in the edit grid below after saving.
         </div>
 
         <div class="golf-grid-header entry-header">
@@ -94,6 +96,8 @@ add_shortcode('golf_scorecard_entry', function () {
                     <input type="number" class="golf-input in-gir tc" placeholder="-">
                 </div>
 
+                <!-- NOTE: No Excl checkbox here — exclusions are set in the edit grid below -->
+
                 <div class="tc status-cell">-</div>
             </div>
         <?php endfor; ?>
@@ -129,6 +133,7 @@ add_shortcode('golf_edit_grid', function () {
     <div class="golf-management-root golf-edit-box">
         <div class="edit-grid-notice" style="padding:10px; margin:0 10px 12px; background:#d1ecf1; border:1px solid #bee5eb; border-radius:4px; font-size:13px; color:#0c5460;">
             💡 <strong>Edit Grid:</strong> Update PCC here the next day (typically -1, 0, +1, +2, or +3).
+            <strong>Excl</strong> = round played but not submitted to England Golf — saves for records but excluded from handicap calculation.
             Note: after saving, refresh the page to see updated "counting" dots across all rounds.
         </div>
 
@@ -140,6 +145,7 @@ add_shortcode('golf_edit_grid', function () {
             <div class="tc">PCC</div>
             <div class="tc">Putts</div>
             <div class="tc">GIR</div>
+            <div class="tc">Excl</div>
             <div class="tc">Nett</div>
             <div class="tc">Diff</div>
             <div class="tc">Count</div>
@@ -147,7 +153,8 @@ add_shortcode('golf_edit_grid', function () {
         </div>
 
         <?php foreach ($rounds as $r): ?>
-            <div class="golf-grid-row edit-row" id="row-<?php echo esc_attr($r->score_id); ?>">
+            <?php $is_excl = !empty($r->is_excluded) ? 1 : 0; ?>
+            <div class="golf-grid-row edit-row <?php echo $is_excl ? 'row-excluded' : ''; ?>" id="row-<?php echo esc_attr($r->score_id); ?>">
                 <div><strong><?php echo esc_html($r->player_name); ?></strong></div>
 
                 <input type="date" class="golf-input ed-date" value="<?php echo esc_attr($r->date_played); ?>">
@@ -176,6 +183,11 @@ add_shortcode('golf_edit_grid', function () {
 
                 <input type="number" class="golf-input ed-putts tc" value="<?php echo esc_attr($r->putts); ?>">
                 <input type="number" class="golf-input ed-gir tc" value="<?php echo esc_attr($r->gir); ?>">
+
+                <!-- Excl checkbox — only in the edit grid, not the entry form -->
+                <div class="tc">
+                    <input type="checkbox" class="golf-input ed-excl" value="1" <?php checked($is_excl, 1); ?> title="Exclude from handicap">
+                </div>
 
                 <div class="computed tc ed-net"><?php echo esc_html($r->net_score); ?></div>
                 <div class="computed tc ed-diff"><?php echo esc_html($r->differential); ?></div>
@@ -231,6 +243,8 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             continue;
         }
 
+        // Entry form has no Excl — all new rounds default to is_excluded = 0
+        // Exclusion is set later via the edit grid if needed
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
             'date_played'    => $date,
@@ -239,6 +253,7 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             'pcc_adjustment' => 0,
             'putts'          => isset($r['putts']) ? (int) $r['putts'] : 0,
             'gir'            => isset($r['gir'])   ? (int) $r['gir']   : 0,
+            'is_excluded'    => 0,
         ]);
 
         if ($ok) {
@@ -312,6 +327,9 @@ add_action('wp_ajax_golf_final_action_update', function () {
         $new_date = current_time('mysql');
     }
 
+    // Excl only comes from the edit grid AJAX save
+    $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
+
     $updated = $wpdb->update(
         $scores_table,
         [
@@ -321,20 +339,21 @@ add_action('wp_ajax_golf_final_action_update', function () {
             'pcc_adjustment' => isset($_POST['pcc'])    ? (int) $_POST['pcc']    : 0,
             'putts'          => isset($_POST['putts'])  ? (int) $_POST['putts']  : 0,
             'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
+            'is_excluded'    => $is_excluded,
         ],
         ['score_id' => $score_id],
         null,
         ['%d']
     );
 
-    // false = DB error; 0 = nothing changed (data identical) which is still a valid success
+    // false = DB error; 0 = nothing changed (data identical) — still a valid success
     if ($updated === false) {
         wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
     }
 
     $row = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT score_id, net_score, differential, is_counting FROM {$history_view} WHERE score_id = %d",
+            "SELECT score_id, net_score, differential, is_counting, is_excluded FROM {$history_view} WHERE score_id = %d",
             $score_id
         )
     );
@@ -350,5 +369,6 @@ add_action('wp_ajax_golf_final_action_update', function () {
         'net_score'    => $row->net_score,
         'differential' => $row->differential,
         'is_counting'  => (int) $row->is_counting,
+        'is_excluded'  => (int) $row->is_excluded,
     ]);
 });

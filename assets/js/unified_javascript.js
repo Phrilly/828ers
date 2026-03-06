@@ -1,10 +1,31 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-03-05_nonce";
-console.log("828ers JS loaded. Build: NONCE UPDATE", window.__GOLF_BUILD_ID__);
+window.__GOLF_BUILD_ID__ = "2026-03-06_inherit";
+console.log("828ers JS loaded. Build: DATE+TEE INHERIT", window.__GOLF_BUILD_ID__);
 
-// CHANGED: was const GOLF_AJAX_URL = "/wp-admin/admin-ajax.php"
-// Now driven by wp_localize_script in 828ers.php so it works regardless of WP install path
 const GOLF_AJAX_URL = (typeof GolfMasterAjax !== "undefined") ? GolfMasterAjax.ajaxUrl : "/wp-admin/admin-ajax.php";
+
+/* --------------------------
+   Auto-inherit date and tee from row 1 to rows 2, 3, 4
+   Fires as soon as the page is ready.
+   -------------------------- */
+jQuery(function ($) {
+    const $rows = $(".entry-row");
+    const $row1 = $rows.eq(0);
+
+    $row1.find(".in-date").on("change", function () {
+        const val = $(this).val();
+        $rows.slice(1).each(function () {
+            $(this).find(".in-date").val(val);
+        });
+    });
+
+    $row1.find(".in-tee").on("change", function () {
+        const val = $(this).val();
+        $rows.slice(1).each(function () {
+            $(this).find(".in-tee").val(val);
+        });
+    });
+});
 
 /* --------------------------
    Delete a historic round
@@ -16,13 +37,12 @@ function ajaxDelete(scoreId) {
     .post(
       GOLF_AJAX_URL,
       {
-        action: "golf_final_action_delete",
+        action:   "golf_final_action_delete",
         score_id: scoreId,
-        nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
+        nonce:    GolfMasterAjax.nonce
       },
       function (res) {
         console.log("DELETE response:", res);
-
         if (res && res.success === true) {
           jQuery("#row-" + scoreId).remove();
           alert("Round " + scoreId + " has been successfully deleted.");
@@ -44,22 +64,22 @@ function ajaxDelete(scoreId) {
    Update a historic round
    -------------------------- */
 function ajaxUpdate(scoreId) {
-  const row = jQuery("#row-" + scoreId);
+  const row     = jQuery("#row-" + scoreId);
   const saveBtn = row.find(".btn-save");
 
   const data = {
-    action: "golf_final_action_update",
+    action:   "golf_final_action_update",
     score_id: scoreId,
-    date: row.find(".ed-date").val(),
-    tee: row.find(".ed-tee").val(),
-    gross: row.find(".ed-gross").val(),
-    pcc: row.find(".ed-pcc").val(),
-    putts: row.find(".ed-putts").val(),
-    gir: row.find(".ed-gir").val(),
-    nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
+    date:     row.find(".ed-date").val(),
+    tee:      row.find(".ed-tee").val(),
+    gross:    row.find(".ed-gross").val(),
+    pcc:      row.find(".ed-pcc").val(),
+    putts:    row.find(".ed-putts").val(),
+    gir:      row.find(".ed-gir").val(),
+    excluded: row.find(".ed-excl").is(":checked") ? 1 : 0,
+    nonce:    GolfMasterAjax.nonce
   };
 
-  // Immediate feedback
   saveBtn.text("SAVING...").prop("disabled", true);
 
   jQuery
@@ -79,7 +99,6 @@ function ajaxUpdate(scoreId) {
           return;
         }
 
-        // Update computed fields returned by PHP
         row.find(".ed-net").text(res.data.net_score);
         row.find(".ed-diff").text(res.data.differential);
 
@@ -90,7 +109,13 @@ function ajaxUpdate(scoreId) {
           countCell.append('<span class="count-dot" aria-label="Counting round"></span>');
         }
 
-        // Visual confirmation: Turn button green and show "SAVED!"
+        // Visually mark row as excluded or restore it
+        if (parseInt(res.data.is_excluded, 10) === 1) {
+          row.addClass("row-excluded");
+        } else {
+          row.removeClass("row-excluded");
+        }
+
         saveBtn
           .text("SAVED!")
           .css({ "background-color": "#28a745", color: "#fff" })
@@ -116,21 +141,23 @@ function golfSaveAll() {
   let rounds = [];
 
   jQuery(".entry-row").each(function () {
-    const $row = jQuery(this);
+    const $row      = jQuery(this);
     const player_id = $row.find(".in-player").val();
-    const date = $row.find(".in-date").val();
-    const tee = $row.find(".in-tee").val();
-    const gross = $row.find(".in-gross").val();
+    const date      = $row.find(".in-date").val();
+    const tee       = $row.find(".in-tee").val();
+    const gross     = $row.find(".in-gross").val();
 
     if (player_id && date && tee && gross !== "") {
       rounds.push({
         player_id: player_id,
-        date: date,
-        tee: tee,
-        gross: gross,
-        pcc: $row.find(".in-pcc").val(),
-        putts: $row.find(".in-putts").val(),
-        gir: $row.find(".in-gir").val(),
+        date:      date,
+        tee:       tee,
+        gross:     gross,
+        pcc:       $row.find(".in-pcc").val(),
+        putts:     $row.find(".in-putts").val(),
+        gir:       $row.find(".in-gir").val(),
+        // No excluded here — entry form always saves as is_excluded = 0
+        // Use the edit grid Excl checkbox to exclude after saving if needed
       });
     }
   });
@@ -143,7 +170,7 @@ function golfSaveAll() {
       {
         action: "golf_final_action_bulk_save",
         rounds: rounds,
-        nonce: GolfMasterAjax.nonce   // CHANGED: added nonce
+        nonce:  GolfMasterAjax.nonce
       },
       function (res) {
         console.log("BULK SAVE response:", res);
@@ -159,17 +186,17 @@ function golfSaveAll() {
 
         alert("Successfully saved " + rounds.length + " round(s).");
 
-        const $anyTeeSelect = jQuery(".golf-edit-box .ed-tee").first();
+        const $anyTeeSelect  = jQuery(".golf-edit-box .ed-tee").first();
         const teeOptionsHtml = $anyTeeSelect.length ? $anyTeeSelect.html() : "";
-        const $historicBox = jQuery(".golf-edit-box");
-        const $header = $historicBox.find(".golf-grid-header").first();
+        const $historicBox   = jQuery(".golf-edit-box");
+        const $header        = $historicBox.find(".golf-grid-header").first();
 
         (res.data.rows || []).forEach(function (r) {
-          const countHtml =
-            parseInt(r.is_counting, 10) === 1
-              ? '<span class="count-dot" aria-label="Counting round"></span>'
-              : "";
+          const countHtml = parseInt(r.is_counting, 10) === 1
+            ? '<span class="count-dot" aria-label="Counting round"></span>'
+            : "";
 
+          // New rows from bulk save are never excluded (is_excluded always 0 from entry form)
           const rowHtml = `
             <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
               <div><strong>${escapeHtml(r.player_name)}</strong></div>
@@ -179,6 +206,7 @@ function golfSaveAll() {
               <input type="number" class="golf-input ed-pcc tc" value="${escapeAttr(r.pcc_adjustment)}">
               <input type="number" class="golf-input ed-putts tc" value="${escapeAttr(r.putts)}">
               <input type="number" class="golf-input ed-gir tc" value="${escapeAttr(r.gir)}">
+              <div class="tc"><input type="checkbox" class="golf-input ed-excl" value="1" title="Exclude from handicap"></div>
               <div class="computed ed-net tc">${escapeHtml(r.net_score)}</div>
               <div class="computed ed-diff tc">${escapeHtml(r.differential)}</div>
               <div class="tc ed-count">${countHtml}</div>
@@ -190,13 +218,10 @@ function golfSaveAll() {
           `;
 
           $header.after(rowHtml);
-
-          // Belt-and-braces: force the class even if something strips it
-          jQuery("#row-" + r.score_id).addClass("edit-row");
-
           jQuery("#row-" + r.score_id).find(".ed-tee").val(String(r.tee_id));
         });
 
+        // Clear entry form rows
         jQuery(".entry-row").each(function () {
           const $row = jQuery(this);
           $row.find(".in-player").val("");
@@ -205,6 +230,7 @@ function golfSaveAll() {
           $row.find(".in-gir").val("");
           $row.find(".in-pcc").val("0");
           $row.find(".status-cell").text("-");
+          // Date and tee intentionally left as-is — ready for the next group of rounds
         });
       },
       "json"
