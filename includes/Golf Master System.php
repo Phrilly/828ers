@@ -96,8 +96,7 @@ add_shortcode('golf_scorecard_entry', function () {
                     <input type="number" class="golf-input in-gir tc" placeholder="-">
                 </div>
 
-                <!-- NOTE: No Excl checkbox here — exclusions are set in the edit grid below -->
-
+                <!-- No Excl checkbox here — exclusions are set in the edit grid below -->
                 <div class="tc status-cell">-</div>
             </div>
         <?php endfor; ?>
@@ -125,8 +124,37 @@ add_shortcode('golf_edit_grid', function () {
     $history_view = $wpdb->prefix . 'golf_dashboard_history';
     $tees_table   = $wpdb->prefix . 'golf_tees';
 
-    $rounds = $wpdb->get_results("SELECT * FROM {$history_view} ORDER BY date_played DESC, score_id DESC LIMIT 30");
-    $tees   = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
+    // CHANGED: removed is_excluded filter from the view query so excluded rounds
+    // still appear in the edit grid (so you can un-exclude them if needed).
+    // The view itself may filter them — so we query the base scores table for the grid.
+    $scores_table  = $wpdb->prefix . 'golf_scores';
+    $players_table = $wpdb->prefix . 'golf_players';
+
+    $rounds = $wpdb->get_results("
+        SELECT
+            s.score_id,
+            s.player_id,
+            p.name        AS player_name,
+            s.date_played,
+            s.tee_id,
+            t.tee_colour,
+            s.gross_score,
+            s.pcc_adjustment,
+            s.putts,
+            s.gir,
+            s.is_excluded,
+            COALESCE(v.net_score, 0)    AS net_score,
+            COALESCE(v.differential, 0) AS differential,
+            COALESCE(v.is_counting, 0)  AS is_counting
+        FROM      {$scores_table}  s
+        JOIN      {$players_table} p ON p.player_id = s.player_id
+        JOIN      {$wpdb->prefix}golf_tees t ON t.tee_id = s.tee_id
+        LEFT JOIN {$history_view}  v ON v.score_id  = s.score_id
+        ORDER BY  s.date_played DESC, s.score_id DESC
+        LIMIT 30
+    ");
+
+    $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$wpdb->prefix}golf_tees ORDER BY tee_id");
 
     ob_start();
     ?>
@@ -184,7 +212,7 @@ add_shortcode('golf_edit_grid', function () {
                 <input type="number" class="golf-input ed-putts tc" value="<?php echo esc_attr($r->putts); ?>">
                 <input type="number" class="golf-input ed-gir tc" value="<?php echo esc_attr($r->gir); ?>">
 
-                <!-- Excl checkbox — only in the edit grid, not the entry form -->
+                <!-- Excl checkbox — edit grid only -->
                 <div class="tc">
                     <input type="checkbox" class="golf-input ed-excl" value="1" <?php checked($is_excl, 1); ?> title="Exclude from handicap">
                 </div>
@@ -243,8 +271,6 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             continue;
         }
 
-        // Entry form has no Excl — all new rounds default to is_excluded = 0
-        // Exclusion is set later via the edit grid if needed
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
             'date_played'    => $date,
@@ -327,7 +353,6 @@ add_action('wp_ajax_golf_final_action_update', function () {
         $new_date = current_time('mysql');
     }
 
-    // Excl only comes from the edit grid AJAX save
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
 
     $updated = $wpdb->update(
@@ -346,20 +371,33 @@ add_action('wp_ajax_golf_final_action_update', function () {
         ['%d']
     );
 
-    // false = DB error; 0 = nothing changed (data identical) — still a valid success
     if ($updated === false) {
         wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
     }
 
+    // CHANGED: if the round is now excluded the view may no longer contain it —
+    // that is correct behaviour. Try the view first; if not found and is_excluded = 1,
+    // return a clean success with zeroed computed fields so the JS can grey the row out.
     $row = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT score_id, net_score, differential, is_counting, is_excluded FROM {$history_view} WHERE score_id = %d",
+            "SELECT score_id, net_score, differential, is_counting FROM {$history_view} WHERE score_id = %d",
             $score_id
         )
     );
 
     if (!$row) {
-        wp_send_json_error(['message' => 'Updated but view row not found']);
+        if ($is_excluded) {
+            // Row excluded from view on purpose — return success with blank computed fields
+            wp_send_json_success([
+                'score_id'     => $score_id,
+                'net_score'    => '-',
+                'differential' => '-',
+                'is_counting'  => 0,
+                'is_excluded'  => 1,
+            ]);
+        } else {
+            wp_send_json_error(['message' => 'Updated but view row not found']);
+        }
     }
 
     // NOTE: counting dots for other rows may be visually outdated until page refresh
@@ -369,6 +407,6 @@ add_action('wp_ajax_golf_final_action_update', function () {
         'net_score'    => $row->net_score,
         'differential' => $row->differential,
         'is_counting'  => (int) $row->is_counting,
-        'is_excluded'  => (int) $row->is_excluded,
+        'is_excluded'  => $is_excluded,
     ]);
 });
