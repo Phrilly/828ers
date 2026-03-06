@@ -5,12 +5,24 @@
    ====================================================== */
 
 /* ============================
+   PERMISSION HELPER
+   Allows: Administrator, Editor, Author, or Golf Member role.
+   Add any future roles to $allowed_roles here — one place, affects everything.
+   ============================ */
+function golf_828ers_can_enter_scores() {
+    if (!is_user_logged_in()) return false;
+    $user          = wp_get_current_user();
+    $allowed_roles = ['administrator', 'editor', 'author', 'golf_member'];
+    return (bool) array_intersect($allowed_roles, (array) $user->roles);
+}
+
+
+/* ============================
    1) TOP FORM: 4-Row Entry
    Shortcode: [golf_scorecard_entry]
    ============================ */
 add_shortcode('golf_scorecard_entry', function () {
-    // Restrict to logged-in users who can edit posts
-    if (!current_user_can('edit_posts')) {
+    if (!golf_828ers_can_enter_scores()) {
         return '<p>You do not have permission to enter scores.</p>';
     }
 
@@ -100,8 +112,7 @@ add_shortcode('golf_scorecard_entry', function () {
    Shortcode: [golf_edit_grid]
    ============================ */
 add_shortcode('golf_edit_grid', function () {
-    // Restrict to logged-in users who can edit posts
-    if (!current_user_can('edit_posts')) {
+    if (!golf_828ers_can_enter_scores()) {
         return '<p>You do not have permission to edit scores.</p>';
     }
 
@@ -155,8 +166,6 @@ add_shortcode('golf_edit_grid', function () {
                 <select class="golf-input ed-pcc tc">
                     <?php
                     $pcc_current = (int) $r->pcc_adjustment;
-                    // CHANGED: expanded from [-1,0,1,2,3] to [-2,-1,0,1,2,3,4]
-                    // to handle rare extreme England Golf PCC values
                     foreach ([-2, -1, 0, 1, 2, 3, 4] as $val) {
                         $sel     = ($pcc_current === $val) ? 'selected' : '';
                         $display = ($val > 0) ? "+{$val}" : $val;
@@ -196,8 +205,7 @@ add_shortcode('golf_edit_grid', function () {
 add_action('wp_ajax_golf_final_action_bulk_save', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
-    // Restrict to logged-in users who can edit posts
-    if (!current_user_can('edit_posts')) {
+    if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
@@ -214,7 +222,6 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         $tee    = isset($r['tee'])       ? (int) $r['tee'] : 0;
         $gross  = isset($r['gross'])     ? (int) $r['gross'] : 0;
 
-        // CHANGED: validate date format as YYYY-MM-DD before hitting the DB
         $date = isset($r['date']) ? sanitize_text_field($r['date']) : '';
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $date = current_time('mysql');
@@ -257,8 +264,7 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 add_action('wp_ajax_golf_final_action_delete', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
-    // Restrict to logged-in users who can edit posts
-    if (!current_user_can('edit_posts')) {
+    if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
@@ -287,8 +293,7 @@ add_action('wp_ajax_golf_final_action_delete', function () {
 add_action('wp_ajax_golf_final_action_update', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
-    // Restrict to logged-in users who can edit posts
-    if (!current_user_can('edit_posts')) {
+    if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
@@ -302,13 +307,11 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
-    // CHANGED: validate date format as YYYY-MM-DD before hitting the DB
     $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_date)) {
         $new_date = current_time('mysql');
     }
 
-    // CHANGED: $updated is now correctly assigned (was missing before, causing undefined variable)
     $updated = $wpdb->update(
         $scores_table,
         [
@@ -324,8 +327,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
         ['%d']
     );
 
-    // CHANGED: $updated === false means a DB error; $updated === 0 means nothing changed
-    // (data was identical) which is still a valid success — do not error on 0.
+    // false = DB error; 0 = nothing changed (data identical) which is still a valid success
     if ($updated === false) {
         wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
     }
@@ -341,8 +343,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Updated but view row not found']);
     }
 
-    // NOTE: is_counting and differential are returned for the updated round only.
-    // Other rows' counting dots may be visually outdated until the page is refreshed,
+    // NOTE: counting dots for other rows may be visually outdated until page refresh
     // because WHS recalculates the top 8 of 20 across all rounds on each update.
     wp_send_json_success([
         'score_id'     => (int) $row->score_id,
