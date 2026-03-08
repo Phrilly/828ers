@@ -3,15 +3,11 @@
  * Golf Rounds Pivot
  * Shortcode: [golf_rounds_pivot]
  * AJAX endpoint: grp5_load (admin-ajax.php)
- *
- * Assumes a DB view named: view_golf_rounds_pivot
  */
 
 add_shortcode('golf_rounds_pivot', function () {
     $nonce = wp_create_nonce('grp5_nonce');
-
-    ob_start();
-    ?>
+    ob_start(); ?>
     <div id="grp5-app" class="grp5">
         <div class="grp5-range" id="grp5-range"></div>
         <div class="grp5-tablewrap" id="grp5-tablewrap">
@@ -19,7 +15,6 @@ add_shortcode('golf_rounds_pivot', function () {
         </div>
         <div class="grp5-pager" id="grp5-pager"></div>
     </div>
-
     <script>
     (function () {
         const app   = document.getElementById('grp5-app');
@@ -29,7 +24,6 @@ add_shortcode('golf_rounds_pivot', function () {
 
         function loadPage(page) {
             wrap.classList.add('is-loading');
-
             fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
@@ -60,13 +54,10 @@ add_shortcode('golf_rounds_pivot', function () {
         pager.addEventListener('click', (e) => {
             const el = e.target.closest('[data-page]');
             if (!el) return;
-
             const p = parseInt(el.dataset.page, 10);
             if (!p) return;
-
             if (el.classList.contains('disabled') || el.getAttribute('aria-disabled') === 'true') return;
             if (el.classList.contains('current')) return;
-
             e.preventDefault();
             loadPage(p);
             app.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -76,11 +67,10 @@ add_shortcode('golf_rounds_pivot', function () {
     })();
     </script>
     <?php
-
     return ob_get_clean();
 });
 
-add_action('wp_ajax_grp5_load', 'grp5_load');
+add_action('wp_ajax_grp5_load',        'grp5_load');
 add_action('wp_ajax_nopriv_grp5_load', 'grp5_load');
 
 function grp5_load() {
@@ -92,25 +82,22 @@ function grp5_load() {
     $page   = max(1, (int) ($_POST['page'] ?? 1));
     $offset = ($page - 1) * $limit;
 
-    // Fetch player IDs dynamically — never hardcode [1, 2, 3, 4]
     $players_table = $wpdb->prefix . 'golf_players';
-    $playerRows    = $wpdb->get_results(
-        "SELECT player_id, name FROM {$players_table} ORDER BY player_id ASC",
+
+    // CHANGED: fetch winner_colour as well for header dots
+    $playerRows = $wpdb->get_results(
+        "SELECT player_id, name, winner_colour FROM {$players_table} ORDER BY player_id ASC",
         OBJECT_K
     );
     $playerIds = array_keys($playerRows);
 
-    // Total rows for paging
     $total      = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$view}");
     $totalPages = max(1, (int) ceil($total / $limit));
+    $page       = min($page, $totalPages);
+    $offset     = ($page - 1) * $limit;
+    $startRow   = $total ? ($offset + 1) : 0;
+    $endRow     = min($offset + $limit, $total);
 
-    $page   = min($page, $totalPages);
-    $offset = ($page - 1) * $limit;
-
-    $startRow = $total ? ($offset + 1) : 0;
-    $endRow   = min($offset + $limit, $total);
-
-    // Fetch page rows
     $rows = $wpdb->get_results($wpdb->prepare("
         SELECT *
         FROM {$view}
@@ -118,23 +105,23 @@ function grp5_load() {
         LIMIT %d OFFSET %d
     ", $limit, $offset), ARRAY_A);
 
-    // Build labels map from the dynamic query results
-    $labels = [];
-    foreach ($playerIds as $pid) {
-        $labels[$pid] = $playerRows[$pid]->name ?? ('P' . $pid);
-    }
-
-    // Render table
-    ob_start();
-    ?>
+    ob_start(); ?>
     <div class="grp5-tablewrap-inner">
         <table class="grp5-table">
             <thead>
                 <tr>
                     <th rowspan="2" class="sticky col-date">Date</th>
                     <th rowspan="2" class="sticky col-tee">Tee</th>
-                    <?php foreach ($playerIds as $pid): ?>
-                        <th colspan="3" class="sticky grp5-ph"><?php echo esc_html($labels[$pid] ?? ('P' . $pid)); ?></th>
+                    <?php foreach ($playerIds as $pid):
+                        $colour = $playerRows[$pid]->winner_colour ?? '';
+                        $name   = $playerRows[$pid]->name ?? ('P' . $pid);
+                    ?>
+                        <th colspan="3" class="sticky grp5-ph">
+                            <?php if ($colour): // CHANGED: colour dot in header ?>
+                                <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?php echo esc_attr($colour); ?>;margin-right:4px;vertical-align:middle;"></span>
+                            <?php endif; ?>
+                            <?php echo esc_html($name); ?>
+                        </th>
                     <?php endforeach; ?>
                     <th rowspan="2" class="sticky col-winner">Winner</th>
                 </tr>
@@ -150,8 +137,7 @@ function grp5_load() {
                 <?php if (empty($rows)): ?>
                     <tr><td colspan="<?php echo esc_attr(3 + (count($playerIds) * 3)); ?>">No rounds found.</td></tr>
                 <?php else: ?>
-                    <?php foreach ($rows as $r): ?>
-                        <?php
+                    <?php foreach ($rows as $r):
                         $winner = (string) ($r['winner'] ?? '');
                         $wcol   = (string) ($r['winner_colour'] ?? '');
 
@@ -165,19 +151,33 @@ function grp5_load() {
                             $winnerClasses[] = 'is-' . sanitize_html_class($wcol);
                             $winnerAttrs    .= ' data-winner-colour="' . esc_attr($wcol) . '"';
                         }
-                        ?>
+                    ?>
                         <tr>
                             <td class="col-date"><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
                             <td class="col-tee"><?php echo esc_html($r['tee_colour'] ?? ''); ?></td>
 
-                            <?php foreach ($playerIds as $pid): ?>
-                                <td class="tc"><?php echo esc_html($r['p' . $pid . '_gross'] ?? ''); ?></td>
-                                <td class="tc"><?php echo esc_html($r['p' . $pid . '_hcp'] ?? ''); ?></td>
-                                <td class="tc"><?php echo esc_html($r['p' . $pid . '_net'] ?? ''); ?></td>
+                            <?php foreach ($playerIds as $pid):
+                                // CHANGED: read per-player colour for nett score styling
+                                $pgross  = $r['p' . $pid . '_gross'] ?? '';
+                                $phcp    = $r['p' . $pid . '_hcp']   ?? '';
+                                $pnet    = $r['p' . $pid . '_net']   ?? '';
+                                $pcolour = $r['p' . $pid . '_colour'] ?? '';
+                                $net_style = $pcolour ? ' style="color:' . esc_attr($pcolour) . ';font-weight:bold;"' : '';
+                            ?>
+                                <td class="tc"><?php echo esc_html($pgross); ?></td>
+                                <td class="tc"><?php echo esc_html($phcp); ?></td>
+                                <td class="tc"<?php echo $net_style; ?>><?php echo esc_html($pnet); ?></td>
                             <?php endforeach; ?>
 
                             <td class="<?php echo esc_attr(implode(' ', $winnerClasses)); ?>"<?php echo $winnerAttrs; ?>>
-                                <?php echo esc_html($winner); ?>
+                                <?php if ($winner !== ''): ?>
+                                    <?php if ($wcol): // CHANGED: colour dot next to winner name ?>
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?php echo esc_attr($wcol); ?>;margin-right:4px;vertical-align:middle;"></span>
+                                    <?php endif; ?>
+                                    <?php echo esc_html($winner); ?>
+                                <?php else: ?>
+                                    <span style="color:#ccc;font-style:italic;font-size:11px;">solo</span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -188,7 +188,6 @@ function grp5_load() {
     <?php
     $tableHtml = ob_get_clean();
 
-    // Render pagination
     ob_start();
     if ($totalPages > 1) {
         $prevPage = max(1, $page - 1);
