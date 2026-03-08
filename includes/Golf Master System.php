@@ -1,14 +1,10 @@
 <?php
 /* ======================================================
    GOLF MASTER SHORTCODES + AJAX
-   (Entry form + Edit grid + Save/Update/Delete)
+   Nonce is localised by 828ers.php via wp_localize_script
+   as GolfMasterAjax — do NOT redefine it here.
    ====================================================== */
 
-/* ============================
-   PERMISSION HELPER
-   Allows: Administrator, Editor, Author, or Golf Member role.
-   Add any future roles to $allowed_roles here.
-   ============================ */
 function golf_828ers_can_enter_scores() {
     if (!is_user_logged_in()) return false;
     $user          = wp_get_current_user();
@@ -96,7 +92,6 @@ add_shortcode('golf_scorecard_entry', function () {
                     <input type="number" class="golf-input in-gir tc" placeholder="-">
                 </div>
 
-                <!-- No Excl checkbox here — exclusions are set in the edit grid below -->
                 <div class="tc status-cell">-</div>
             </div>
         <?php endfor; ?>
@@ -121,14 +116,10 @@ add_shortcode('golf_edit_grid', function () {
 
     global $wpdb;
 
-    $history_view = $wpdb->prefix . 'golf_dashboard_history';
-    $tees_table   = $wpdb->prefix . 'golf_tees';
-
-    // CHANGED: removed is_excluded filter from the view query so excluded rounds
-    // still appear in the edit grid (so you can un-exclude them if needed).
-    // The view itself may filter them — so we query the base scores table for the grid.
     $scores_table  = $wpdb->prefix . 'golf_scores';
     $players_table = $wpdb->prefix . 'golf_players';
+    $tees_table    = $wpdb->prefix . 'golf_tees';
+    $history_view  = $wpdb->prefix . 'golf_dashboard_history';
 
     $rounds = $wpdb->get_results("
         SELECT
@@ -148,13 +139,13 @@ add_shortcode('golf_edit_grid', function () {
             COALESCE(v.is_counting, 0)  AS is_counting
         FROM      {$scores_table}  s
         JOIN      {$players_table} p ON p.player_id = s.player_id
-        JOIN      {$wpdb->prefix}golf_tees t ON t.tee_id = s.tee_id
+        JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
         LEFT JOIN {$history_view}  v ON v.score_id  = s.score_id
         ORDER BY  s.date_played DESC, s.score_id DESC
         LIMIT 30
     ");
 
-    $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$wpdb->prefix}golf_tees ORDER BY tee_id");
+    $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
 
     ob_start();
     ?>
@@ -182,10 +173,13 @@ add_shortcode('golf_edit_grid', function () {
 
         <?php foreach ($rounds as $r): ?>
             <?php $is_excl = !empty($r->is_excluded) ? 1 : 0; ?>
-            <div class="golf-grid-row edit-row <?php echo $is_excl ? 'row-excluded' : ''; ?>" id="row-<?php echo esc_attr($r->score_id); ?>">
+            <div class="golf-grid-row edit-row <?php echo $is_excl ? 'row-excluded' : ''; ?>"
+                 id="row-<?php echo esc_attr($r->score_id); ?>">
+
                 <div><strong><?php echo esc_html($r->player_name); ?></strong></div>
 
-                <input type="date" class="golf-input ed-date" value="<?php echo esc_attr($r->date_played); ?>">
+                <input type="date" class="golf-input ed-date"
+                       value="<?php echo esc_attr($r->date_played); ?>">
 
                 <select class="golf-input ed-tee">
                     <?php foreach ($tees as $t): ?>
@@ -196,7 +190,8 @@ add_shortcode('golf_edit_grid', function () {
                     <?php endforeach; ?>
                 </select>
 
-                <input type="number" class="golf-input ed-gross tc" value="<?php echo esc_attr($r->gross_score); ?>">
+                <input type="number" class="golf-input ed-gross tc"
+                       value="<?php echo esc_attr($r->gross_score); ?>">
 
                 <select class="golf-input ed-pcc tc">
                     <?php
@@ -209,12 +204,14 @@ add_shortcode('golf_edit_grid', function () {
                     ?>
                 </select>
 
-                <input type="number" class="golf-input ed-putts tc" value="<?php echo esc_attr($r->putts); ?>">
-                <input type="number" class="golf-input ed-gir tc" value="<?php echo esc_attr($r->gir); ?>">
+                <input type="number" class="golf-input ed-putts tc"
+                       value="<?php echo esc_attr($r->putts); ?>">
+                <input type="number" class="golf-input ed-gir tc"
+                       value="<?php echo esc_attr($r->gir); ?>">
 
-                <!-- Excl checkbox — edit grid only -->
                 <div class="tc">
-                    <input type="checkbox" class="golf-input ed-excl" value="1" <?php checked($is_excl, 1); ?> title="Exclude from handicap">
+                    <input type="checkbox" class="golf-input ed-excl" value="1"
+                           <?php checked($is_excl, 1); ?> title="Exclude from handicap">
                 </div>
 
                 <div class="computed tc ed-net"><?php echo esc_html($r->net_score); ?></div>
@@ -227,8 +224,10 @@ add_shortcode('golf_edit_grid', function () {
                 </div>
 
                 <div class="tc action-btns">
-                    <button class="golf-btn btn-save" type="button" onclick="ajaxUpdate(<?php echo (int) $r->score_id; ?>)">SAVE</button>
-                    <button class="golf-btn btn-del" type="button" onclick="ajaxDelete(<?php echo (int) $r->score_id; ?>)">DEL</button>
+                    <button class="golf-btn btn-save" type="button"
+                            onclick="ajaxUpdate(<?php echo (int) $r->score_id; ?>)">SAVE</button>
+                    <button class="golf-btn btn-del" type="button"
+                            onclick="ajaxDelete(<?php echo (int) $r->score_id; ?>)">DEL</button>
                 </div>
             </div>
         <?php endforeach; ?>
@@ -239,9 +238,8 @@ add_shortcode('golf_edit_grid', function () {
 
 
 /* ============================
-   3) AJAX Receivers
+   3) AJAX: Bulk Save
    ============================ */
-
 add_action('wp_ajax_golf_final_action_bulk_save', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
@@ -251,25 +249,22 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
     global $wpdb;
 
-    $scores_table = $wpdb->prefix . 'golf_scores';
-    $history_view = $wpdb->prefix . 'golf_dashboard_history';
+    $scores_table  = $wpdb->prefix . 'golf_scores';
+    $players_table = $wpdb->prefix . 'golf_players';
+    $tees_table    = $wpdb->prefix . 'golf_tees';
+    $history_view  = $wpdb->prefix . 'golf_dashboard_history';
 
     $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
 
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
-        $tee    = isset($r['tee'])       ? (int) $r['tee'] : 0;
-        $gross  = isset($r['gross'])     ? (int) $r['gross'] : 0;
+        $tee    = isset($r['tee'])       ? (int) $r['tee']       : 0;
+        $gross  = isset($r['gross'])     ? (int) $r['gross']      : 0;
+        $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
 
-        $date = isset($r['date']) ? sanitize_text_field($r['date']) : '';
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $date = current_time('mysql');
-        }
-
-        if (!$player || !$date || !$tee || !$gross) {
-            continue;
-        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+        if (!$player || !$tee || !$gross) continue;
 
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
@@ -292,16 +287,31 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
     }
 
     $placeholders = implode(',', array_fill(0, count($inserted_ids), '%d'));
-    $query = $wpdb->prepare(
-        "SELECT * FROM {$history_view} WHERE score_id IN ({$placeholders}) ORDER BY date_played DESC, score_id DESC",
-        ...$inserted_ids
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT s.score_id, p.name AS player_name, s.date_played,
+                    t.tee_colour, s.tee_id, s.gross_score, s.pcc_adjustment,
+                    s.putts, s.gir, s.is_excluded,
+                    COALESCE(h.net_score, 0)    AS net_score,
+                    COALESCE(h.differential, 0) AS differential,
+                    COALESCE(h.is_counting, 0)  AS is_counting
+             FROM      {$scores_table}  s
+             JOIN      {$players_table} p ON p.player_id = s.player_id
+             JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
+             LEFT JOIN {$history_view}  h ON h.score_id  = s.score_id
+             WHERE s.score_id IN ({$placeholders})
+             ORDER BY s.date_played DESC, s.score_id DESC",
+            ...$inserted_ids
+        )
     );
-    $rows = $wpdb->get_results($query);
 
     wp_send_json_success(['inserted_ids' => $inserted_ids, 'rows' => $rows]);
 });
 
 
+/* ============================
+   4) AJAX: Delete
+   ============================ */
 add_action('wp_ajax_golf_final_action_delete', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
@@ -311,26 +321,31 @@ add_action('wp_ajax_golf_final_action_delete', function () {
 
     global $wpdb;
 
-    $scores_table = $wpdb->prefix . 'golf_scores';
-
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
-    $deleted = $wpdb->delete($scores_table, ['score_id' => $score_id], ['%d']);
+    $deleted = $wpdb->delete(
+        $wpdb->prefix . 'golf_scores',
+        ['score_id' => $score_id],
+        ['%d']
+    );
 
     if ($deleted === false) {
         wp_send_json_error(['message' => 'Database delete failed', 'db_error' => $wpdb->last_error]);
     }
     if ($deleted === 0) {
-        wp_send_json_error(['message' => 'No rows deleted (not found)', 'score_id' => $score_id]);
+        wp_send_json_error(['message' => 'No rows deleted', 'score_id' => $score_id]);
     }
 
     wp_send_json_success(['deleted' => (int) $deleted, 'score_id' => $score_id]);
 });
 
 
+/* ============================
+   5) AJAX: Update
+   ============================ */
 add_action('wp_ajax_golf_final_action_update', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
@@ -350,7 +365,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
 
     $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_date)) {
-        $new_date = current_time('mysql');
+        $new_date = current_time('Y-m-d');
     }
 
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
@@ -375,19 +390,18 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
     }
 
-    // CHANGED: if the round is now excluded the view may no longer contain it —
-    // that is correct behaviour. Try the view first; if not found and is_excluded = 1,
-    // return a clean success with zeroed computed fields so the JS can grey the row out.
     $row = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT score_id, net_score, differential, is_counting FROM {$history_view} WHERE score_id = %d",
+            "SELECT score_id, net_score, differential, is_counting
+             FROM {$history_view} WHERE score_id = %d",
             $score_id
         )
     );
 
+    // FIXED: properly distinguish excluded rounds from genuinely missing rows
     if (!$row) {
         if ($is_excluded) {
-            // Row excluded from view on purpose — return success with blank computed fields
+            // Correctly excluded — not in WHS view by design
             wp_send_json_success([
                 'score_id'     => $score_id,
                 'net_score'    => '-',
@@ -396,12 +410,11 @@ add_action('wp_ajax_golf_final_action_update', function () {
                 'is_excluded'  => 1,
             ]);
         } else {
-            wp_send_json_error(['message' => 'Updated but view row not found']);
+            // Row missing for unknown reason — surface it for debugging
+            wp_send_json_error(['message' => 'Updated but WHS view row not found. Try refreshing.']);
         }
     }
 
-    // NOTE: counting dots for other rows may be visually outdated until page refresh
-    // because WHS recalculates the top 8 of 20 across all rounds on each update.
     wp_send_json_success([
         'score_id'     => (int) $row->score_id,
         'net_score'    => $row->net_score,
