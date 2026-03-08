@@ -6,6 +6,7 @@
    ====================================================== */
 
 
+
 /* Global container settings */
 .golf-history-container,
 .golf-management-root,
@@ -16,14 +17,17 @@
 }
 
 
+
 .tc{ text-align:center; }
 .tr{ text-align:right; }
+
 
 
 /* ======================================================
    DASHBOARD (HOME) — cards + sections
    ====================================================== */
 .golf-dashboard-wrapper{ scroll-margin-top:50px; }
+
 
 
 .stats-filter-bar{
@@ -36,12 +40,14 @@
 }
 
 
+
 .golf-stats-grid{
   display:grid;
   grid-template-columns:repeat(4, 1fr);
   gap:15px;
   align-items:stretch;
 }
+
 
 
 .golf-card{
@@ -54,6 +60,7 @@
 }
 
 
+
 .card-header{
   background:#333;
   color:#fff;
@@ -64,7 +71,9 @@
 }
 
 
+
 .p-idx{ color:#f39c12; }
+
 
 
 .sect-title{
@@ -76,12 +85,14 @@
 }
 
 
+
 .sect-hcap{
   padding:12px;
   background:#f9f9f9;
   border-bottom:1px solid #eee;
   min-height:125px;
 }
+
 
 
 .sect-averages{
@@ -94,6 +105,7 @@
 .sect-averages strong{ color:#333; }
 
 
+
 .sect-stats{
   padding:12px;
   border-bottom:1px solid #eee;
@@ -102,10 +114,12 @@
 }
 
 
+
 .sect-recs{
   padding:12px;
   min-height:105px;
 }
+
 
 
 .stats-table{
@@ -119,9 +133,11 @@
 .rec-sub{ color:#888; font-size:11px; display:block; margin-top:2px; }
 
 
+
 /* If Ultimate Member login appears anywhere */
 .um.um-login,
 .um.um-login *{ color:#ffffff; }
+
 
 
 /* ======================================================
@@ -154,6 +170,7 @@
 .history-table tr:nth-child(even){ background-color:#fcfcfc; }
 
 
+
 /* Filter bar */
 .history-filter-bar{
   background:#f1f1f1;
@@ -172,6 +189,7 @@
 }
 
 
+
 /* Tee badges + counting dot */
 .tee-badge{
   padding:4px 12px;
@@ -186,6 +204,7 @@
 .tee-black{ background:#000; color:#fff; }
 
 
+
 .count-dot,
 .counting-dot{
   height:10px;
@@ -195,6 +214,7 @@
   display:inline-block;
   margin:0 auto;
 }
+
 
 
 /* ======================================================
@@ -210,6 +230,7 @@
   gap:8px;
   flex-wrap:wrap;
 }
+
 
 
 .history-pagination .page-numbers{
@@ -236,11 +257,13 @@
 }
 
 
+
 .history-pagination a + a,
 .history-pagination a + span,
 .history-pagination span + a{
   margin-left:8px !important;
 }
+
 
 
 /* Common DataTables/WPDataTables pagination */
@@ -277,6 +300,7 @@
 }
 
 
+
 /* ======================================================
    INPUTS / BUTTONS / BOXES (SCORES PAGE)
    ====================================================== */
@@ -286,9 +310,9 @@
   border:1px solid #ddd;
   border-radius:4px;
   margin-bottom:40px;
-  /* CHANGED: allow horizontal scroll before content overflows */
   overflow-x:auto;
 }
+
 
 
 .golf-input{
@@ -299,6 +323,7 @@
   font-size:13px;
   background:#fff;
 }
+
 
 
 .golf-btn{
@@ -317,6 +342,7 @@
 .btn-del{ background:#d63638; color:#fff; }
 
 
+
 /* Entry footer */
 .golf-entry-box .entry-footer{
   padding:15px;
@@ -333,6 +359,7 @@
 }
 
 
+
 /* ======================================================
    GRIDS (SCOPED)
    ====================================================== */
@@ -343,6 +370,7 @@
   font-size:11px;
   text-transform:uppercase;
 }
+
 
 
 /* Entry grid: 8 columns (unchanged — no Excl in entry form) */
@@ -365,7 +393,8 @@
 }
 
 
-/* CHANGED: Edit grid updated from 11 to 12 columns — added Excl (0.5fr) between GIR and Nett */
+
+/* Edit grid: 12 columns — added Excl (0.5fr) between GIR and Nett */
 .golf-edit-box .edit-header,
 .golf-edit-box .edit-row{
   display:grid;
@@ -382,15 +411,16 @@
     0.6fr   /* Diff   */
     0.45fr  /* Count  */
     0.9fr;  /* Action */
-  gap:6px;  /* CHANGED: tightened from 10px to 6px to reclaim horizontal space */
+  gap:6px;
   padding:8px 10px;
   align-items:center;
   border-bottom:1px solid #eee;
-  min-width:780px; /* CHANGED: prevents collapse below usable width — box scrolls instead */
+  min-width:780px;
 }
 
 
-/* CHANGED: action buttons never wrap — always sit side by side */
+
+/* Action buttons never wrap */
 .action-btns{
   display:flex;
   gap:4px;
@@ -399,7 +429,8 @@
 }
 
 
-/* CHANGED: compact number + date inputs in edit grid to recover column space */
+
+/* Compact number + date inputs in edit grid */
 .golf-edit-box .golf-input[type="number"]{
   width:100%;
   min-width:0;
@@ -416,7 +447,8 @@
 }
 
 
-/* CHANGED: excluded rows are greyed out with strikethrough on computed fields */
+
+/* Excluded rows in edit grid: greyed out with strikethrough on computed fields */
 .row-excluded{
   opacity:0.55;
   background-color:#f8f8f8;
@@ -428,16 +460,19 @@
 }
 
 
+
 /* Desktop: hide the small mobile labels */
 @media (min-width: 768px){
   .golf-entry-box .entry-row .lbl{ display:none !important; }
 }
 
 
+
 /* ======================================================
    MOBILE OVERRIDES
    ====================================================== */
 @media (max-width: 767px){
+
 
 
   /* Dashboard: stack cards */
@@ -447,6 +482,7 @@
     grid-template-columns:none !important;
     gap:15px !important;
   }
+
 
 
   /* Averages: tighter on mobile */
@@ -460,6 +496,7 @@
   }
 
 
+
   /* History: hide unwanted columns (keeps Date | Player | Tee | Gross | Count) */
   .history-table th:nth-child(5), .history-table td:nth-child(5),
   .history-table th:nth-child(6), .history-table td:nth-child(6),
@@ -467,6 +504,7 @@
   .history-table th:nth-child(8), .history-table td:nth-child(8){
     display:none !important;
   }
+
 
 
   /* Tee badge initials */
@@ -484,11 +522,13 @@
   .history-table .tee-white:after{  content:'W'; color:#000; }
 
 
+
   .history-table th,
   .history-table td{
     padding:6px 3px !important;
     font-size:11px !important;
   }
+
 
 
   /* Pagination: show only Prev/Current/Next */
@@ -498,13 +538,16 @@
   .history-pagination .next{ display:inline-flex !important; }
 
 
+
   /* SCORE ENTRY: ultra-compact cards */
   .golf-management-root.golf-entry-box{ margin-top:8px !important; }
+
 
 
   .golf-entry-box .entry-header{ display:none !important; }
   .golf-entry-box .entry-row .in-pcc,
   .golf-entry-box .entry-row .status-cell{ display:none !important; }
+
 
 
   .golf-entry-box .entry-row{
@@ -524,12 +567,14 @@
   }
 
 
+
   .golf-entry-box .entry-row .in-player{   grid-area: player; }
   .golf-entry-box .entry-row .in-date{     grid-area: date; }
   .golf-entry-box .entry-row .field-tee{   grid-area: tee; }
   .golf-entry-box .entry-row .field-gross{ grid-area: gross; }
   .golf-entry-box .entry-row .field-putts{ grid-area: putts; }
   .golf-entry-box .entry-row .field-gir{   grid-area: gir; }
+
 
 
   .golf-entry-box .entry-row .field{
@@ -540,6 +585,7 @@
     flex-direction:column;
     justify-content:center;
   }
+
 
 
   .golf-entry-box .entry-row .lbl{
@@ -554,6 +600,7 @@
   }
 
 
+
   .golf-entry-box .entry-row select,
   .golf-entry-box .entry-row input{
     width:100% !important;
@@ -565,6 +612,7 @@
   }
 
 
+
   .golf-entry-box .entry-footer{ padding:6px !important; }
   .golf-entry-box .entry-footer .golf-btn.btn-save{
     width:100% !important;
@@ -573,7 +621,8 @@
   }
 
 
-  /* CHANGED: on mobile the edit grid scrolls horizontally — hide it behind a scroll hint */
+
+  /* On mobile the edit grid scrolls horizontally */
   .golf-edit-box{
     overflow-x:auto !important;
   }
@@ -584,9 +633,11 @@
 }
 
 
+
 /* ======================================================
    ROUNDS PIVOT TABLE (grp5) — UPDATED WINNER STYLING
    ====================================================== */
+
 
 
 body .grp5,
@@ -595,16 +646,19 @@ body .grp5 *{
 }
 
 
+
 body .grp5 table{
   width:100%;
   border-collapse: collapse !important;
 }
 
 
+
 body .grp5 table th,
 body .grp5 table td{
   border:1px solid #efefef !important;
 }
+
 
 
 body .grp5 table th.col-date,
@@ -615,16 +669,19 @@ body .grp5 table tbody td:first-child{
 }
 
 
+
 body .grp5 table thead tr:first-child th{
   text-align:center !important;
   vertical-align:middle !important;
 }
 
 
+
 body .grp5 table thead tr:first-child th:first-child,
 body .grp5 table thead tr:first-child th:nth-child(2){
   text-align:left !important;
 }
+
 
 
 body .grp5 table thead th{
@@ -641,8 +698,10 @@ body .grp5 table thead tr:nth-child(2) th{
 }
 
 
+
 body .grp5 table tbody tr:nth-child(even) td{ background:#fafafa !important; }
 body .grp5 table tbody tr:hover td{ background:#f1f7ff !important; }
+
 
 
 body .grp5 table tbody td:nth-child(6),
@@ -653,12 +712,14 @@ body .grp5 table tbody td:last-child{
 }
 
 
+
 body .grp5 table thead tr:nth-child(2) th:nth-child(6),
 body .grp5 table thead tr:nth-child(2) th:nth-child(9),
 body .grp5 table thead tr:nth-child(2) th:nth-child(12),
 body .grp5 table thead tr:nth-child(2) th:last-child{
   border-left:2px solid rgba(255,255,255,0.25) !important;
 }
+
 
 
 body .grp5 table th.col-round_winner,
@@ -671,6 +732,7 @@ body .grp5 table td.col-round_winner{
 }
 
 
+
 body .grp5 table td.col-round_winner{
   font-weight:800;
   text-align:center !important;
@@ -679,10 +741,12 @@ body .grp5 table td.col-round_winner{
 }
 
 
+
 body .grp5 table td.col-round_winner:not(:empty){
   background:#f8fafc !important;
   border:1px solid #e5e7eb !important;
 }
+
 
 
 body .grp5 table td.col-round_winner.is-tie,
@@ -693,12 +757,14 @@ body .grp5 table td.col-round_winner[data-winner="TIE"]{
 }
 
 
+
 body .grp5 table td.col-round_winner.is-blue,
 body .grp5 table td.col-round_winner[data-winner-colour="blue"]{
   color:#1d4ed8 !important;
   background:#eff6ff !important;
   border-color:#bfdbfe !important;
 }
+
 
 
 body .grp5 table td.col-round_winner.is-green,
@@ -709,12 +775,14 @@ body .grp5 table td.col-round_winner[data-winner-colour="green"]{
 }
 
 
+
 body .grp5 table td.col-round_winner.is-red,
 body .grp5 table td.col-round_winner[data-winner-colour="red"]{
   color:#dc2626 !important;
   background:#fef2f2 !important;
   border-color:#fecaca !important;
 }
+
 
 
 body .grp5 table td.col-round_winner.is-purple,
@@ -725,6 +793,7 @@ body .grp5 table td.col-round_winner[data-winner-colour="purple"]{
 }
 
 
+
 body #grp5 .grp5-pager{
   display:flex;
   align-items:center;
@@ -732,6 +801,7 @@ body #grp5 .grp5-pager{
   margin-top:10px;
   flex-wrap:wrap;
 }
+
 
 
 body #grp5 .grp5-page{
@@ -747,14 +817,17 @@ body #grp5 .grp5-page{
 }
 
 
+
 body #grp5 a.grp5-page{
   text-decoration:none;
 }
 
 
+
 body #grp5 a.grp5-page:hover{
   background:#f3f4f6;
 }
+
 
 
 body #grp5 .grp5-page.current{
@@ -766,6 +839,7 @@ body #grp5 .grp5-page.current{
 }
 
 
+
 body #grp5 .grp5-page.of,
 body #grp5 .grp5-page.total{
   border:none;
@@ -775,9 +849,11 @@ body #grp5 .grp5-page.total{
 }
 
 
+
 body #grp5 .grp5-page.disabled{
   opacity:.45;
 }
+
 
 
 #grp5-pager{
@@ -787,6 +863,7 @@ body #grp5 .grp5-page.disabled{
   flex-wrap:wrap;
   margin-top:10px;
 }
+
 
 
 #grp5-pager .grp5-page{
@@ -804,6 +881,7 @@ body #grp5 .grp5-page.disabled{
 }
 
 
+
 #grp5-pager .grp5-page.current{
   background:#111827 !important;
   border-color:#111827 !important;
@@ -811,6 +889,7 @@ body #grp5 .grp5-page.disabled{
   font-weight:700 !important;
   min-width:42px;
 }
+
 
 
 #grp5-pager .grp5-page.of,
@@ -823,15 +902,18 @@ body #grp5 .grp5-page.disabled{
 }
 
 
+
 #grp5-pager .grp5-page.disabled{
   opacity:.45;
 }
+
 
 
 /* Subtle row tinting for ESR/Cap */
 .history-table tbody tr.is-esr { background: #eef6ff; }
 .history-table tbody tr.is-cap { background: #fff7e8; }
 .history-table tbody tr.is-esr.is-cap { background: #f3efff; }
+
 
 
 /* EC badge */
@@ -844,4 +926,25 @@ body #grp5 .grp5-page.disabled{
     border: 1px solid rgba(0,0,0,.12);
     background: #fff;
     color: #333;
+}
+
+
+
+/* Excluded rows in history table: dimmed and italic */
+.history-table tbody tr.is-excluded td {
+    opacity: 0.55;
+    font-style: italic;
+}
+
+
+
+/* Excl badge — red X shown in the Excl column */
+.excl-badge {
+    display: inline-block;
+    background: #dc3545;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
 }
