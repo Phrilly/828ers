@@ -40,7 +40,7 @@ add_shortcode('golf_rounds_pivot', function () {
                     wrap.classList.remove('is-loading');
                     return;
                 }
-                wrap.innerHTML = d.data.table;
+                wrap.innerHTML  = d.data.table;
                 pager.innerHTML = d.data.pagination;
                 range.textContent = d.data.range;
                 wrap.classList.remove('is-loading');
@@ -84,7 +84,6 @@ function grp5_load() {
 
     $players_table = $wpdb->prefix . 'golf_players';
 
-    // CHANGED: fetch winner_colour as well for header dots
     $playerRows = $wpdb->get_results(
         "SELECT player_id, name, winner_colour FROM {$players_table} ORDER BY player_id ASC",
         OBJECT_K
@@ -117,7 +116,7 @@ function grp5_load() {
                         $name   = $playerRows[$pid]->name ?? ('P' . $pid);
                     ?>
                         <th colspan="3" class="sticky grp5-ph">
-                            <?php if ($colour): // CHANGED: colour dot in header ?>
+                            <?php if ($colour): ?>
                                 <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?php echo esc_attr($colour); ?>;margin-right:4px;vertical-align:middle;"></span>
                             <?php endif; ?>
                             <?php echo esc_html($name); ?>
@@ -140,43 +139,33 @@ function grp5_load() {
                     <?php foreach ($rows as $r):
                         $winner = (string) ($r['winner'] ?? '');
                         $wcol   = (string) ($r['winner_colour'] ?? '');
-
-                        $winnerClasses = ['col-winner'];
-                        $winnerAttrs   = '';
-
-                        if ($winner === 'TIE') {
-                            $winnerClasses[] = 'is-tie';
-                            $winnerAttrs    .= ' data-winner="TIE"';
-                        } elseif ($wcol !== '') {
-                            $winnerClasses[] = 'is-' . sanitize_html_class($wcol);
-                            $winnerAttrs    .= ' data-winner-colour="' . esc_attr($wcol) . '"';
-                        }
                     ?>
                         <tr>
                             <td class="col-date"><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
                             <td class="col-tee"><?php echo esc_html($r['tee_colour'] ?? ''); ?></td>
 
                             <?php foreach ($playerIds as $pid):
-                                // CHANGED: read per-player colour for nett score styling
-                                $pgross  = $r['p' . $pid . '_gross'] ?? '';
-                                $phcp    = $r['p' . $pid . '_hcp']   ?? '';
-                                $pnet    = $r['p' . $pid . '_net']   ?? '';
+                                $pgross  = $r['p' . $pid . '_gross']  ?? '';
+                                $phcp    = $r['p' . $pid . '_hcp']    ?? '';
+                                $pnet    = $r['p' . $pid . '_net']    ?? '';
                                 $pcolour = $r['p' . $pid . '_colour'] ?? '';
-                                $net_style = $pcolour ? ' style="color:' . esc_attr($pcolour) . ';font-weight:bold;"' : '';
                             ?>
                                 <td class="tc"><?php echo esc_html($pgross); ?></td>
                                 <td class="tc"><?php echo esc_html($phcp); ?></td>
-                                <td class="tc"<?php echo $net_style; ?>><?php echo esc_html($pnet); ?></td>
+                                <td class="tc" <?php if ($pcolour) echo 'style="color:' . esc_attr($pcolour) . ';font-weight:bold;"'; ?>>
+                                    <?php echo esc_html($pnet); ?>
+                                </td>
                             <?php endforeach; ?>
 
-                            <td class="<?php echo esc_attr(implode(' ', $winnerClasses)); ?>"<?php echo $winnerAttrs; ?>>
-                                <?php if ($winner !== ''): ?>
-                                    <?php if ($wcol): // CHANGED: colour dot next to winner name ?>
-                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?php echo esc_attr($wcol); ?>;margin-right:4px;vertical-align:middle;"></span>
-                                    <?php endif; ?>
-                                    <?php echo esc_html($winner); ?>
+                            <td class="col-winner">
+                                <?php if ($winner === 'TIE'): ?>
+                                    <span style="font-weight:bold;">TIE</span>
+                                <?php elseif ($winner !== ''): ?>
+                                    <span style="color:<?php echo esc_attr($wcol); ?>;font-weight:bold;">
+                                        <?php echo esc_html($winner); ?>
+                                    </span>
                                 <?php else: ?>
-                                    <span style="color:#ccc;font-style:italic;font-size:11px;">solo</span>
+                                    <span style="color:#aaa;font-style:italic;font-size:11px;">Solo</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
