@@ -1,0 +1,18 @@
+/* ======================================================
+   GOLF SYSTEM — GLOBALS
+   ====================================================== */
+
+.golf-history-container,
+.golf-management-root,
+.golf-dashboard-wrapper {
+  margin-top: 30px;
+  scroll-margin-top: 80px;
+  font-family: inherit !important;
+}
+
+.tc { text-align: center; }
+.tr { text-align: right; }
+
+/* If Ultimate Member login appears anywhere */
+.um.um-login,
+.um.um-login * { color: #ffffff; }

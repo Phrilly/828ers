@@ -1,0 +1,139 @@
+/* ======================================================
+   GOLF SYSTEM — PAGINATION
+   ====================================================== */
+
+.history-pagination {
+  margin-top: 25px;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-pagination .page-numbers {
+  padding: 8px 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin: 0;
+  background: #fff;
+  color: #333;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1;
+  min-width: 42px;
+}
+.history-pagination .page-numbers:hover { background: #f3f4f6; }
+.history-pagination .current { background: #0073aa; color: #fff; border-color: #0073aa; }
+
+.history-pagination a + a,
+.history-pagination a + span,
+.history-pagination span + a { margin-left: 8px !important; }
+
+/* Common DataTables/WPDataTables pagination */
+.dataTables_paginate,
+.wpDataTablesWrapper .dataTables_paginate {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.dataTables_paginate a,
+.wpDataTablesWrapper .dataTables_paginate a,
+.dataTables_paginate span,
+.wpDataTablesWrapper .dataTables_paginate span { margin: 0 !important; }
+
+.dataTables_paginate a,
+.wpDataTablesWrapper .dataTables_paginate a {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.dataTables_paginate .current,
+.wpDataTablesWrapper .dataTables_paginate .current {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff !important;
+  border: 1px solid #111827;
+}
+
+/* grp5 pager — body #grp5 variant */
+body #grp5 .grp5-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+body #grp5 .grp5-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  line-height: 1;
+}
+
+body #grp5 a.grp5-page               { text-decoration: none; }
+body #grp5 a.grp5-page:hover          { background: #f3f4f6; }
+
+body #grp5 .grp5-page.current {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+  font-weight: 700;
+  min-width: 42px;
+}
+
+body #grp5 .grp5-page.of,
+body #grp5 .grp5-page.total    { border: none; background: transparent; padding: 0; color: #6b7280; }
+body #grp5 .grp5-page.disabled  { opacity: .45; }
+
+/* grp5 pager — #grp5-pager variant */
+#grp5-pager {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+#grp5-pager .grp5-page {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 8px 12px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: #111827 !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  text-decoration: none !important;
+}
+
+#grp5-pager .grp5-page.current {
+  background: #111827 !important;
+  border-color: #111827 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  min-width: 42px;
+}
+
+#grp5-pager .grp5-page.of,
+#grp5-pager .grp5-page.total    { border: none !important; background: transparent !important; padding: 0 !important; min-width: auto !important; color: #6b7280 !important; }
+#grp5-pager .grp5-page.disabled  { opacity: .45; }

@@ -1,0 +1,100 @@
+/* ======================================================
+   GOLF SYSTEM — INPUTS / BUTTONS / GRIDS
+   ====================================================== */
+
+.golf-entry-box,
+.golf-edit-box {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 40px;
+  overflow-x: auto;
+}
+
+.golf-input {
+  width: 100%;
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.golf-btn {
+  border: none;
+  padding: 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: opacity .2s;
+  white-space: nowrap;
+}
+.golf-btn:hover { opacity: .8; }
+.btn-save { background: #0073aa; color: #fff; }
+.btn-del  { background: #d63638; color: #fff; }
+
+/* Entry footer */
+.golf-entry-box .entry-footer {
+  padding: 15px;
+  text-align: right;
+  background: #f9f9f9;
+}
+.golf-entry-box .entry-footer .golf-btn.btn-save {
+  min-height: 34px;
+  padding: 0 14px !important;
+  line-height: 1 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.golf-grid-header {
+  background: #333;
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Entry grid: 8 columns (unchanged — no Excl in entry form) */
+.golf-entry-box .entry-header,
+.golf-entry-box .entry-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1.1fr 0.9fr 0.7fr 0.5fr 0.6fr 0.6fr 0.6fr;
+  gap: 10px;
+  padding: 10px;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
+
+/* Edit grid: 12 columns — added Excl (0.5fr) between GIR and Nett */
+.golf-edit-box .edit-header,
+.golf-edit-box .edit-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.0fr 0.8fr 0.55fr 0.45fr 0.55fr 0.55fr 0.45fr 0.6fr 0.6fr 0.45fr 0.9fr;
+  gap: 6px;
+  padding: 8px 10px;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  min-width: 780px;
+}
+
+/* Action buttons never wrap */
+.action-btns { display: flex; gap: 4px; flex-wrap: nowrap; white-space: nowrap; }
+
+/* Compact number + date inputs in edit grid */
+.golf-edit-box .golf-input[type="number"],
+.golf-edit-box .golf-input[type="date"] { width: 100%; min-width: 0; padding: 4px 3px; }
+.golf-edit-box select.golf-input        { min-width: 0; padding: 4px 2px; }
+
+/* Excluded rows in edit grid: greyed out with strikethrough on computed fields */
+.row-excluded { opacity: 0.55; background-color: #f8f8f8; }
+.row-excluded .ed-diff,
+.row-excluded .ed-net { text-decoration: line-through; color: #999; }
+
+/* Desktop: hide the small mobile labels */
+@media (min-width: 768px) {
+  .golf-entry-box .entry-row .lbl { display: none !important; }
+}

@@ -1,0 +1,120 @@
+/* ======================================================
+   GOLF SYSTEM — MOBILE OVERRIDES
+   Must load after all other golf CSS files
+   ====================================================== */
+
+@media (max-width: 767px) {
+
+  /* Dashboard: stack cards */
+  .golf-stats-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    gap: 15px !important;
+  }
+
+  /* Averages: tighter on mobile */
+  .sect-averages { padding: 10px 12px; min-height: auto; }
+  .sect-averages div { flex-direction: column; gap: 5px; }
+
+  /* History: hide unwanted columns (keeps Date | Player | Tee | Gross | Count) */
+  .history-table th:nth-child(5), .history-table td:nth-child(5),
+  .history-table th:nth-child(6), .history-table td:nth-child(6),
+  .history-table th:nth-child(7), .history-table td:nth-child(7),
+  .history-table th:nth-child(8), .history-table td:nth-child(8) { display: none !important; }
+
+  /* Tee badge initials */
+  .history-table .tee-badge {
+    font-size: 0 !important;
+    width: 18px; height: 18px; line-height: 18px;
+    padding: 0 !important;
+    border-radius: 50%;
+    display: inline-block;
+    text-align: center;
+  }
+  .history-table .tee-badge:after  { font-size: 10px !important; font-weight: bold; }
+  .history-table .tee-black:after  { content: 'B'; color: #fff; }
+  .history-table .tee-yellow:after { content: 'Y'; color: #000; }
+  .history-table .tee-white:after  { content: 'W'; color: #000; }
+
+  .history-table th,
+  .history-table td { padding: 6px 3px !important; font-size: 11px !important; }
+
+  /* Pagination: show only Prev/Current/Next */
+  .history-pagination .page-numbers { display: none !important; }
+  .history-pagination .prev,
+  .history-pagination .current,
+  .history-pagination .next { display: inline-flex !important; }
+
+  /* SCORE ENTRY: ultra-compact cards */
+  .golf-management-root.golf-entry-box { margin-top: 8px !important; }
+
+  .golf-entry-box .entry-header { display: none !important; }
+  .golf-entry-box .entry-row .in-pcc,
+  .golf-entry-box .entry-row .status-cell { display: none !important; }
+
+  .golf-entry-box .entry-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-areas:
+      "player date"
+      "tee    gross"
+      "putts  gir";
+    gap: 6px 6px !important;
+    padding: 8px !important;
+    margin: 6px 0 !important;
+    border: 1px solid #e4e4e4 !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    align-items: stretch !important;
+  }
+
+  .golf-entry-box .entry-row .in-player   { grid-area: player; }
+  .golf-entry-box .entry-row .in-date     { grid-area: date; }
+  .golf-entry-box .entry-row .field-tee   { grid-area: tee; }
+  .golf-entry-box .entry-row .field-gross { grid-area: gross; }
+  .golf-entry-box .entry-row .field-putts { grid-area: putts; }
+  .golf-entry-box .entry-row .field-gir   { grid-area: gir; }
+
+  .golf-entry-box .entry-row .field {
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .golf-entry-box .entry-row .lbl {
+    display: block;
+    font-size: 6px !important;
+    line-height: 1 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    color: #777 !important;
+    margin: 0 0 1px 2px !important;
+    padding: 0 !important;
+  }
+
+  .golf-entry-box .entry-row select,
+  .golf-entry-box .entry-row input {
+    width: 100% !important;
+    min-height: 34px !important;
+    padding: 4px 6px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  .golf-entry-box .entry-footer { padding: 6px !important; }
+  .golf-entry-box .entry-footer .golf-btn.btn-save {
+    width: 100% !important;
+    min-height: 40px !important;
+    font-size: 11px !important;
+  }
+
+  /* On mobile the edit grid scrolls horizontally */
+  .golf-edit-box { overflow-x: auto !important; }
+  .golf-edit-box .edit-header,
+  .golf-edit-box .edit-row { min-width: 780px !important; }
+}

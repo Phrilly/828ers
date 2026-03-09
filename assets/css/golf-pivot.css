@@ -1,0 +1,87 @@
+/* ======================================================
+   GOLF SYSTEM — ROUNDS PIVOT TABLE (grp5)
+   ====================================================== */
+
+body .grp5,
+body .grp5 * { font-family: inherit !important; }
+
+body .grp5 table { width: 100%; border-collapse: collapse !important; }
+
+body .grp5 table th,
+body .grp5 table td { border: 1px solid #efefef !important; }
+
+body .grp5 table th.col-date,
+body .grp5 table td.col-date,
+body .grp5 table thead th:first-child,
+body .grp5 table tbody td:first-child { white-space: nowrap !important; }
+
+body .grp5 table thead tr:first-child th { text-align: center !important; vertical-align: middle !important; }
+
+body .grp5 table thead tr:first-child th:first-child,
+body .grp5 table thead tr:first-child th:nth-child(2) { text-align: left !important; }
+
+body .grp5 table thead th {
+  background: #333 !important;
+  color: #fff !important;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid #222 !important;
+}
+body .grp5 table thead tr:nth-child(2) th { background: #444 !important; font-size: 10px; }
+
+body .grp5 table tbody tr:nth-child(even) td { background: #fafafa !important; }
+body .grp5 table tbody tr:hover td           { background: #f1f7ff !important; }
+
+body .grp5 table tbody td:nth-child(6),
+body .grp5 table tbody td:nth-child(9),
+body .grp5 table tbody td:nth-child(12),
+body .grp5 table tbody td:last-child { border-left: 2px solid #c8c8c8 !important; }
+
+body .grp5 table thead tr:nth-child(2) th:nth-child(6),
+body .grp5 table thead tr:nth-child(2) th:nth-child(9),
+body .grp5 table thead tr:nth-child(2) th:nth-child(12),
+body .grp5 table thead tr:nth-child(2) th:last-child { border-left: 2px solid rgba(255,255,255,0.25) !important; }
+
+body .grp5 table th.col-round_winner,
+body .grp5 table td.col-round_winner {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: inherit;
+  box-shadow: -8px 0 10px -10px rgba(0,0,0,.35);
+}
+
+body .grp5 table td.col-round_winner {
+  font-weight: 800;
+  text-align: center !important;
+  white-space: nowrap !important;
+  letter-spacing: .2px;
+}
+
+body .grp5 table td.col-round_winner:not(:empty) { background: #f8fafc !important; border: 1px solid #e5e7eb !important; }
+
+body .grp5 table td.col-round_winner.is-tie,
+body .grp5 table td.col-round_winner[data-winner="TIE"] {
+  color: #111827 !important; background: #f3f4f6 !important; border-color: #e5e7eb !important;
+}
+
+body .grp5 table td.col-round_winner.is-blue,
+body .grp5 table td.col-round_winner[data-winner-colour="blue"] {
+  color: #1d4ed8 !important; background: #eff6ff !important; border-color: #bfdbfe !important;
+}
+
+body .grp5 table td.col-round_winner.is-green,
+body .grp5 table td.col-round_winner[data-winner-colour="green"] {
+  color: #15803d !important; background: #ecfdf5 !important; border-color: #bbf7d0 !important;
+}
+
+body .grp5 table td.col-round_winner.is-red,
+body .grp5 table td.col-round_winner[data-winner-colour="red"] {
+  color: #dc2626 !important; background: #fef2f2 !important; border-color: #fecaca !important;
+}
+
+body .grp5 table td.col-round_winner.is-purple,
+body .grp5 table td.col-round_winner[data-winner-colour="purple"] {
+  color: #7c3aed !important; background: #f5f3ff !important; border-color: #ddd6fe !important;
+}

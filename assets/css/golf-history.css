@@ -1,0 +1,100 @@
+/* ======================================================
+   GOLF SYSTEM — HISTORY TABLE
+   ====================================================== */
+
+.history-scroll {
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history-table th {
+  background: #f4f4f4;
+  color: #333;
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 2px solid #ddd;
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+.history-table tr:nth-child(even) { background-color: #fcfcfc; }
+
+/* Filter bar */
+.history-filter-bar {
+  background: #f1f1f1;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  border: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.history-filter-bar label { font-size: 14px; font-weight: bold; color: #333; }
+
+/* Tee badges + counting dot */
+.tee-badge {
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  display: inline-block;
+}
+.tee-white  { background: #fff;    color: #333; border: 1px solid #ccc; }
+.tee-yellow { background: #ffeb3b; color: #333; }
+.tee-black  { background: #000;    color: #fff; }
+
+.count-dot,
+.counting-dot {
+  height: 10px;
+  width: 10px;
+  background-color: #137a3d;
+  border-radius: 50%;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+/* Subtle row tinting for ESR/Cap */
+.history-table tbody tr.is-esr        { background: #eef6ff; }
+.history-table tbody tr.is-cap        { background: #fff7e8; }
+.history-table tbody tr.is-esr.is-cap { background: #f3efff; }
+
+/* EC badge */
+.history-table .adj-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid rgba(0,0,0,.12);
+  background: #fff;
+  color: #333;
+}
+
+/* Excluded rows in history table: dimmed and italic */
+.history-table tbody tr.is-excluded td { opacity: 0.55; font-style: italic; }
+
+/* Excl badge — red X shown in the Excl column */
+.excl-badge {
+  display: inline-block;
+  background: #dc3545;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
