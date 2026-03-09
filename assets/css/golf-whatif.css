@@ -2,11 +2,15 @@
    GOLF SYSTEM — WHAT IF CALCULATOR
    ====================================================== */
 
+*, *::before, *::after { box-sizing: border-box; }
+
 .golf-whatif-wrap {
   max-width: 560px;
   margin: 0 auto;
+  width: 100%;
 }
 
+/* ---- Form ---- */
 .whatif-form {
   background: #fff;
   border: 1px solid #ddd;
@@ -40,6 +44,7 @@
   border-radius: 4px;
   font-size: 13px;
   background: #fff;
+  min-width: 0;
 }
 
 #wi-calc-btn {
@@ -48,6 +53,7 @@
   font-size: 12px;
 }
 
+/* ---- Error ---- */
 .wi-error-box {
   padding: 10px 14px;
   background: #fef2f2;
@@ -58,5 +64,153 @@
   margin-bottom: 16px;
 }
 
+/* ---- Results wrapper ---- */
 #wi-results {
-  backgr
+  width: 100%;
+}
+
+.whatif-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+
+/* ---- Result boxes ---- */
+.wi-box {
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px 12px;
+  text-align: center;
+  min-width: 0;
+}
+
+.wi-hcp-box {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+
+.wi-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+
+.wi-big {
+  font-size: 28px;
+  font-weight: 800;
+  color: #333;
+}
+
+.wi-hi-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.wi-cur  { font-size: 18px; color: #999; font-weight: 600; }
+.wi-arrow { font-size: 18px; font-weight: 900; }
+.wi-new  { font-size: 28px; font-weight: 800; color: #333; }
+
+.wi-change {
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 6px;
+}
+
+.wi-up   { color: #d62828; }
+.wi-down { color: #1a6e35; }
+.wi-same { color: #6b7280; }
+
+/* ---- Playing handicap table ---- */
+.wi-hcp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 6px;
+  table-layout: fixed;
+}
+
+.wi-hcp-table th,
+.wi-hcp-table td {
+  padding: 9px 8px;
+  text-align: center;
+}
+
+.wi-hcp-table th:first-child,
+.wi-hcp-table td:first-child {
+  text-align: left;
+}
+
+.wi-hcp-table th {
+  background: #333;
+  color: #fff;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.wi-hcp-table td { border-bottom: 1px solid #eee; }
+
+.wi-better { color: #1a6e35; font-weight: 700; }
+.wi-worse  { color: #d62828; font-weight: 700; }
+
+/* ======================================================
+   MOBILE
+   ====================================================== */
+@media (max-width: 600px) {
+
+  .golf-whatif-wrap {
+    max-width: 100%;
+    padding: 0 4px;
+  }
+
+  .whatif-form { padding: 14px; }
+
+  #wi-calc-btn {
+    align-self: stretch;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Stack result boxes full width */
+  .whatif-result-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .wi-hcp-box { grid-column: 1; }
+
+  /* Slightly smaller text in boxes */
+  .wi-big  { font-size: 24px; }
+  .wi-new  { font-size: 24px; }
+  .wi-cur  { font-size: 16px; }
+
+  /* Table columns: tee 36%, other three share the rest equally */
+  .wi-hcp-table { font-size: 12px; }
+
+  .wi-hcp-table th,
+  .wi-hcp-table td { padding: 8px 4px; }
+
+  .wi-hcp-table th:nth-child(1),
+  .wi-hcp-table td:nth-child(1) { width: 36%; }
+
+  .wi-hcp-table th:nth-child(2),
+  .wi-hcp-table td:nth-child(2),
+  .wi-hcp-table th:nth-child(3),
+  .wi-hcp-table td:nth-child(3),
+  .wi-hcp-table th:nth-child(4),
+  .wi-hcp-table td:nth-child(4) { width: 21.3%; }
+
+  /* Shrink tee badge on mobile */
+  .tee-badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+    border-radius: 10px !important;
+  }
+}
