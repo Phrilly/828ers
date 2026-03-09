@@ -47,17 +47,6 @@ add_shortcode('golf_what_if', function () {
                 <label>Gross Score</label>
                 <input type="number" id="wi-gross" placeholder="e.g. 88" min="50" max="130">
             </div>
-            <div class="whatif-row">
-                <label>PCC</label>
-                <select id="wi-pcc">
-                    <option value="-2">-2</option>
-                    <option value="-1">-1</option>
-                    <option value="0" selected>0</option>
-                    <option value="1">+1</option>
-                    <option value="2">+2</option>
-                    <option value="3">+3</option>
-                </select>
-            </div>
             <button class="golf-btn btn-save" id="wi-calc-btn" type="button" onclick="golfWhatIfCalc()">
                 CALCULATE
             </button>
@@ -76,7 +65,6 @@ add_shortcode('golf_what_if', function () {
         var player = document.getElementById('wi-player').value;
         var tee    = document.getElementById('wi-tee').value;
         var gross  = document.getElementById('wi-gross').value;
-        var pcc    = document.getElementById('wi-pcc').value;
 
         var errEl = document.getElementById('wi-error');
         var resEl = document.getElementById('wi-results');
@@ -99,8 +87,7 @@ add_shortcode('golf_what_if', function () {
             nonce:     GolfMasterAjax.nonce,
             player_id: player,
             tee_id:    tee,
-            gross:     gross,
-            pcc:       pcc
+            gross:     gross
         });
 
         fetch(GolfMasterAjax.ajaxUrl, {
@@ -197,7 +184,6 @@ function golf_what_if_calculate_handler() {
     $player_id = isset($_POST['player_id']) ? (int) $_POST['player_id'] : 0;
     $tee_id    = isset($_POST['tee_id'])    ? (int) $_POST['tee_id']    : 0;
     $gross     = isset($_POST['gross'])     ? (int) $_POST['gross']     : 0;
-    $pcc       = isset($_POST['pcc'])       ? (int) $_POST['pcc']       : 0;
 
     if (!$player_id || !$tee_id || !$gross) {
         wp_send_json_error(['message' => 'Please fill in all fields.']);
@@ -244,8 +230,8 @@ function golf_what_if_calculate_handler() {
     ));
     $diffs = array_map('floatval', $diffs);
 
-    // Calculate the new differential
-    $new_diff = ($gross - (float)$tee->course_rating - $pcc) * (113 / (float)$tee->slope_rating);
+    // New differential — PCC defaults to 0
+    $new_diff = ($gross - (float)$tee->course_rating) * (113 / (float)$tee->slope_rating);
     $new_diff = round($new_diff, 1);
 
     // Simulate: prepend new round, cap at 20
@@ -273,7 +259,7 @@ function golf_what_if_calculate_handler() {
     $new_hi = round((array_sum($best) / count($best)) * 0.96, 1);
     $new_hi = min(max($new_hi, 0.0), 54.0);
 
-    // Playing handicap helper — mirrors view_playing_handicaps exactly
+    // Playing handicap — mirrors view_playing_handicaps exactly
     $play_hcp = function($hi, $tee_data) {
         $exact = $hi * ($tee_data->slope_rating / 113) + ($tee_data->course_rating - $tee_data->par);
         return (int) round($exact * 0.95);
