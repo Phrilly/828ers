@@ -64,10 +64,8 @@
   margin-bottom: 16px;
 }
 
-/* ---- Results wrapper ---- */
-#wi-results {
-  width: 100%;
-}
+/* ---- Results ---- */
+#wi-results { width: 100%; }
 
 .whatif-result-grid {
   display: grid;
@@ -76,7 +74,6 @@
   width: 100%;
 }
 
-/* ---- Result boxes ---- */
 .wi-box {
   background: #f9f9f9;
   border: 1px solid #e0e0e0;
@@ -89,6 +86,7 @@
 .wi-hcp-box {
   grid-column: 1 / -1;
   text-align: left;
+  padding: 16px 12px;
 }
 
 .wi-label {
@@ -100,11 +98,7 @@
   margin-bottom: 10px;
 }
 
-.wi-big {
-  font-size: 28px;
-  font-weight: 800;
-  color: #333;
-}
+.wi-big  { font-size: 28px; font-weight: 800; color: #333; }
 
 .wi-hi-row {
   display: flex;
@@ -113,9 +107,9 @@
   gap: 10px;
 }
 
-.wi-cur  { font-size: 18px; color: #999; font-weight: 600; }
+.wi-cur   { font-size: 18px; color: #999; font-weight: 600; }
 .wi-arrow { font-size: 18px; font-weight: 900; }
-.wi-new  { font-size: 28px; font-weight: 800; color: #333; }
+.wi-new   { font-size: 28px; font-weight: 800; color: #333; }
 
 .wi-change {
   font-size: 13px;
@@ -127,25 +121,23 @@
 .wi-down { color: #1a6e35; }
 .wi-same { color: #6b7280; }
 
-/* ---- Playing handicap table ---- */
+/* ---- Table — nowrap is the critical fix ---- */
 .wi-hcp-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
   margin-top: 6px;
-  table-layout: fixed;
 }
 
 .wi-hcp-table th,
 .wi-hcp-table td {
   padding: 9px 8px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .wi-hcp-table th:first-child,
-.wi-hcp-table td:first-child {
-  text-align: left;
-}
+.wi-hcp-table td:first-child { text-align: left; }
 
 .wi-hcp-table th {
   background: #333;
@@ -165,12 +157,8 @@
    ====================================================== */
 @media (max-width: 600px) {
 
-  .golf-whatif-wrap {
-    max-width: 100%;
-    padding: 0 4px;
-  }
-
-  .whatif-form { padding: 14px; }
+  .golf-whatif-wrap { padding: 0 4px; }
+  .whatif-form      { padding: 14px; }
 
   #wi-calc-btn {
     align-self: stretch;
@@ -178,39 +166,26 @@
     min-height: 44px;
   }
 
-  /* Stack result boxes full width */
   .whatif-result-grid {
     grid-template-columns: 1fr;
     gap: 10px;
   }
 
   .wi-hcp-box { grid-column: 1; }
+  .wi-big     { font-size: 24px; }
+  .wi-new     { font-size: 24px; }
+  .wi-cur     { font-size: 16px; }
 
-  /* Slightly smaller text in boxes */
-  .wi-big  { font-size: 24px; }
-  .wi-new  { font-size: 24px; }
-  .wi-cur  { font-size: 16px; }
-
-  /* Table columns: tee 36%, other three share the rest equally */
   .wi-hcp-table { font-size: 12px; }
 
   .wi-hcp-table th,
-  .wi-hcp-table td { padding: 8px 4px; }
+  .wi-hcp-table td {
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
 
-  .wi-hcp-table th:nth-child(1),
-  .wi-hcp-table td:nth-child(1) { width: 36%; }
-
-  .wi-hcp-table th:nth-child(2),
-  .wi-hcp-table td:nth-child(2),
-  .wi-hcp-table th:nth-child(3),
-  .wi-hcp-table td:nth-child(3),
-  .wi-hcp-table th:nth-child(4),
-  .wi-hcp-table td:nth-child(4) { width: 21.3%; }
-
-  /* Shrink tee badge on mobile */
   .tee-badge {
     font-size: 10px !important;
     padding: 2px 6px !important;
-    border-radius: 10px !important;
   }
 }
