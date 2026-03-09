@@ -23,13 +23,13 @@ add_action('wp_enqueue_scripts', function () {
 
     // CSS files in load order — each depends on the previous
     $css_files = [
-        '828ers-globals'    => 'assets/golf-globals.css',
-        '828ers-dashboard'  => 'assets/golf-dashboard.css',
-        '828ers-history'    => 'assets/golf-history.css',
-        '828ers-pagination' => 'assets/golf-pagination.css',
-        '828ers-pivot'      => 'assets/golf-pivot.css',
-        '828ers-forms'      => 'assets/golf-forms.css',
-        '828ers-mobile'     => 'assets/golf-mobile.css',
+        '828ers-globals'    => 'assets/css/golf-globals.css',
+        '828ers-dashboard'  => 'assets/css/golf-dashboard.css',
+        '828ers-history'    => 'assets/css/golf-history.css',
+        '828ers-pagination' => 'assets/css/golf-pagination.css',
+        '828ers-pivot'      => 'assets/css/golf-pivot.css',
+        '828ers-forms'      => 'assets/css/golf-forms.css',
+        '828ers-mobile'     => 'assets/css/golf-mobile.css',
     ];
 
     $prev_handle = array();
