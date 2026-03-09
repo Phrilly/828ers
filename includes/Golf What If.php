@@ -2,6 +2,9 @@
 /* ======================================================
    GOLF WHAT IF CALCULATOR
    Shortcode: [golf_what_if]
+   Uses ghost score method — inserts a temporary score,
+   reads view_handicap_index + view_playing_handicaps,
+   then immediately deletes it. Perfectly mirrors live system.
    ====================================================== */
 
 add_shortcode('golf_what_if', function () {
@@ -106,11 +109,11 @@ add_shortcode('golf_what_if', function () {
                 return;
             }
 
-            var d       = resp.data;
-            var hiChg   = parseFloat(d.hi_change);
-            var hiArrow = hiChg > 0 ? '&#9650;' : (hiChg < 0 ? '&#9660;' : '&#9679;');
-            var hiCls   = hiChg > 0 ? 'wi-up'   : (hiChg < 0 ? 'wi-down' : 'wi-same');
-            var hiChgTxt = hiChg > 0 ? '+' + d.hi_change : d.hi_change;
+            var d        = resp.data;
+            var hiChg    = parseFloat(d.hi_change);
+            var hiArrow  = hiChg > 0 ? '&#9650;' : (hiChg < 0 ? '&#9660;' : '&#9679;');
+            var hiCls    = hiChg > 0 ? 'wi-up'   : (hiChg < 0 ? 'wi-down' : 'wi-same');
+            var hiChgTxt = hiChg > 0 ? '+' + d.hi_change : (hiChg === 0 ? 'No change' : d.hi_change);
 
             var teeRows = '';
             ['white','yellow','black'].forEach(function(t) {
@@ -172,6 +175,7 @@ add_shortcode('golf_what_if', function () {
 
 /* ============================
    AJAX: What If Calculate
+   Ghost score method — insert, read views, delete.
    ============================ */
 add_action('wp_ajax_golf_what_if_calculate',        'golf_what_if_calculate_handler');
 add_action('wp_ajax_nopriv_golf_what_if_calculate', 'golf_what_if_calculate_handler');
@@ -189,9 +193,9 @@ function golf_what_if_calculate_handler() {
         wp_send_json_error(['message' => 'Please fill in all fields.']);
     }
 
-    // Tee used for this round
+    // Tee data for differential display
     $tee = $wpdb->get_row($wpdb->prepare(
-        "SELECT tee_colour, course_rating, slope_rating, par
+        "SELECT course_rating, slope_rating
          FROM {$wpdb->prefix}golf_tees WHERE tee_id = %d",
         $tee_id
     ));
@@ -200,79 +204,75 @@ function golf_what_if_calculate_handler() {
         wp_send_json_error(['message' => 'Tee not found.']);
     }
 
-    // All three Ramsey tees for playing handicap output
-    $all_tees = $wpdb->get_results(
-        "SELECT tee_colour, course_rating, slope_rating, par
-         FROM {$wpdb->prefix}golf_tees
-         WHERE course_id = 1 AND tee_colour IN ('White','Yellow','Black')"
+    // New differential for display only
+    $new_diff = round(
+        ($gross - (float) $tee->course_rating) * (113 / (float) $tee->slope_rating),
+        1
     );
-    $tees_by_colour = [];
-    foreach ($all_tees as $t) {
-        $tees_by_colour[$t->tee_colour] = $t;
-    }
 
-    // Current HI
+    // Snapshot current HI + playing handicaps BEFORE ghost
     $cur_hi_row = $wpdb->get_row($wpdb->prepare(
         "SELECT current_handicap_index FROM view_handicap_index WHERE player_id = %d",
         $player_id
     ));
-    $cur_hi = $cur_hi_row ? (float) $cur_hi_row->current_handicap_index : 0.0;
+    $cur_hi = $cur_hi_row ? round((float) $cur_hi_row->current_handicap_index, 1) : 0.0;
 
-    // Last 20 non-excluded differentials
-    $diffs = $wpdb->get_col($wpdb->prepare(
-        "SELECT h.differential
-         FROM {$wpdb->prefix}golf_dashboard_history h
-         JOIN {$wpdb->prefix}golf_scores s ON s.score_id = h.score_id
-         WHERE s.player_id = %d AND s.is_excluded = 0
-         ORDER BY s.date_played DESC, s.score_id DESC
-         LIMIT 20",
+    $cur_play_row = $wpdb->get_row($wpdb->prepare(
+        "SELECT white_play, yellow_play, black_play
+         FROM view_playing_handicaps WHERE player_id = %d",
         $player_id
     ));
-    $diffs = array_map('floatval', $diffs);
-
-    // New differential — PCC defaults to 0
-    $new_diff = ($gross - (float)$tee->course_rating) * (113 / (float)$tee->slope_rating);
-    $new_diff = round($new_diff, 1);
-
-    // Simulate: prepend new round, cap at 20
-    $simulated = array_slice(array_merge([$new_diff], $diffs), 0, 20);
-    $count     = count($simulated);
-
-    if ($count < 3) {
-        wp_send_json_error(['message' => 'Not enough rounds to calculate (minimum 3 needed).']);
-    }
-
-    // WHS table: number of rounds → best N to use
-    $whs_table = [
-        3 => 1, 4 => 1, 5 => 1,
-        6 => 2, 7 => 2, 8 => 2,
-        9 => 3, 10 => 3, 11 => 3,
-        12 => 4, 13 => 4, 14 => 4,
-        15 => 5, 16 => 5,
-        17 => 6, 18 => 6,
-        19 => 7, 20 => 8,
+    $cur_play = [
+        'white'  => $cur_play_row ? (int) $cur_play_row->white_play  : 0,
+        'yellow' => $cur_play_row ? (int) $cur_play_row->yellow_play : 0,
+        'black'  => $cur_play_row ? (int) $cur_play_row->black_play  : 0,
     ];
-    $use_n = $whs_table[min($count, 20)] ?? 8;
 
-    sort($simulated);
-    $best   = array_slice($simulated, 0, $use_n);
-    $new_hi = round((array_sum($best) / count($best)) * 0.96, 1);
-    $new_hi = min(max($new_hi, 0.0), 54.0);
+    // Insert ghost score — dated today so it sits at the top of the last-20 window
+    $inserted = $wpdb->insert(
+        $wpdb->prefix . 'golf_scores',
+        [
+            'player_id'      => $player_id,
+            'date_played'    => date('Y-m-d'),
+            'tee_id'         => $tee_id,
+            'gross_score'    => $gross,
+            'pcc_adjustment' => 0,
+            'putts'          => 0,
+            'gir'            => 0,
+            'is_excluded'    => 0,
+        ]
+    );
 
-    // Playing handicap — mirrors view_playing_handicaps exactly
-    $play_hcp = function($hi, $tee_data) {
-        $exact = $hi * ($tee_data->slope_rating / 113) + ($tee_data->course_rating - $tee_data->par);
-        return (int) round($exact * 0.95);
-    };
-
-    $cur_play = [];
-    $new_play = [];
-    foreach (['White', 'Yellow', 'Black'] as $colour) {
-        if (!isset($tees_by_colour[$colour])) continue;
-        $key            = strtolower($colour);
-        $cur_play[$key] = $play_hcp($cur_hi, $tees_by_colour[$colour]);
-        $new_play[$key] = $play_hcp($new_hi, $tees_by_colour[$colour]);
+    if (!$inserted) {
+        wp_send_json_error(['message' => 'Simulation failed — could not write temporary score.']);
     }
+
+    $ghost_id = (int) $wpdb->insert_id;
+
+    // Read new HI + playing handicaps AFTER ghost
+    $new_hi_row = $wpdb->get_row($wpdb->prepare(
+        "SELECT current_handicap_index FROM view_handicap_index WHERE player_id = %d",
+        $player_id
+    ));
+    $new_hi = $new_hi_row ? round((float) $new_hi_row->current_handicap_index, 1) : $cur_hi;
+
+    $new_play_row = $wpdb->get_row($wpdb->prepare(
+        "SELECT white_play, yellow_play, black_play
+         FROM view_playing_handicaps WHERE player_id = %d",
+        $player_id
+    ));
+    $new_play = [
+        'white'  => $new_play_row ? (int) $new_play_row->white_play  : 0,
+        'yellow' => $new_play_row ? (int) $new_play_row->yellow_play : 0,
+        'black'  => $new_play_row ? (int) $new_play_row->black_play  : 0,
+    ];
+
+    // Always clean up the ghost score
+    $wpdb->delete(
+        $wpdb->prefix . 'golf_scores',
+        ['score_id' => $ghost_id],
+        ['%d']
+    );
 
     wp_send_json_success([
         'new_diff'  => $new_diff,
