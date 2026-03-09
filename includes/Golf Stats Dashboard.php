@@ -4,7 +4,6 @@ add_shortcode('golf_stats_dashboard', function () {
 
     $selected_year = isset($_GET['stats_year']) ? (int) $_GET['stats_year'] : (int) date('Y');
 
-    // Use $wpdb->prefix so it works if the DB prefix is not wp_
     $players_table = $wpdb->prefix . 'golf_players';
 
     $players = $wpdb->get_results("SELECT name FROM {$players_table} ORDER BY player_id ASC", ARRAY_A);
@@ -36,16 +35,13 @@ add_shortcode('golf_stats_dashboard', function () {
         'player_name'
     );
 
-    // Helper: "18 (17.61)" with the 2dp italic + 1pt smaller
     $fmt_course_hcp = function ($exact) {
         $exact = (float) ($exact ?? 0);
         if (!$exact) {
             return '-';
         }
-
         $rounded = (int) round($exact);
         $two_dp  = number_format($exact, 2);
-
         return $rounded . ' <em style="font-size: calc(100% - 1pt); font-style: italic;">(' . $two_dp . ')</em>';
     };
 
@@ -83,11 +79,30 @@ add_shortcode('golf_stats_dashboard', function () {
                     $v = (int) ($v ?? 0);
                     return ($total > 0) ? (round(($v / $total) * 100) . "%") : "0%";
                 };
+
+                $current_hi  = number_format((float) ($hi['current_handicap_index'] ?? 0.0), 1);
+                $hi_direction = $hi['hi_direction'] ?? 'same';
+
+                if ($hi_direction === 'up') {
+                    $hi_class = 'hi-up';
+                    $hi_label = 'HI increased recently';
+                } elseif ($hi_direction === 'down') {
+                    $hi_class = 'hi-down';
+                    $hi_label = 'HI decreased recently';
+                } else {
+                    $hi_class = 'hi-same';
+                    $hi_label = 'HI unchanged';
+                }
                 ?>
                 <div class="golf-card">
                     <div class="card-header">
                         <span><?php echo esc_html($n); ?></span>
-                        <span class="p-idx"><?php echo number_format((float) ($hi['current_handicap_index'] ?? 0.0), 1); ?></span>
+                        <span class="p-idx-wrap">
+                            <span class="p-idx"><?php echo esc_html($current_hi); ?></span>
+                            <span class="hi-indicator <?php echo esc_attr($hi_class); ?>"
+                                  aria-label="<?php echo esc_attr($hi_label); ?>"
+                                  title="<?php echo esc_attr($hi_label); ?>"></span>
+                        </span>
                     </div>
 
                     <div class="sect-hcap">
@@ -132,7 +147,6 @@ add_shortcode('golf_stats_dashboard', function () {
                             <tr><td>Avg Putts</td><td></td><td class="tr"><strong><?php echo esc_html($yrow['avg_putts_year'] ?? '-'); ?></strong></td></tr>
                             <tr><td>Avg GIR</td><td></td><td class="tr"><strong><?php echo esc_html($yrow['avg_gir_year'] ?? '-'); ?></strong></td></tr>
                             <tr><td>Wins (Nett)</td><td></td><td class="tr"><strong><?php echo (int) ($yrow['wins'] ?? 0); ?></strong></td></tr>
-
                             <tr><td>&lt; 80</td><td class="txt-pct"><?php echo esc_html($pct($yrow['sub_80'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['sub_80'] ?? 0); ?></td></tr>
                             <tr><td>80-84</td><td class="txt-pct"><?php echo esc_html($pct($yrow['cat_80_84'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['cat_80_84'] ?? 0); ?></td></tr>
                             <tr><td>85-89</td><td class="txt-pct"><?php echo esc_html($pct($yrow['cat_85_89'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['cat_85_89'] ?? 0); ?></td></tr>
