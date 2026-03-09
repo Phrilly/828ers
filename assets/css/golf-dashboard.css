@@ -50,21 +50,21 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   font-weight: 900;
 }
 
-.hi-up::before    { content: "\25B2"; }
-.hi-down::before  { content: "\25BC"; }
-.hi-same::before  { content: "\25CF"; font-size: 10px; }
+.hi-up::before    { content: "▲"; }
+.hi-down::before  { content: "▼"; }
+.hi-same::before  { content: "●"; font-size: 10px; }
 
-.hi-up   { background: rgba(214, 40, 40, 0.25);  color: #ff6b6b; }
-.hi-down { background: rgba(42, 157, 75, 0.25);   color: #51cf66; }
-.hi-same { background: rgba(47, 109, 246, 0.25);  color: #74a9ff; }
+.hi-up   { background: #922020; color: #ffaaaa; }
+.hi-down { background: #1a6e35; color: #a3f0be; }
+.hi-same { background: #1a3a8f; color: #a8c4ff; }
 
 .sect-title {
   font-size: 10px;
