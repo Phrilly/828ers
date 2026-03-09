@@ -86,7 +86,6 @@
 .wi-hcp-box {
   grid-column: 1 / -1;
   text-align: left;
-  padding: 16px 12px;
 }
 
 .wi-label {
@@ -111,22 +110,17 @@
 .wi-arrow { font-size: 18px; font-weight: 900; }
 .wi-new   { font-size: 28px; font-weight: 800; color: #333; }
 
-.wi-change {
-  font-size: 13px;
-  font-weight: bold;
-  margin-top: 6px;
-}
+.wi-change { font-size: 13px; font-weight: bold; margin-top: 6px; }
 
 .wi-up   { color: #d62828; }
 .wi-down { color: #1a6e35; }
 .wi-same { color: #6b7280; }
 
-/* ---- Table — nowrap is the critical fix ---- */
+/* ---- Table ---- */
 .wi-hcp-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
-  margin-top: 6px;
+  table-layout: fixed;
 }
 
 .wi-hcp-table th,
@@ -134,10 +128,19 @@
   padding: 9px 8px;
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
 }
 
-.wi-hcp-table th:first-child,
-.wi-hcp-table td:first-child { text-align: left; }
+/* Tee column 40%, other three split the rest */
+.wi-hcp-table th:nth-child(1),
+.wi-hcp-table td:nth-child(1) { width: 40%; text-align: left; }
+
+.wi-hcp-table th:nth-child(2),
+.wi-hcp-table td:nth-child(2),
+.wi-hcp-table th:nth-child(3),
+.wi-hcp-table td:nth-child(3),
+.wi-hcp-table th:nth-child(4),
+.wi-hcp-table td:nth-child(4) { width: 20%; }
 
 .wi-hcp-table th {
   background: #333;
@@ -157,7 +160,7 @@
    ====================================================== */
 @media (max-width: 600px) {
 
-  .golf-whatif-wrap { padding: 0 4px; }
+  .golf-whatif-wrap { padding: 0; }
   .whatif-form      { padding: 14px; }
 
   #wi-calc-btn {
@@ -176,16 +179,11 @@
   .wi-new     { font-size: 24px; }
   .wi-cur     { font-size: 16px; }
 
-  .wi-hcp-table { font-size: 12px; }
-
   .wi-hcp-table th,
-  .wi-hcp-table td {
-    padding: 8px 6px;
-    white-space: nowrap;
-  }
+  .wi-hcp-table td { font-size: 13px; padding: 9px 6px; }
 
   .tee-badge {
-    font-size: 10px !important;
-    padding: 2px 6px !important;
+    font-size: 11px !important;
+    padding: 3px 8px !important;
   }
 }

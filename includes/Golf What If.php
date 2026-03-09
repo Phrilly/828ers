@@ -2,9 +2,6 @@
 /* ======================================================
    GOLF WHAT IF CALCULATOR
    Shortcode: [golf_what_if]
-   Uses ghost score method — inserts a temporary score,
-   reads view_handicap_index + view_playing_handicaps,
-   then immediately deletes it. Perfectly mirrors live system.
    ====================================================== */
 
 add_shortcode('golf_what_if', function () {
@@ -150,9 +147,9 @@ add_shortcode('golf_what_if', function () {
                     + '<table class="wi-hcp-table">'
                         + '<thead><tr>'
                             + '<th>Tee</th>'
-                            + '<th class="tc">Current</th>'
+                            + '<th class="tc">Now</th>'
                             + '<th class="tc">New</th>'
-                            + '<th class="tc">Change</th>'
+                            + '<th class="tc">+/-</th>'
                         + '</tr></thead>'
                         + '<tbody>' + teeRows + '</tbody>'
                     + '</table>'
@@ -175,7 +172,6 @@ add_shortcode('golf_what_if', function () {
 
 /* ============================
    AJAX: What If Calculate
-   Ghost score method — insert, read views, delete.
    ============================ */
 add_action('wp_ajax_golf_what_if_calculate',        'golf_what_if_calculate_handler');
 add_action('wp_ajax_nopriv_golf_what_if_calculate', 'golf_what_if_calculate_handler');
@@ -193,7 +189,6 @@ function golf_what_if_calculate_handler() {
         wp_send_json_error(['message' => 'Please fill in all fields.']);
     }
 
-    // Tee data for differential display
     $tee = $wpdb->get_row($wpdb->prepare(
         "SELECT course_rating, slope_rating
          FROM {$wpdb->prefix}golf_tees WHERE tee_id = %d",
@@ -204,13 +199,11 @@ function golf_what_if_calculate_handler() {
         wp_send_json_error(['message' => 'Tee not found.']);
     }
 
-    // New differential for display only
     $new_diff = round(
         ($gross - (float) $tee->course_rating) * (113 / (float) $tee->slope_rating),
         1
     );
 
-    // Snapshot current HI + playing handicaps BEFORE ghost
     $cur_hi_row = $wpdb->get_row($wpdb->prepare(
         "SELECT current_handicap_index FROM view_handicap_index WHERE player_id = %d",
         $player_id
@@ -228,7 +221,6 @@ function golf_what_if_calculate_handler() {
         'black'  => $cur_play_row ? (int) $cur_play_row->black_play  : 0,
     ];
 
-    // Insert ghost score — dated today so it sits at the top of the last-20 window
     $inserted = $wpdb->insert(
         $wpdb->prefix . 'golf_scores',
         [
@@ -249,7 +241,6 @@ function golf_what_if_calculate_handler() {
 
     $ghost_id = (int) $wpdb->insert_id;
 
-    // Read new HI + playing handicaps AFTER ghost
     $new_hi_row = $wpdb->get_row($wpdb->prepare(
         "SELECT current_handicap_index FROM view_handicap_index WHERE player_id = %d",
         $player_id
@@ -267,7 +258,6 @@ function golf_what_if_calculate_handler() {
         'black'  => $new_play_row ? (int) $new_play_row->black_play  : 0,
     ];
 
-    // Always clean up the ghost score
     $wpdb->delete(
         $wpdb->prefix . 'golf_scores',
         ['score_id' => $ghost_id],
