@@ -9,7 +9,6 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // Load individual PHP files
-// Tip: Ensure these filenames match exactly (including spaces/casing)
 require_once plugin_dir_path(__FILE__) . 'includes/Golf Master System.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Golf Stats Dashboard.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Golf Rounds Pivot.php';
@@ -22,14 +21,27 @@ add_action('wp_enqueue_scripts', function () {
     $base_url  = plugin_dir_url(__FILE__);
     $base_path = plugin_dir_path(__FILE__);
 
-    $css_rel = 'assets/css/unified_css.css';
-    $js_rel  = 'assets/js/unified_javascript.js';
+    // CSS files in load order — each depends on the previous
+    $css_files = [
+        '828ers-globals'    => 'assets/golf-globals.css',
+        '828ers-dashboard'  => 'assets/golf-dashboard.css',
+        '828ers-history'    => 'assets/golf-history.css',
+        '828ers-pagination' => 'assets/golf-pagination.css',
+        '828ers-pivot'      => 'assets/golf-pivot.css',
+        '828ers-forms'      => 'assets/golf-forms.css',
+        '828ers-mobile'     => 'assets/golf-mobile.css',
+    ];
 
-    // File versions based on last modified time to force refresh after updates
-    $css_ver = file_exists($base_path . $css_rel) ? filemtime($base_path . $css_rel) : '1.0';
-    $js_ver  = file_exists($base_path . $js_rel)  ? filemtime($base_path . $js_rel)  : '1.0';
+    $prev_handle = array();
+    foreach ( $css_files as $handle => $rel_path ) {
+        $ver = file_exists( $base_path . $rel_path ) ? filemtime( $base_path . $rel_path ) : '1.0';
+        wp_enqueue_style( $handle, $base_url . $rel_path, $prev_handle, $ver );
+        $prev_handle = array( $handle );
+    }
 
-    wp_enqueue_style('828ers-css', $base_url . $css_rel, array(), $css_ver);
+    // JavaScript (unchanged)
+    $js_rel = 'assets/js/unified_javascript.js';
+    $js_ver = file_exists( $base_path . $js_rel ) ? filemtime( $base_path . $js_rel ) : '1.0';
 
     wp_enqueue_script(
         '828ers-js',
