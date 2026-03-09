@@ -16,6 +16,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/Golf Round History.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Download Excel Sheet.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Handicap Index Chart.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Show admin bar.php';
+require_once plugin_dir_path(__FILE__) . 'includes/Golf What If.php';
 
 add_action('wp_enqueue_scripts', function () {
     $base_url  = plugin_dir_url(__FILE__);
@@ -29,6 +30,7 @@ add_action('wp_enqueue_scripts', function () {
         '828ers-pagination' => 'assets/css/golf-pagination.css',
         '828ers-pivot'      => 'assets/css/golf-pivot.css',
         '828ers-forms'      => 'assets/css/golf-forms.css',
+        '828ers-whatif'     => 'assets/css/golf-whatif.css',
         '828ers-mobile'     => 'assets/css/golf-mobile.css',
     ];
 
