@@ -131,7 +131,6 @@
   overflow: hidden;
 }
 
-/* Tee column 40%, other three split the rest */
 .wi-hcp-table th:nth-child(1),
 .wi-hcp-table td:nth-child(1) { width: 40%; text-align: left; }
 
@@ -145,7 +144,8 @@
 .wi-hcp-table th {
   background: #333;
   color: #fff;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .5px;
 }
