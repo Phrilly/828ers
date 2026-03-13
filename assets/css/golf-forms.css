@@ -69,16 +69,17 @@
   border-bottom: 1px solid #eee;
 }
 
-/* Edit grid: 12 columns — added Excl (0.5fr) between GIR and Nett */
+/* Edit grid: 11 columns — Count removed, Nett uses green circle */
 .golf-edit-box .edit-header,
 .golf-edit-box .edit-row {
   display: grid;
-  grid-template-columns: 1.1fr 1.0fr 0.8fr 0.55fr 0.45fr 0.55fr 0.55fr 0.45fr 0.6fr 0.6fr 0.45fr 0.9fr;
+  /* Player | Date | Tee | Gross | PCC | Putts | GIR | Excl | Nett | Diff | Action */
+  grid-template-columns: minmax(80px, 1fr) 110px 70px 50px 55px 50px 50px 40px 50px 50px 95px;
   gap: 6px;
   padding: 8px 10px;
   align-items: center;
   border-bottom: 1px solid #eee;
-  min-width: 780px;
+  min-width: 720px;
 }
 
 /* Action buttons never wrap */
@@ -97,4 +98,33 @@
 /* Desktop: hide the small mobile labels */
 @media (min-width: 768px) {
   .golf-entry-box .entry-row .lbl { display: none !important; }
+}
+
+/* ======================================================
+   NEW UI UPDATES: Green Circle & Compact Inputs
+   ====================================================== */
+
+/* Style the Nett score as a green circle for counting rounds */
+.count-circle {
+  background-color: #137a3d; /* WHS Green matching your history dot */
+  color: #ffffff;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-weight: 700;
+  margin: 0 auto;
+}
+
+/* Hide the browser up/down arrows to save space */
+input[type=number].golf-input::-webkit-inner-spin-button, 
+input[type=number].golf-input::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number].golf-input {
+  -moz-appearance: textfield;
+  text-align: center;
 }

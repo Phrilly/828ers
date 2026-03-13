@@ -1,5 +1,5 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-03-06_inherit";
+window.__GOLF_BUILD_ID__ = "2026-03-06_inherit_ui_update";
 console.log("828ers JS loaded. Build: DATE+TEE INHERIT", window.__GOLF_BUILD_ID__);
 
 const GOLF_AJAX_URL = (typeof GolfMasterAjax !== "undefined") ? GolfMasterAjax.ajaxUrl : "/wp-admin/admin-ajax.php";
@@ -99,15 +99,20 @@ function ajaxUpdate(scoreId) {
           return;
         }
 
-        row.find(".ed-net").text(res.data.net_score);
-        row.find(".ed-diff").text(res.data.differential);
-
-        // Update count dot
-        const countCell = row.find(".ed-count");
-        countCell.empty();
-        if (parseInt(res.data.is_counting, 10) === 1) {
-          countCell.append('<span class="count-dot" aria-label="Counting round"></span>');
+        let netSpan = row.find(".ed-net .net-val");
+        if (netSpan.length === 0) {
+            row.find(".ed-net").html('<span class="net-val"></span>');
+            netSpan = row.find(".ed-net .net-val");
         }
+        netSpan.text(res.data.net_score);
+        
+        if (parseInt(res.data.is_counting, 10) === 1) {
+            netSpan.addClass("count-circle");
+        } else {
+            netSpan.removeClass("count-circle");
+        }
+
+        row.find(".ed-diff").text(res.data.differential);
 
         // Visually mark row as excluded or restore it
         if (parseInt(res.data.is_excluded, 10) === 1) {
@@ -192,9 +197,7 @@ function golfSaveAll() {
         const $header        = $historicBox.find(".golf-grid-header").first();
 
         (res.data.rows || []).forEach(function (r) {
-          const countHtml = parseInt(r.is_counting, 10) === 1
-            ? '<span class="count-dot" aria-label="Counting round"></span>'
-            : "";
+          const countClass = parseInt(r.is_counting, 10) === 1 ? "count-circle" : "";
 
           // New rows from bulk save are never excluded (is_excluded always 0 from entry form)
           const rowHtml = `
@@ -207,9 +210,10 @@ function golfSaveAll() {
               <input type="number" class="golf-input ed-putts tc" value="${escapeAttr(r.putts)}">
               <input type="number" class="golf-input ed-gir tc" value="${escapeAttr(r.gir)}">
               <div class="tc"><input type="checkbox" class="golf-input ed-excl" value="1" title="Exclude from handicap"></div>
-              <div class="computed ed-net tc">${escapeHtml(r.net_score)}</div>
-              <div class="computed ed-diff tc">${escapeHtml(r.differential)}</div>
-              <div class="tc ed-count">${countHtml}</div>
+              <div class="computed tc ed-net">
+                  <span class="net-val ${countClass}">${escapeHtml(r.net_score)}</span>
+              </div>
+              <div class="computed tc ed-diff">${escapeHtml(r.differential)}</div>
               <div class="tc action-btns">
                 <button class="golf-btn btn-save" onclick="ajaxUpdate(${escapeAttr(r.score_id)})">SAVE</button>
                 <button class="golf-btn btn-del" onclick="ajaxDelete(${escapeAttr(r.score_id)})">DEL</button>
