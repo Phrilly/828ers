@@ -69,17 +69,17 @@
   border-bottom: 1px solid #eee;
 }
 
-/* Edit grid: 11 columns — Count removed, Nett uses green circle */
+/* Edit grid: 10 columns — Count and Diff removed, Nett uses green circle */
 .golf-edit-box .edit-header,
 .golf-edit-box .edit-row {
   display: grid;
-  /* Player | Date | Tee | Gross | PCC | Putts | GIR | Excl | Nett | Diff | Action */
-  grid-template-columns: minmax(80px, 1fr) 110px 70px 50px 55px 50px 50px 40px 50px 50px 95px;
+  /* Player | Date | Tee | Gross | PCC | Putts | GIR | Excl | Nett | Action */
+  grid-template-columns: minmax(70px, 1fr) 105px 65px 45px 50px 45px 45px 40px 45px 90px;
   gap: 6px;
   padding: 8px 10px;
   align-items: center;
   border-bottom: 1px solid #eee;
-  min-width: 720px;
+  min-width: 630px; 
 }
 
 /* Action buttons never wrap */
@@ -92,7 +92,6 @@
 
 /* Excluded rows in edit grid: greyed out with strikethrough on computed fields */
 .row-excluded { opacity: 0.55; background-color: #f8f8f8; }
-.row-excluded .ed-diff,
 .row-excluded .ed-net { text-decoration: line-through; color: #999; }
 
 /* Desktop: hide the small mobile labels */

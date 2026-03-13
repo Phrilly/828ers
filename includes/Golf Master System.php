@@ -166,7 +166,6 @@ add_shortcode('golf_edit_grid', function () {
             <div class="tc">GIR</div>
             <div class="tc">Excl</div>
             <div class="tc">Nett</div>
-            <div class="tc">Diff</div>
             <div class="tc">Action</div>
         </div>
 
@@ -218,7 +217,6 @@ add_shortcode('golf_edit_grid', function () {
                         <?php echo esc_html($r->net_score); ?>
                     </span>
                 </div>
-                <div class="computed tc ed-diff"><?php echo esc_html($r->differential); ?></div>
 
                 <div class="tc action-btns">
                     <button class="golf-btn btn-save" type="button"
@@ -395,8 +393,10 @@ add_action('wp_ajax_golf_final_action_update', function () {
         )
     );
 
+    // FIXED: properly distinguish excluded rounds from genuinely missing rows
     if (!$row) {
         if ($is_excluded) {
+            // Correctly excluded — not in WHS view by design
             wp_send_json_success([
                 'score_id'     => $score_id,
                 'net_score'    => '-',
@@ -405,6 +405,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
                 'is_excluded'  => 1,
             ]);
         } else {
+            // Row missing for unknown reason — surface it for debugging
             wp_send_json_error(['message' => 'Updated but WHS view row not found. Try refreshing.']);
         }
     }
