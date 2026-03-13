@@ -1,5 +1,5 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-03-06_inherit_ui_no_diff";
+window.__GOLF_BUILD_ID__ = "2026-03-13_inherit_ui_no_diff";
 console.log("828ers JS loaded. Build: DATE+TEE INHERIT", window.__GOLF_BUILD_ID__);
 
 const GOLF_AJAX_URL = (typeof GolfMasterAjax !== "undefined") ? GolfMasterAjax.ajaxUrl : "/wp-admin/admin-ajax.php";
