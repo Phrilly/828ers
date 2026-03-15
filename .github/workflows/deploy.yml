@@ -22,23 +22,28 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Create plugin directory first
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/u271511030/public_html/wp-content/plugins/828ers/sql"
+
       - name: Sync files to Hostinger
         run: |
           rsync -avz --exclude='.git' \
             -e "ssh -p ${{ secrets.SSH_PORT }}" \
-            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/public_html/wp-content/plugins/828ers/
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u271511030/public_html/wp-content/plugins/828ers/
 
       - name: Run SQL files via WP-CLI
         run: |
           ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-            WP_PATH=~/public_html
+            WP_PATH=/home/u271511030/public_html
             PLUGIN_SQL_DIR=\$WP_PATH/wp-content/plugins/828ers/sql
+            
             if ls \$PLUGIN_SQL_DIR/*.sql 1> /dev/null 2>&1; then
               for f in \$PLUGIN_SQL_DIR/*.sql; do
                 echo \"Executing \$f...\"
                 wp db query < \"\$f\" --path=\$WP_PATH
               done
             else
-              echo 'No SQL files found. Skipping.'
+              echo 'No SQL files found. Skipping database update.'
             fi
           "
