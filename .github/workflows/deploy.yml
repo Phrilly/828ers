@@ -3,6 +3,7 @@ name: Deploy to Hostinger
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -17,17 +18,12 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Add Hostinger to known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
       - name: Ensure the plugin folder exists
         run: |
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/u271511030/public_html/wp-content/plugins/828ers"
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/u271511030/public_html/wp-content/plugins/828ers"
 
       - name: Sync files to Hostinger
         run: |
           rsync -avz --delete --exclude='.git*' \
-            -e "ssh -p ${{ secrets.SSH_PORT }}" \
+            -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" \
             ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u271511030/public_html/wp-content/plugins/828ers/
