@@ -18,7 +18,9 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Add Hostinger to known hosts
-        run: ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Sync files to Hostinger
         run: |
@@ -28,10 +30,15 @@ jobs:
 
       - name: Run SQL files via WP-CLI
         run: |
-          ssh -p ${{ secrets.SSH_PORT }} \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
-              WP_PATH=~/public_html
-              for f in ~/public_html/wp-content/plugins/828ers/sql/*.sql; do
-                wp db query \"\$(cat \$f)\" --path=\$WP_PATH
+          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            WP_PATH=~/public_html
+            PLUGIN_SQL_DIR=\$WP_PATH/wp-content/plugins/828ers/sql
+            if ls \$PLUGIN_SQL_DIR/*.sql 1> /dev/null 2>&1; then
+              for f in \$PLUGIN_SQL_DIR/*.sql; do
+                echo \"Executing \$f...\"
+                wp db query < \"\$f\" --path=\$WP_PATH
               done
-            "
+            else
+              echo 'No SQL files found. Skipping.'
+            fi
+          "
