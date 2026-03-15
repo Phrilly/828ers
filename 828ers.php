@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 828ers Golf System
  * Description: WHS handicap tracking and dashboards for the 828ers group.
- * Version: 1.0
+ * Version: 1.1
  * Author: Phrilly
  */
 
