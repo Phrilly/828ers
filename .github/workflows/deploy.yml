@@ -22,8 +22,12 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Ensure the plugin folder exists
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/u271511030/public_html/wp-content/plugins/828ers"
+
       - name: Sync files to Hostinger
         run: |
           rsync -avz --delete --exclude='.git*' \
             -e "ssh -p ${{ secrets.SSH_PORT }}" \
-            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u77110030/domains/828ers.im/public_html/wp-content/plugins/828ers/
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u271511030/public_html/wp-content/plugins/828ers/
