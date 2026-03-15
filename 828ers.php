@@ -1,60 +1,64 @@
 <?php
+/*
+Plugin Name: 828ers Golf Handicap System
+Description: Automated WHS Handicap Tracking with Git-Triggered Migrations.
+Version:     1.0.7
+Author:      Philip Dunne
+*/
+
+// Define version for cache busting and migration tracking
+define('GOLF_PLUGIN_VERSION', '1.0.7');
+
 /**
- * Plugin Name: 828ers Golf System
- * Description: WHS handicap tracking and dashboards for the 828ers group.
- * Version: 1.2
- * Author: Phrilly
+ * 828ers Migration Engine
+ * Automatically syncs the /sql/ folder to the database on version bump.
  */
+function golf_system_run_migrations() {
+    global $wpdb;
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+    // Check if we actually need to run
+    $installed_ver = get_option('golf_plugin_db_version');
 
-// Load individual PHP files
-require_once plugin_dir_path(__FILE__) . 'includes/Golf Master System.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Golf Stats Dashboard.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Golf Rounds Pivot.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Golf Round History.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Download Excel Sheet.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Handicap Index Chart.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Show admin bar.php';
-require_once plugin_dir_path(__FILE__) . 'includes/Golf What If.php';
+    if ($installed_ver !== GOLF_PLUGIN_VERSION) {
+        $sql_dir = plugin_dir_path(__FILE__) . 'sql/';
+        
+        // 1. Get ALL .sql files in the folder
+        $files = glob($sql_dir . '*.sql');
 
-add_action('wp_enqueue_scripts', function () {
-    $base_url  = plugin_dir_url(__FILE__);
-    $base_path = plugin_dir_path(__FILE__);
+        if (!empty($files)) {
+            // Sort files so they run in alphabetical order
+            sort($files); 
 
-    // CSS files in load order — each depends on the previous
-    $css_files = [
-        '828ers-globals'    => 'assets/css/golf-globals.css',
-        '828ers-dashboard'  => 'assets/css/golf-dashboard.css',
-        '828ers-history'    => 'assets/css/golf-history.css',
-        '828ers-pagination' => 'assets/css/golf-pagination.css',
-        '828ers-pivot'      => 'assets/css/golf-pivot.css',
-        '828ers-forms'      => 'assets/css/golf-forms.css',
-        '828ers-whatif'     => 'assets/css/golf-whatif.css',
-        '828ers-mobile'     => 'assets/css/golf-mobile.css',
-    ];
+            foreach ($files as $file_path) {
+                if (file_exists($file_path)) {
+                    $sql_contents = file_get_contents($file_path);
 
-    $prev_handle = array();
-    foreach ( $css_files as $handle => $rel_path ) {
-        $ver = file_exists( $base_path . $rel_path ) ? filemtime( $base_path . $rel_path ) : '1.0';
-        wp_enqueue_style( $handle, $base_url . $rel_path, $prev_handle, $ver );
-        $prev_handle = array( $handle );
+                    // 2. Clean up MySQL specific bloat
+                    $sql_contents = preg_replace('/DELIMITER\s+\S+/i', '', $sql_contents);
+                    $sql_contents = preg_replace('/DEFINER\s*=\s*`[^`]+`@`[^`]+`/', '', $sql_contents);
+                    $sql_contents = str_replace('$$', ';', $sql_contents);
+
+                    // 3. Split by your -- END_QUERY marker
+                    $queries = preg_split('/--\s*END_QUERY\s*/i', $sql_contents);
+
+                    foreach ($queries as $query) {
+                        $query = trim($query);
+                        if (!empty($query)) {
+                            // 4. Execute and log errors if they occur
+                            $result = $wpdb->query($query);
+                            if ($result === false) {
+                                error_log("828ers Migration failed in " . basename($file_path) . ": " . $wpdb->last_error);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Record the successful move to the new version
+        update_option('golf_plugin_db_version', GOLF_PLUGIN_VERSION);
     }
+}
 
-    // JavaScript (unchanged)
-    $js_rel = 'assets/js/unified_javascript.js';
-    $js_ver = file_exists( $base_path . $js_rel ) ? filemtime( $base_path . $js_rel ) : '1.0';
-
-    wp_enqueue_script(
-        '828ers-js',
-        $base_url . $js_rel,
-        array('jquery'),
-        $js_ver,
-        true
-    );
-
-    wp_localize_script('828ers-js', 'GolfMasterAjax', [
-        'ajaxUrl' => admin_url('admin-ajax.php'),
-        'nonce'   => wp_create_nonce('golf_master_nonce'),
-    ]);
-});
+// Trigger the migration engine when entering the WordPress Admin
+add_action('admin_init', 'golf_system_run_migrations');
