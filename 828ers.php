@@ -2,13 +2,13 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.0.39a
+ * Version:     1.0.40
  * Author:      Philip Dunne
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define('GOLF_PLUGIN_VERSION', '1.0.39a');
+define('GOLF_PLUGIN_VERSION', '1.0.40');
 
 // ==========================================
 // 1. FRONTEND: Load Modules & Dashboards
