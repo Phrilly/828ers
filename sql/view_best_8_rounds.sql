@@ -19,5 +19,5 @@ where
         `vComp`.`player_id` = `v20`.`player_id`
         and (`vComp`.`differential` < `v20`.`differential`
             or `vComp`.`differential` = `v20`.`differential`
-            and `vComp`.`score_id` <= `v20`.`score_id`)) <= 8;
+            and `vComp`.`score_id` >= `v20`.`score_id`)) <= 8;
 -- END_QUERY
