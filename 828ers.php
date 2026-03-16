@@ -2,12 +2,12 @@
 /*
 Plugin Name: 828ers Golf Handicap System
 Description: Automated WHS Handicap Tracking with Git-Triggered Migrations.
-Version:     1.0.9
+Version:     1.0.10
 Author:      Philip Dunne
 */
 
 // Define version for cache busting and migration tracking
-define('GOLF_PLUGIN_VERSION', '1.0.9');
+define('GOLF_PLUGIN_VERSION', '1.0.10');
 
 /**
  * 828ers Migration Engine
