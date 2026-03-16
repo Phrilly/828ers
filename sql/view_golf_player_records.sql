@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_player_records`;
 -- END_QUERY
 
--- WATERMARK 1.0.39
+-- WATERMARK 1.0.40
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_player_records` AS with rk1 as (
 select
     `v`.`score_id` AS `score_id`,
@@ -20,7 +20,9 @@ select
     rank() over ( partition by `v`.`date_played`,
     `v`.`tee_colour`
 order by
-    `v`.`net_score`) AS `nett_rank`
+    `v`.`net_score`) AS `nett_rank`,
+    count(0) over ( partition by `v`.`date_played`,
+    `v`.`tee_colour`) AS `player_count`
 from
     `view_scoreboard` `v`),
 rk2 as (
@@ -39,6 +41,7 @@ select
     `rk1`.`pcc_adjustment` AS `pcc_adjustment`,
     `rk1`.`handicap_differential` AS `handicap_differential`,
     `rk1`.`nett_rank` AS `nett_rank`,
+    `rk1`.`player_count` AS `player_count`,
     sum(case when `rk1`.`nett_rank` = 1 then 1 else 0 end) over ( partition by `rk1`.`date_played`,
     `rk1`.`tee_colour`) AS `rank1_count`
 from
@@ -50,7 +53,8 @@ select
     `rk2`.`gross_score` AS `gross_score`,
     case
         when `rk2`.`nett_rank` = 1
-        and `rk2`.`rank1_count` = 1 then 1
+        and `rk2`.`rank1_count` = 1 
+        and `rk2`.`player_count` > 1 then 1 
         else 0
     end AS `is_win`,
     `rk2`.`tee_colour` AS `tee_colour`,
