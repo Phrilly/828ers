@@ -2,11 +2,11 @@
 /*
 Plugin Name: 828ers Golf Handicap System
 Description: Automated WHS Handicap Tracking with Git-Triggered Migrations.
-Version:     1.0.30
+Version:     1.0.31
 Author:      Philip Dunne
 */
 
-define('GOLF_PLUGIN_VERSION', '1.0.30');
+define('GOLF_PLUGIN_VERSION', '1.0.31');
 
 function golf_system_run_migrations() {
     global $wpdb;
@@ -15,18 +15,29 @@ function golf_system_run_migrations() {
     if ($installed_ver !== GOLF_PLUGIN_VERSION) {
         clearstatcache();
         $sql_dir = plugin_dir_path(__FILE__) . 'sql/';
+        
+        // DIAGNOSTIC TWEAK: Grab every single file to see what's hiding
+        $all_files = scandir($sql_dir);
         $files = glob($sql_dir . '*.sql');
 
         $audit_log = []; 
+        $audit_log[] = "DIAGNOSTIC - RAW DIRECTORY CONTENTS:";
+        foreach ($all_files as $f) {
+            // Ignore the default . and .. directories
+            if ($f !== '.' && $f !== '..') {
+                $audit_log[] = "FOUND FILE: " . $f;
+            }
+        }
+        $audit_log[] = "-----------------------------------";
 
         if (empty($files)) {
-            $audit_log[] = "CRITICAL FAIL: No files found in directory: " . $sql_dir;
+            $audit_log[] = "CRITICAL FAIL: No .sql files found in directory: " . $sql_dir;
             update_option('golf_migration_audit_log', implode("\n", $audit_log));
             return; 
         }
 
         sort($files); 
-        $audit_log[] = "INIT: Found " . count($files) . " files. Starting processing...";
+        $audit_log[] = "INIT: Found " . count($files) . " .sql files. Starting processing...";
 
         foreach ($files as $file_path) {
             $filename = basename($file_path);
