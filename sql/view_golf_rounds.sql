@@ -1,6 +1,7 @@
--- view_golf_rounds
 DROP VIEW IF EXISTS `view_golf_rounds`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_rounds` AS
 select
     `e`.`date_played` AS `date_played`,
@@ -23,5 +24,4 @@ left join `wp_golf_players` `p` on
 group by
     `e`.`date_played`,
     `e`.`tee_colour`;
-
 -- END_QUERY

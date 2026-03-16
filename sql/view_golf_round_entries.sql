@@ -1,6 +1,7 @@
--- view_golf_round_entries
 DROP VIEW IF EXISTS `view_golf_round_entries`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_round_entries` AS with base as (
 select
     `v`.`score_id` AS `score_id`,
@@ -66,5 +67,4 @@ from
     end AS `is_win_nett`
 from
     `with_counts` `wc`;
-
 -- END_QUERY

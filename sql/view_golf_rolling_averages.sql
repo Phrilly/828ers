@@ -1,6 +1,7 @@
--- view_golf_rolling_averages
 DROP VIEW IF EXISTS `view_golf_rolling_averages`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_rolling_averages` AS
 select
     `ranked_history`.`player_id` AS `player_id`,
@@ -24,5 +25,4 @@ where
 group by
     `ranked_history`.`player_id`,
     `ranked_history`.`player_name`;
-
 -- END_QUERY

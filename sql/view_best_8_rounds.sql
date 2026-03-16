@@ -1,6 +1,7 @@
--- view_best_8_rounds
 DROP VIEW IF EXISTS `view_best_8_rounds`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_best_8_rounds` AS
 select
     `v20`.`player_id` AS `player_id`,
@@ -19,5 +20,4 @@ where
         and (`vComp`.`differential` < `v20`.`differential`
             or `vComp`.`differential` = `v20`.`differential`
             and `vComp`.`score_id` <= `v20`.`score_id`)) <= 8;
-
 -- END_QUERY

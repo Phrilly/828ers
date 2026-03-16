@@ -1,6 +1,7 @@
--- view_golf_player_records
 DROP VIEW IF EXISTS `view_golf_player_records`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_player_records` AS with rk1 as (
 select
     `v`.`score_id` AS `score_id`,
@@ -126,5 +127,4 @@ left join `LowestScoreRank` `lsr` on
     (`p`.`name` = `lsr`.`player_name` and `lsr`.`score_rank` = 1))
 left join `LongestStreakPerPlayer` `lsp` on
     (`p`.`name` = `lsp`.`player` and `lsp`.`streak_rank` = 1));
-
 -- END_QUERY

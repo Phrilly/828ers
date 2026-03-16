@@ -1,6 +1,7 @@
--- view_last_20_rounds
 DROP VIEW IF EXISTS `view_last_20_rounds`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_last_20_rounds` AS
 select
     `view_round_differentials`.`player_id` AS `player_id`,
@@ -10,5 +11,4 @@ from
     `view_round_differentials`
 where
     `view_round_differentials`.`recency_rank` <= 20;
-
 -- END_QUERY

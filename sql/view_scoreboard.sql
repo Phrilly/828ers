@@ -1,6 +1,7 @@
--- view_scoreboard
 DROP VIEW IF EXISTS `view_scoreboard`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_scoreboard` AS
 select
     `s`.`score_id` AS `score_id`,
@@ -28,5 +29,4 @@ left join `wp_golf_handicap_history` `hh` on
     (`hh`.`score_id` = `s`.`score_id`))
 order by
     `s`.`date_played` desc;
-
 -- END_QUERY

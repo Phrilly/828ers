@@ -1,6 +1,7 @@
--- view_round_differentials
 DROP VIEW IF EXISTS `view_round_differentials`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_round_differentials` AS
 select
     `s`.`player_id` AS `player_id`,
@@ -25,5 +26,4 @@ join `wp_golf_tees` `t` on
     (`s`.`tee_id` = `t`.`tee_id`))
 where
     `s`.`is_excluded` = 0;
-
 -- END_QUERY

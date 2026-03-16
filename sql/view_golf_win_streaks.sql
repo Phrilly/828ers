@@ -1,6 +1,7 @@
--- view_golf_win_streaks
 DROP VIEW IF EXISTS `view_golf_win_streaks`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_win_streaks` AS with rounds as (
 select
     `e`.`player` AS `player`,
@@ -44,5 +45,4 @@ join `view_golf_round_entries` `s1` on
     (`s1`.`score_id` = `w`.`first_score_id`))
 join `view_golf_round_entries` `s2` on
     (`s2`.`score_id` = `w`.`last_score_id`));
-
 -- END_QUERY

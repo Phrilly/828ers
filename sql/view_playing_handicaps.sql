@@ -1,6 +1,7 @@
--- view_playing_handicaps
 DROP VIEW IF EXISTS `view_playing_handicaps`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_playing_handicaps` AS
 select
     `vhi`.`player_id` AS `player_id`,
@@ -25,5 +26,4 @@ where
     `tw`.`course_id` = `c`.`course_id`
     and `ty`.`course_id` = `c`.`course_id`
     and `tb`.`course_id` = `c`.`course_id`;
-
 -- END_QUERY

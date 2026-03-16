@@ -1,6 +1,7 @@
--- wp_golf_dashboard_history (view)
 DROP VIEW IF EXISTS `wp_golf_dashboard_history`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `wp_golf_dashboard_history` AS
 select
     `s`.`score_id` AS `score_id`,
@@ -41,5 +42,4 @@ join `wp_golf_tees` `t` on
     (`t`.`tee_id` = `s`.`tee_id`))
 left join `wp_golf_handicap_history` `h` on
     (`h`.`score_id` = `s`.`score_id`));
-
 -- END_QUERY

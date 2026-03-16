@@ -1,6 +1,7 @@
--- view_golf_players_pivot_names
 DROP VIEW IF EXISTS `view_golf_players_pivot_names`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_players_pivot_names` AS
 select
     max(case when `p`.`player_id` = 1 then `p`.`name` end) AS `p1_name`,
@@ -9,5 +10,4 @@ select
     max(case when `p`.`player_id` = 4 then `p`.`name` end) AS `p4_name`
 from
     `wp_golf_players` `p`;
-
 -- END_QUERY

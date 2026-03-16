@@ -1,6 +1,7 @@
--- view_golf_rounds_pivot
 DROP VIEW IF EXISTS `view_golf_rounds_pivot`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_rounds_pivot` AS
 select
     `r`.`date_played` AS `date_played`,
@@ -48,5 +49,4 @@ group by
     `r`.`winners_count`,
     `r`.`winner_player`,
     `r`.`winner_colour`;
-
 -- END_QUERY

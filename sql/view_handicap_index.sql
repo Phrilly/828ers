@@ -1,6 +1,7 @@
--- view_handicap_index
 DROP VIEW IF EXISTS `view_handicap_index`;
+-- END_QUERY
 
+-- WATERMARK 1.0.33
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_handicap_index` AS
 select
     `p`.`player_id` AS `player_id`,
@@ -85,5 +86,4 @@ left join (
     where
         `s`.`tee_id` in (1, 2, 3)) `h` on
     (`h`.`player_id` = `p`.`player_id`));
-
 -- END_QUERY
