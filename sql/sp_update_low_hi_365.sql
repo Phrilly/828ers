@@ -3,6 +3,7 @@ DROP PROCEDURE IF EXISTS `sp_update_low_hi_365`;
 
 CREATE PROCEDURE `sp_update_low_hi_365`(IN p_score_id INT)
 BEGIN
+  -- WATERMARK 1.0.16
   DECLARE v_player_id INT;
   DECLARE v_date_played DATE;
   DECLARE v_low_hi DECIMAL(5,2);
