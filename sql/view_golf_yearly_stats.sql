@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_yearly_stats`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.39
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_yearly_stats` AS
 select
     `p`.`name` AS `player_name`,
@@ -22,6 +22,8 @@ join `wp_golf_players` `p` on
     (`p`.`player_id` = `s`.`player_id`))
 left join `view_golf_round_entries` `e` on
     (`e`.`score_id` = `s`.`score_id`))
+where
+    `s`.`is_excluded` = 0
 group by
     `p`.`name`,
     year(`s`.`date_played`);
