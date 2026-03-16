@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_daily_winners`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.39
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_daily_winners` AS with DailyRanks as (
 select
     `wp_golf_dashboard_history`.`date_played` AS `date_played`,
@@ -14,6 +14,8 @@ select
     `wp_golf_dashboard_history`.`tee_colour`) AS `field_size`
 from
     `wp_golf_dashboard_history`
+where
+    `is_excluded` = 0
 )select
     `DailyRanks`.`date_played` AS `date_played`,
     `DailyRanks`.`tee_colour` AS `tee_colour`,
@@ -31,5 +33,6 @@ where
     where
         `h2`.`date_played` = `DailyRanks`.`date_played`
         and `h2`.`tee_colour` = `DailyRanks`.`tee_colour`
+        and `h2`.`is_excluded` = 0
         and `h2`.`net_score` = `DailyRanks`.`best_score`) = 1;
 -- END_QUERY

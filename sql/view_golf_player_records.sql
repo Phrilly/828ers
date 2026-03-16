@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_player_records`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.39
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_player_records` AS with rk1 as (
 select
     `v`.`score_id` AS `score_id`,
@@ -113,6 +113,8 @@ from
     (`wp_golf_scores` `s`
 join `wp_golf_players` `p` on
     (`s`.`player_id` = `p`.`player_id`))
+where
+    `s`.`is_excluded` = 0
 )select
     `p`.`player_id` AS `player_id`,
     `p`.`name` AS `player_name`,
