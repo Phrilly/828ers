@@ -1,66 +1,129 @@
-.stats-filter-form {
+/* ======================================================
+   GOLF SYSTEM — DASHBOARD CARDS + SECTIONS
+   ====================================================== */
+
+.golf-dashboard-wrapper { 
+  scroll-margin-top: 50px; 
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Calibri, Roboto, sans-serif !important;
+}
+
+.stats-filter-bar {
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  text-align: center;
+  border: 1px solid #ddd;
+}
+
+.golf-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  align-items: stretch;
+}
+
+.golf-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+}
+
+.card-header {
+  background: #333;
+  color: #fff;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold !important;
+}
+
+.p-idx { color: #f39c12; }
+
+.p-idx-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hi-indicator {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  font-weight: 900 !important;
 }
 
-.stats-filter-button {
-  padding: 5px 15px;
-  background: #0073aa;
-  color: #fff;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
+.hi-up::before    { content: "▲"; }
+.hi-down::before  { content: "▼"; }
+.hi-same::before  { content: "●"; font-size: 10px; }
+
+.hi-up   { background: #922020; color: #ffaaaa; }
+.hi-down { background: #1a6e35; color: #a3f0be; }
+.hi-same { background: #1a3a8f; color: #a8c4ff; }
+
+.sect-title {
+  font-size: 10px;
+  font-weight: bold !important;
+  color: #888;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.player-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.sect-hcap {
+  padding: 12px;
+  background: #f9f9f9;
+  border-bottom: 1px solid #eee;
+  min-height: 125px;
 }
 
-.tr {
-  text-align: right;
-  white-space: nowrap;
+.sect-averages {
+  padding: 12px;
+  background: #fdfdfd;
+  border-bottom: 1px solid #eee;
+  min-height: 55px;
+}
+.sect-averages span   { color: #666; font-size: 13px; font-weight: 400 !important; }
+.sect-averages strong { color: #222; font-weight: 600 !important; font-variant-numeric: tabular-nums !important; }
+
+.sect-stats {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  min-height: 250px;
+  flex-grow: 1;
+}
+
+.sect-recs { padding: 12px; min-height: 105px; }
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.stats-table td { 
+  padding: 5px 0; 
+  border-bottom: 1px solid #f5f5f5; 
+  color: #333;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Calibri, Roboto, sans-serif !important;
+}
+
+.stats-table td:last-child {
+  font-weight: 600 !important;
   font-variant-numeric: tabular-nums !important;
 }
 
-.stats-table th {
-  padding: 4px 0 6px;
-  border-bottom: 1px solid #ddd;
-  font-size: 11px;
-  color: #666;
-  text-align: left;
-  font-weight: 600 !important;
-}
-
-.stats-table th.tr {
-  text-align: right;
-}
-
-.stats-table-hcap td:first-child {
-  width: 32%;
-}
-
-.stats-table-hcap td:nth-child(2),
-.stats-table-hcap th:nth-child(2) {
-  width: 38%;
-}
-
-.stats-table-hcap td:nth-child(3),
-.stats-table-hcap th:nth-child(3) {
-  width: 30%;
-}
-
-.stats-table-averages td:first-child,
-.stats-table-records td:first-child {
-  width: 52%;
-}
-
-.stats-table-records td[colspan="3"] {
-  padding-top: 0;
-  padding-bottom: 6px;
-}
+.txt-pct        { color: #999; font-size: 10px; padding-right: 8px; font-weight: 400 !important; }
+.rec-sub        { color: #888; font-size: 11px; display: block; margin-top: 2px; font-weight: 400 !important; }
