@@ -189,7 +189,7 @@ add_shortcode('golf_edit_grid', function () {
                 <select class="golf-input ed-pcc tc">
                     <?php
                     $pcc_current = (int) $r->pcc_adjustment;
-                    foreach ([-2, -1, 0, 1, 2, 3] as $val) {
+                    foreach ([-1, 0, 1, 2, 3] as $val) {
                         $sel     = ($pcc_current === $val) ? 'selected' : '';
                         $display = ($val > 0) ? "+{$val}" : $val;
                         echo "<option value='{$val}' {$sel}>{$display}</option>";
