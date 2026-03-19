@@ -1,21 +1,32 @@
 <?php
 /* ======================================================
    HERO IMAGE UPDATER FOR DIVI DYNAMIC CONTENT
-   (Dual Orientation, Handles Ties & Ignores Solo Rounds)
+   (Bulletproof Cache-Clearing & Admin Trigger Version)
    ====================================================== */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_action('wp', 'golf_update_latest_winner_hero_image');
+// 1. Run on frontend page loads
+add_action('wp', 'golf_trigger_hero_update_frontend');
+function golf_trigger_hero_update_frontend() {
+    if (is_front_page()) {
+        golf_update_latest_winner_hero_image();
+    }
+}
+
+// 2. Run whenever the WordPress Admin is loaded (Bulletproof trigger)
+add_action('admin_init', 'golf_update_latest_winner_hero_image');
 
 function golf_update_latest_winner_hero_image() {
-    // Only run this logic when someone visits the front page
-    if (!is_front_page()) return;
-
     global $wpdb;
+    
+    // Get the exact ID of the designated Homepage
+    $homepage_id = (int) get_option('page_on_front');
+    if (!$homepage_id) return;
+
     $scores_table = $wpdb->prefix . 'golf_scores';
 
-    // 1. Find the date of the most recent competitive round (ignores solo rounds!)
+    // Find the date of the most recent competitive round
     $latest_comp_date = $wpdb->get_var("
         SELECT s.date_played
         FROM {$scores_table} s
@@ -27,7 +38,7 @@ function golf_update_latest_winner_hero_image() {
 
     if (!$latest_comp_date) return;
 
-    // 2. Get all winners from that specific date
+    // Get all winners from that specific date
     $winners = $wpdb->get_col($wpdb->prepare("
         SELECT s.player_id
         FROM {$scores_table} s
@@ -38,50 +49,67 @@ function golf_update_latest_winner_hero_image() {
     $winner_count = count($winners);
     if ($winner_count === 0) return;
 
-    // 3. Determine if it's a single winner or a tie
+    // Determine if single winner or tie
     $image_key = ($winner_count > 1) ? 'tie' : (int) $winners[0];
 
-    // 4. Map keys to Hero Image URLs (Pairs: Landscape & Portrait)
+    // Map keys to Hero Image URLs
     $hero_images = [
-        1 => [ // PLAYER 1 (Phil D)
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-One.png',
-            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-Portrait.png',
+        1 => [ 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-One.png', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-Portrait.png' 
         ],
-        2 => [ // PLAYER 2 (Phil B)
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Proper_Golfer.png',
-            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Proper-Portrait.png',
+        2 => [ 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Proper_Golfer.png', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Proper-Portrait.png' 
         ],
-        3 => [ // PLAYER 3
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Champ.png',
-            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Portrait.png',
+        3 => [ 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Champ.png', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Portrait.png' 
         ],
-        4 => [ // PLAYER 4
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Adder.png',
-            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Adder-Portrait.png',
+        4 => [ 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Adder.png', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Adder-Portrait.png' 
         ],
-        'tie' => [ // STANDARD IMAGE FOR TIED ROUNDS (ADD YOUR URLS HERE)
-            'landscape' => 'https://828ers.im/wp-content/uploads/YOUR_TIE_LANDSCAPE.png',
-            'portrait'  => 'https://828ers.im/wp-content/uploads/YOUR_TIE_PORTRAIT.png',
+        'tie' => [ // Add your tie image URLs here later!
+            'landscape' => 'https://828ers.im/wp-content/uploads/YOUR_TIE_LANDSCAPE.png', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/YOUR_TIE_PORTRAIT.png' 
         ],
     ];
 
     $winner_pair = isset($hero_images[$image_key]) ? $hero_images[$image_key] : null;
-
     if (empty($winner_pair)) return;
 
-    $homepage_id = get_queried_object_id();
+    $changed = false;
 
-    // 5. Update Custom Field A: Landscape (Desktop/Divi Base View)
-    $new_l_url   = $winner_pair['landscape'];
-    $current_l   = get_post_meta($homepage_id, 'latest_winner_hero_landscape', true);
+    // Check and Update Landscape Field
+    $new_l_url = $winner_pair['landscape'];
+    $current_l = get_post_meta($homepage_id, 'latest_winner_hero_landscape', true);
     if ($current_l !== $new_l_url) {
         update_post_meta($homepage_id, 'latest_winner_hero_landscape', $new_l_url);
+        $changed = true;
     }
 
-    // 6. Update Custom Field B: Portrait (Mobile View)
-    $new_p_url   = $winner_pair['portrait'];
-    $current_p   = get_post_meta($homepage_id, 'latest_winner_hero_portrait', true);
+    // Check and Update Portrait Field
+    $new_p_url = $winner_pair['portrait'];
+    $current_p = get_post_meta($homepage_id, 'latest_winner_hero_portrait', true);
     if ($current_p !== $new_p_url) {
         update_post_meta($homepage_id, 'latest_winner_hero_portrait', $new_p_url);
+        $changed = true;
+    }
+
+    // CRITICAL: If the image changed, force Divi and LiteSpeed to dump their caches!
+    if ($changed) {
+        // 1. Wipe Divi's internal CSS hash reference for the homepage
+        update_post_meta($homepage_id, '_et_pb_static_css_file_hash', '');
+        
+        // 2. Trigger Divi's official cache clear function
+        if (function_exists('et_core_clear_page_cache')) {
+            et_core_clear_page_cache($homepage_id);
+        }
+        
+        // 3. Trigger LiteSpeed cache clear for the homepage
+        if (defined('LSCWP_V') && function_exists('do_action')) {
+            do_action('litespeed_purge_post', $homepage_id);
+        }
     }
 }
