@@ -1,10 +1,11 @@
 DROP VIEW IF EXISTS `view_golf_dashboard_history`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.52
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_dashboard_history` AS
 select
     `s`.`score_id` AS `score_id`,
+    `p`.`player_id` AS `player_id`,
     `p`.`name` AS `player_name`,
     `s`.`date_played` AS `date_played`,
     `t`.`tee_colour` AS `tee_colour`,
