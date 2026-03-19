@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_yearly_stats`;
 -- END_QUERY
 
--- WATERMARK 1.0.39
+-- WATERMARK 1.0.43
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_yearly_stats` AS
 select
     `p`.`name` AS `player_name`,
@@ -15,7 +15,8 @@ select
     sum(case when `s`.`gross_score` between 85 and 89 then 1 else 0 end) AS `cat_85_89`,
     sum(case when `s`.`gross_score` between 90 and 99 then 1 else 0 end) AS `cat_90_99`,
     sum(case when `s`.`gross_score` >= 100 then 1 else 0 end) AS `cat_100_plus`,
-    sum(case when `e`.`is_win_nett` = 1 and `e`.`player_count` > 1 then 1 else 0 end) AS `wins`
+    sum(case when `e`.`is_win_nett` = 1 and `e`.`player_count` > 1 then 1 else 0 end) AS `wins`,
+    round((sum(case when `e`.`is_win_nett` = 1 and `e`.`player_count` > 1 then 1 else 0 end) / count(`s`.`score_id`)) * 100, 1) AS `win_pct`
 from
     ((`wp_golf_scores` `s`
 join `wp_golf_players` `p` on

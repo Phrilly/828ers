@@ -146,7 +146,11 @@ add_shortcode('golf_stats_dashboard', function () {
                             <tr><td>Avg Gross</td><td></td><td class="tr"><strong><?php echo esc_html($yrow['avg_gross_year'] ?? '-'); ?></strong></td></tr>
                             <tr><td>Avg Putts</td><td></td><td class="tr"><strong><?php echo esc_html($yrow['avg_putts_year'] ?? '-'); ?></strong></td></tr>
                             <tr><td>Avg GIR</td><td></td><td class="tr"><strong><?php echo esc_html($yrow['avg_gir_year'] ?? '-'); ?></strong></td></tr>
-                            <tr><td>Wins (Nett)</td><td></td><td class="tr"><strong><?php echo (int) ($yrow['wins'] ?? 0); ?></strong></td></tr>
+                            <tr>
+                                <td>Wins (Nett)</td>
+                                <td class="txt-pct"><?php echo isset($yrow['win_pct']) ? esc_html($yrow['win_pct'] . '%') : '0.0%'; ?></td>
+                                <td class="tr"><strong><?php echo (int) ($yrow['wins'] ?? 0); ?></strong></td>
+                            </tr>
                             <tr><td>&lt; 80</td><td class="txt-pct"><?php echo esc_html($pct($yrow['sub_80'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['sub_80'] ?? 0); ?></td></tr>
                             <tr><td>80-84</td><td class="txt-pct"><?php echo esc_html($pct($yrow['cat_80_84'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['cat_80_84'] ?? 0); ?></td></tr>
                             <tr><td>85-89</td><td class="txt-pct"><?php echo esc_html($pct($yrow['cat_85_89'] ?? 0)); ?></td><td class="tr"><?php echo (int) ($yrow['cat_85_89'] ?? 0); ?></td></tr>
