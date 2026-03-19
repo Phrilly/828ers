@@ -1,9 +1,9 @@
 DROP PROCEDURE IF EXISTS `sp_refresh_best_8_flags`;
 -- END_QUERY
 
+-- WATERMARK 1.0.41
 CREATE PROCEDURE `sp_refresh_best_8_flags`(IN p_player_id INT)
 BEGIN
-    -- WATERMARK 1.0.21
     -- 1. Clear all existing flags for this player
     UPDATE wp_golf_handicap_history
     SET is_best_8 = 0
@@ -14,13 +14,15 @@ BEGIN
     INNER JOIN (
         SELECT score_id
         FROM (
-            SELECT score_id, differential
+            -- Added date_played to the select list so the outer query can use it
+            SELECT score_id, differential, date_played
             FROM wp_golf_handicap_history
             WHERE player_id = p_player_id
             ORDER BY date_played DESC, score_id DESC
             LIMIT 20
         ) AS last_20
-        ORDER BY differential ASC
+        -- THE FIX: Tie-breaker added here (Date descending, then ID descending)
+        ORDER BY differential ASC, date_played DESC, score_id DESC
         LIMIT 8
     ) AS best_8 ON h.score_id = best_8.score_id
     SET h.is_best_8 = 1;
