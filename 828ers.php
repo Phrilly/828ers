@@ -2,13 +2,13 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.0.46
+ * Version:     1.0.47
  * Author:      Philip Dunne
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define('GOLF_PLUGIN_VERSION', '1.0.46');
+define('GOLF_PLUGIN_VERSION', '1.0.47');
 
 // ==========================================
 // 1. FRONTEND: Load Modules & Dashboards
@@ -29,7 +29,6 @@ add_action('wp_enqueue_scripts', function () {
     $base_url  = plugin_dir_url(__FILE__);
     $base_path = plugin_dir_path(__FILE__);
 
-    // CSS files in load order — each depends on the previous
     $css_files = [
         '828ers-globals'    => 'assets/css/golf-globals.css',
         '828ers-dashboard'  => 'assets/css/golf-dashboard.css',
@@ -48,7 +47,6 @@ add_action('wp_enqueue_scripts', function () {
         $prev_handle = array( $handle );
     }
 
-    // JavaScript
     $js_rel = 'assets/js/unified_javascript.js';
     $js_ver = file_exists( $base_path . $js_rel ) ? filemtime( $base_path . $js_rel ) : '1.0';
 
@@ -78,30 +76,49 @@ function golf_system_run_migrations() {
         $sql_dir = plugin_dir_path(__FILE__) . 'sql/';
         $files = glob($sql_dir . '*.sql');
 
-        $audit_log = []; 
+        $audit_log = [];
 
         if (empty($files)) {
             $audit_log[] = "CRITICAL FAIL: No .sql files found in directory: " . $sql_dir;
             update_option('golf_migration_audit_log', implode("\n", $audit_log));
-            return; 
+            return;
         }
 
-        sort($files); 
+        // Sort alphabetically first
+        sort($files);
+
+        // --- DEPENDENCY MANAGEMENT OVERRIDE ---
+        // Views that depend on other views go here — they will always run last, in order.
+        $run_last = [
+            'view_golf_daily_winners.sql',
+            // Add future dependent views here simply by dropping their filename in this list
+        ];
+
+        foreach ($run_last as $dep_file) {
+            $full_path = $sql_dir . $dep_file;
+            if (($key = array_search($full_path, $files)) !== false) {
+                unset($files[$key]);
+                $files[] = $full_path;
+            }
+        }
+
+        // Re-index after unsets
+        $files = array_values($files);
+        // --------------------------------------
+
         $audit_log[] = "INIT: Found " . count($files) . " files. Starting processing...";
 
-        // Optimization: Call this once before the loop
-        $wpdb->hide_errors(); 
+        $wpdb->hide_errors();
 
         foreach ($files as $file_path) {
             $filename = basename($file_path);
             $sql_contents = file_get_contents($file_path);
-            
+
             $audit_log[] = "--- FILE: {$filename} (Size: " . strlen($sql_contents) . " bytes) ---";
 
-            // Clean the client-side junk
             $sql_contents = preg_replace('/DELIMITER\s+\S+\s*/i', '', $sql_contents);
             $sql_contents = preg_replace('/DEFINER\s*=\s*`[^`]+`@`[^`]+`\s*/i', '', $sql_contents);
-            $sql_contents = str_replace('$$', '', $sql_contents); // Safety net for DBeaver artifacts
+            $sql_contents = str_replace('$$', '', $sql_contents);
 
             $queries = preg_split('/--\s*END_QUERY\s*/i', $sql_contents);
             $audit_log[] = "PARSER: Split into " . count($queries) . " potential query blocks.";
@@ -116,14 +133,14 @@ function golf_system_run_migrations() {
                 }
 
                 $preview = substr(str_replace("\n", " ", $query), 0, 30) . "...";
-                
+
                 $result = $wpdb->query($query);
                 $db_error = $wpdb->last_error;
-                
+
                 if ($result === false) {
                     $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> HARD FAIL. DB Error: {$db_error}";
                     update_option('golf_migration_audit_log', implode("\n", $audit_log));
-                    return; 
+                    return;
                 } else {
                     if (!empty($db_error)) {
                         $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> SILENT FAIL. Hidden Error: {$db_error}";
