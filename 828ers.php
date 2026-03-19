@@ -2,13 +2,19 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.1.02
+ * Version:     1.0.54
  * Author:      Philip Dunne
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define('GOLF_PLUGIN_VERSION', '1.1.02');
+// ==========================================
+// AUTO-VERSIONING: Read from the header above
+// ==========================================
+if ( ! defined( 'GOLF_PLUGIN_VERSION' ) ) {
+    $plugin_data = get_file_data( __FILE__, array( 'Version' => 'Version' ), 'plugin' );
+    define( 'GOLF_PLUGIN_VERSION', $plugin_data['Version'] );
+}
 
 // ==========================================
 // 1. FRONTEND: Load Modules & Dashboards
@@ -42,13 +48,13 @@ add_action('wp_enqueue_scripts', function () {
 
     $prev_handle = array();
     foreach ( $css_files as $handle => $rel_path ) {
-        $ver = file_exists( $base_path . $rel_path ) ? filemtime( $base_path . $rel_path ) : '1.0';
+        $ver = file_exists( $base_path . $rel_path ) ? filemtime( $base_path . $rel_path ) : GOLF_PLUGIN_VERSION;
         wp_enqueue_style( $handle, $base_url . $rel_path, $prev_handle, $ver );
         $prev_handle = array( $handle );
     }
 
     $js_rel = 'assets/js/unified_javascript.js';
-    $js_ver = file_exists( $base_path . $js_rel ) ? filemtime( $base_path . $js_rel ) : '1.0';
+    $js_ver = file_exists( $base_path . $js_rel ) ? filemtime( $base_path . $js_rel ) : GOLF_PLUGIN_VERSION;
 
     wp_enqueue_script(
         '828ers-js',
@@ -91,7 +97,8 @@ function golf_system_run_migrations() {
         // Views that depend on other views go here — they will always run last, in order.
         $run_last = [
             'view_golf_daily_winners.sql',
-            // Add future dependent views here simply by dropping their filename in this list
+            'view_golf_rolling_averages.sql',
+            'view_golf_yearly_stats.sql',
         ];
 
         foreach ($run_last as $dep_file) {
