@@ -35,11 +35,6 @@ add_shortcode('golf_scorecard_entry', function () {
     ob_start();
     ?>
     <div class="golf-management-root golf-entry-box">
-        <div class="pcc-notice" style="padding:10px; margin:0 10px 12px; background:#fff3cd; border:1px solid #ffc107; border-radius:4px; font-size:13px; color:#856404;">
-            ℹ️ <strong>Note:</strong> PCC defaults to 0. Update it tomorrow in the edit grid once England Golf publishes the value.
-            Date and tee automatically copy from the first row to rows 2–4.
-            To exclude a round from the handicap calculation, use the Excl column in the edit grid below after saving.
-        </div>
 
         <div class="golf-grid-header entry-header">
             <div>Player</div>
