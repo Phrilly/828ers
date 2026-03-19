@@ -119,7 +119,7 @@ add_shortcode('golf_edit_grid', function () {
     $scores_table  = $wpdb->prefix . 'golf_scores';
     $players_table = $wpdb->prefix . 'golf_players';
     $tees_table    = $wpdb->prefix . 'golf_tees';
-    $history_view  = $wpdb->prefix . 'golf_dashboard_history';
+    $history_view  = 'view_golf_dashboard_history';
 
     $rounds = $wpdb->get_results("
         SELECT

@@ -129,7 +129,7 @@ function gh_load_history() {
     $offset = ($page - 1) * $limit;
 
 
-    $history_view = $wpdb->prefix . 'golf_dashboard_history';
+    $history_view = 'view_golf_dashboard_history';
 
 
     $where_sql = '';
