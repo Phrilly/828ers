@@ -29,7 +29,7 @@ BEGIN
        '''' AS winner_colour,
        ', vCols, '
      FROM view_golf_rounds r
-     LEFT JOIN wp_golf_dashboard_history h
+     LEFT JOIN view_golf_dashboard_history h
        ON h.date_played = r.date_played
       AND h.tee_colour  = r.tee_colour
      GROUP BY r.date_played, r.tee_colour'

@@ -1,8 +1,8 @@
-DROP VIEW IF EXISTS `wp_golf_dashboard_history`;
+DROP VIEW IF EXISTS `view_golf_dashboard_history`;
 -- END_QUERY
 
 -- WATERMARK 1.0.33
-CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `wp_golf_dashboard_history` AS
+CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_dashboard_history` AS
 select
     `s`.`score_id` AS `score_id`,
     `s`.`date_played` AS `date_played`,

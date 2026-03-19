@@ -38,7 +38,7 @@ select
     max(case when `h`.`player_id` = 4 then `h`.`net_score` end) AS `p4_net`
 from
     ((`view_golf_rounds` `r`
-left join `wp_golf_dashboard_history` `h` on
+left join `view_golf_dashboard_history` `h` on
     (`h`.`date_played` = `r`.`date_played` and `h`.`tee_colour` = `r`.`tee_colour`))
 left join `wp_golf_players` `p` on
     (`p`.`player_id` = `h`.`player_id`))

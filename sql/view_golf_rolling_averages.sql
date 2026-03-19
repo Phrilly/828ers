@@ -11,15 +11,15 @@ select
 from
     (
     select
-        `wp_golf_dashboard_history`.`player_id` AS `player_id`,
-        `wp_golf_dashboard_history`.`player_name` AS `player_name`,
-        `wp_golf_dashboard_history`.`putts` AS `putts`,
-        `wp_golf_dashboard_history`.`gir` AS `gir`,
-        row_number() over ( partition by `wp_golf_dashboard_history`.`player_id`
+        `view_golf_dashboard_history`.`player_id` AS `player_id`,
+        `view_golf_dashboard_history`.`player_name` AS `player_name`,
+        `view_golf_dashboard_history`.`putts` AS `putts`,
+        `view_golf_dashboard_history`.`gir` AS `gir`,
+        row_number() over ( partition by `view_golf_dashboard_history`.`player_id`
     order by
-        `wp_golf_dashboard_history`.`date_played` desc) AS `row_num`
+        `view_golf_dashboard_history`.`date_played` desc) AS `row_num`
     from
-        `wp_golf_dashboard_history`) `ranked_history`
+        `view_golf_dashboard_history`) `ranked_history`
 where
     `ranked_history`.`row_num` <= 20
 group by

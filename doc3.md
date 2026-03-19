@@ -23,7 +23,7 @@ flowchart TD
         
         D3_R6 --> D3_HH["wp_golf_handicap_history\nhcp_before, hcp_after, low_hi_365\ndiff_raw, differential, esr_adj\ncap_type, cap_reduction\nis_best8, playing_hcp, net_score"]
         
-        D3_HH --> D3_VDH["VIEW: wp_golf_dashboard_history\nmaster view used by all shortcodes"]
+        D3_HH --> D3_VDH["VIEW: view_golf_dashboard_history\nmaster view used by all shortcodes"]
         D3_VDH --> D3_V1["view_handicap_index"]
         D3_VDH --> D3_V2["view_playing_handicaps"]
         D3_VDH --> D3_V3["view_golf_yearly_stats"]
