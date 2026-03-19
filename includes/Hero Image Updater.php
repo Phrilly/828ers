@@ -71,8 +71,8 @@ function golf_update_latest_winner_hero_image() {
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Adder-Portrait.png' 
         ],
         'tie' => [ // Add your tie image URLs here later!
-            'landscape' => 'https://828ers.im/wp-content/uploads/YOUR_TIE_LANDSCAPE.png', 
-            'portrait'  => 'https://828ers.im/wp-content/uploads/YOUR_TIE_PORTRAIT.png' 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/01/background5.jpg', 
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/01/background6.jpg' 
         ],
     ];
 
