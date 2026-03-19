@@ -1,7 +1,7 @@
 <?php
 /* ======================================================
    HERO IMAGE UPDATER FOR DIVI DYNAMIC CONTENT
-   (Hardcoded to Page 53, Handles Ties with Real URLs)
+   (Hardcoded to Page 53, Fixed SQL Queries)
    ====================================================== */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -24,35 +24,37 @@ function golf_update_latest_winner_hero_image() {
     // Hardcoded to your exact homepage ID to bypass WordPress routing quirks
     $homepage_id = 53;
 
-    $scores_table = $wpdb->prefix . 'golf_scores';
-
-    // Find the date of the most recent competitive round
+    // 1. Find the date of the most recent competitive round (more than 1 player)
     $latest_comp_date = $wpdb->get_var("
-        SELECT s.date_played
-        FROM {$scores_table} s
-        JOIN view_golf_round_entries e ON e.score_id = s.score_id
-        WHERE e.player_count > 1
-        ORDER BY s.date_played DESC
+        SELECT date_played
+        FROM view_golf_dashboard_history
+        GROUP BY date_played
+        HAVING COUNT(DISTINCT player_id) > 1
+        ORDER BY date_played DESC
         LIMIT 1
     ");
 
     if (!$latest_comp_date) return;
 
-    // Get all winners from that specific date
+    // 2. Find the winning player(s) on that date (Lowest Net Score = Winner)
     $winners = $wpdb->get_col($wpdb->prepare("
-        SELECT s.player_id
-        FROM {$scores_table} s
-        JOIN view_golf_round_entries e ON e.score_id = s.score_id
-        WHERE s.date_played = %s AND e.is_win_nett = 1 AND e.player_count > 1
-    ", $latest_comp_date));
+        SELECT player_id
+        FROM view_golf_dashboard_history
+        WHERE date_played = %s
+        AND net_score = (
+            SELECT MIN(net_score)
+            FROM view_golf_dashboard_history
+            WHERE date_played = %s
+        )
+    ", $latest_comp_date, $latest_comp_date));
 
     $winner_count = count($winners);
     if ($winner_count === 0) return;
 
-    // Determine if single winner or tie
+    // 3. Determine if single winner or tie
     $image_key = ($winner_count > 1) ? 'tie' : (int) $winners[0];
 
-    // Map keys to Hero Image URLs
+    // 4. Map keys to Hero Image URLs
     $hero_images = [
         1 => [ 
             'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-One.png', 
