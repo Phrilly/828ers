@@ -1,7 +1,7 @@
 <?php
 /* ======================================================
    HERO IMAGE UPDATER FOR DIVI DYNAMIC CONTENT
-   (Bulletproof Cache-Clearing & Admin Trigger Version)
+   (Hardcoded to Page 53, Handles Ties with Real URLs)
    ====================================================== */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -9,20 +9,20 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // 1. Run on frontend page loads
 add_action('wp', 'golf_trigger_hero_update_frontend');
 function golf_trigger_hero_update_frontend() {
-    if (is_front_page()) {
+    // Fire if it's the front page OR if we are looking directly at Page 53
+    if (is_front_page() || get_queried_object_id() == 53) {
         golf_update_latest_winner_hero_image();
     }
 }
 
-// 2. Run whenever the WordPress Admin is loaded (Bulletproof trigger)
+// 2. Run whenever the WordPress Admin is loaded
 add_action('admin_init', 'golf_update_latest_winner_hero_image');
 
 function golf_update_latest_winner_hero_image() {
     global $wpdb;
-    
-    // Get the exact ID of the designated Homepage
-    $homepage_id = (int) get_option('page_on_front');
-    if (!$homepage_id) return;
+
+    // Hardcoded to your exact homepage ID to bypass WordPress routing quirks
+    $homepage_id = 53;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
 
@@ -70,7 +70,7 @@ function golf_update_latest_winner_hero_image() {
             'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Adder.png', 
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Adder-Portrait.png' 
         ],
-        'tie' => [ // Add your tie image URLs here later!
+        'tie' => [ 
             'landscape' => 'https://828ers.im/wp-content/uploads/2026/01/background5.jpg', 
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/01/background6.jpg' 
         ],
