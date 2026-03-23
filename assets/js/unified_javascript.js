@@ -1,6 +1,6 @@
 // DEPLOY TEST (change this string every push)
-window.__GOLF_BUILD_ID__ = "2026-03-13_inherit_ui_no_diff";
-console.log("828ers JS loaded. Build: DATE+TEE INHERIT", window.__GOLF_BUILD_ID__);
+window.__GOLF_BUILD_ID__ = "2026-03-23_inherit_ui_duplicate_warning";
+console.log("828ers JS loaded. Build: DATE+TEE INHERIT + DUPLICATE WARNING", window.__GOLF_BUILD_ID__);
 
 const GOLF_AJAX_URL = (typeof GolfMasterAjax !== "undefined") ? GolfMasterAjax.ajaxUrl : "/wp-admin/admin-ajax.php";
 
@@ -142,15 +142,46 @@ function ajaxUpdate(scoreId) {
    -------------------------- */
 function golfSaveAll() {
   let rounds = [];
+  let duplicateWarning = false;
+  let warningMessage = "";
+
+  // 1. Build a list of existing player+date combos from the Edit Grid below
+  let existingRounds = [];
+  jQuery(".golf-edit-box .edit-row").each(function () {
+    let pName = jQuery(this).find("div:first-child strong").text().trim();
+    let pDate = jQuery(this).find(".ed-date").val();
+    if (pName && pDate) {
+      existingRounds.push(pName + "|" + pDate);
+    }
+  });
+
+  // 2. Track what is currently being submitted in the top form
+  let submittedRounds = new Set();
 
   jQuery(".entry-row").each(function () {
-    const $row      = jQuery(this);
-    const player_id = $row.find(".in-player").val();
-    const date      = $row.find(".in-date").val();
-    const tee       = $row.find(".in-tee").val();
-    const gross     = $row.find(".in-gross").val();
+    const $row        = jQuery(this);
+    const player_id   = $row.find(".in-player").val();
+    const player_name = $row.find(".in-player option:selected").text().trim();
+    const date        = $row.find(".in-date").val();
+    const tee         = $row.find(".in-tee").val();
+    const gross       = $row.find(".in-gross").val();
 
     if (player_id && date && tee && gross !== "") {
+      let comboKey = player_name + "|" + date;
+
+      // Check if this player+date is already in the current batch being submitted
+      if (submittedRounds.has(comboKey)) {
+          duplicateWarning = true;
+          warningMessage = "You have entered multiple rounds for " + player_name + " on " + date + " in the top form.\n\nAre you sure you want to save multiple rounds for the same player on the same day?";
+      }
+      submittedRounds.add(comboKey);
+
+      // Check if this player+date is already in the historic grid below
+      if (existingRounds.includes(comboKey) && !duplicateWarning) {
+          duplicateWarning = true;
+          warningMessage = player_name + " already has a saved round on " + date + " in the historic grid below.\n\nAre you sure you want to add another round for them on this same day?";
+      }
+
       rounds.push({
         player_id: player_id,
         date:      date,
@@ -166,6 +197,13 @@ function golfSaveAll() {
   });
 
   if (rounds.length === 0) return alert("Enter at least one round.");
+
+  // 3. Trigger the warning if needed
+  if (duplicateWarning) {
+      if (!confirm("⚠️ WARNING:\n\n" + warningMessage)) {
+          return; // User clicked Cancel, abort the save entirely
+      }
+  }
 
   jQuery
     .post(
