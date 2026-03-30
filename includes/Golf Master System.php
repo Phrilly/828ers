@@ -5,7 +5,6 @@
    as GolfMasterAjax — do NOT redefine it here.
    ====================================================== */
 
-
 function golf_828ers_can_enter_scores() {
     if (!is_user_logged_in()) return false;
     $user          = wp_get_current_user();
@@ -13,31 +12,47 @@ function golf_828ers_can_enter_scores() {
     return (bool) array_intersect($allowed_roles, (array) $user->roles);
 }
 
-function golf_828ers_get_ramsey_course_name() {
+function golf_828ers_default_course_name() {
     return 'Ramsey Golf Club';
 }
 
-function golf_828ers_get_ramsey_tees() {
+function golf_828ers_get_courses() {
     global $wpdb;
 
-    $tees_table    = $wpdb->prefix . 'golf_tees';
     $courses_table = $wpdb->prefix . 'golf_courses';
-
-    return $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT t.tee_id, t.tee_colour
-             FROM {$tees_table} t
-             INNER JOIN {$courses_table} c ON c.course_id = t.course_id
-             WHERE c.course_name = %s
-             ORDER BY t.tee_id",
-            golf_828ers_get_ramsey_course_name()
-        )
-    );
+    return $wpdb->get_results("SELECT course_id, course_name FROM {$courses_table} ORDER BY course_name ASC");
 }
 
-function golf_828ers_get_ramsey_tee_ids() {
-    $tees = golf_828ers_get_ramsey_tees();
-    return array_map('intval', wp_list_pluck($tees, 'tee_id'));
+function golf_828ers_get_tees_grouped_by_course() {
+    global $wpdb;
+
+    $courses_table = $wpdb->prefix . 'golf_courses';
+    $tees_table    = $wpdb->prefix . 'golf_tees';
+
+    $rows = $wpdb->get_results(
+        "SELECT c.course_name, t.tee_id, t.tee_colour
+         FROM {$courses_table} c
+         JOIN {$tees_table} t ON t.course_id = c.course_id
+         ORDER BY c.course_name ASC, t.tee_id ASC"
+    );
+
+    $grouped = [];
+    foreach ($rows as $row) {
+        if (!isset($grouped[$row->course_name])) {
+            $grouped[$row->course_name] = [];
+        }
+        $grouped[$row->course_name][] = [
+            'tee_id'     => (int) $row->tee_id,
+            'tee_colour' => $row->tee_colour,
+        ];
+    }
+
+    return $grouped;
+}
+
+function golf_828ers_get_tees_for_course($course_name) {
+    $grouped = golf_828ers_get_tees_grouped_by_course();
+    return $grouped[$course_name] ?? [];
 }
 
 
@@ -52,11 +67,16 @@ add_shortcode('golf_scorecard_entry', function () {
 
     global $wpdb;
 
-    $players_table = $wpdb->prefix . 'golf_players';
-    $tees_table    = $wpdb->prefix . 'golf_tees';
+    $players_table   = $wpdb->prefix . 'golf_players';
+    $default_course  = golf_828ers_default_course_name();
+    $all_courses     = golf_828ers_get_courses();
+    $tees_by_course  = golf_828ers_get_tees_grouped_by_course();
+    $default_tees    = $tees_by_course[$default_course] ?? [];
+    $alt_courses     = array_values(array_filter($all_courses, function ($c) use ($default_course) {
+        return isset($c->course_name) && $c->course_name !== $default_course;
+    }));
 
     $players = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name");
-    $tees    = golf_828ers_get_ramsey_tees();
 
     $default_date = date('Y-m-d');
 
@@ -90,9 +110,9 @@ add_shortcode('golf_scorecard_entry', function () {
                 <div class="field field-tee">
                     <div class="lbl">Tee</div>
                     <select class="golf-input in-tee">
-                        <?php foreach ($tees as $t): ?>
-                            <option value="<?php echo esc_attr($t->tee_id); ?>">
-                                <?php echo esc_html($t->tee_colour); ?>
+                        <?php foreach ($default_tees as $t): ?>
+                            <option value="<?php echo esc_attr($t['tee_id']); ?>">
+                                <?php echo esc_html($t['tee_colour']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -122,7 +142,54 @@ add_shortcode('golf_scorecard_entry', function () {
         <div class="entry-footer">
             <button class="golf-btn btn-save" type="button" onclick="golfSaveAll()">SAVE ALL ROUNDS</button>
         </div>
+
+        <div class="entry-course-switch" style="margin-top:8px; text-align:right; font-size:11px; color:#666;">
+            <label for="golf-entry-course" style="margin-right:6px;">Playing another club?</label>
+            <select id="golf-entry-course" style="font-size:11px; padding:2px 6px; min-width:180px;">
+                <option value="<?php echo esc_attr($default_course); ?>"><?php echo esc_html($default_course); ?></option>
+                <?php foreach ($alt_courses as $course): ?>
+                    <option value="<?php echo esc_attr($course->course_name); ?>"><?php echo esc_html($course->course_name); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
     </div>
+
+    <script>
+    (function () {
+        const courseSelect = document.getElementById('golf-entry-course');
+        if (!courseSelect) return;
+
+        const teesByCourse = <?php echo wp_json_encode($tees_by_course); ?>;
+
+        function rebuildTeeDropdowns(courseName) {
+            const tees = teesByCourse[courseName] || [];
+            const teeSelects = document.querySelectorAll('.golf-entry-box .in-tee');
+
+            teeSelects.forEach((select) => {
+                const current = select.value;
+                select.innerHTML = '';
+
+                tees.forEach((tee) => {
+                    const option = document.createElement('option');
+                    option.value = tee.tee_id;
+                    option.textContent = tee.tee_colour;
+                    if (String(current) === String(tee.tee_id)) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+
+                if (!select.value && select.options.length) {
+                    select.selectedIndex = 0;
+                }
+            });
+        }
+
+        courseSelect.addEventListener('change', function () {
+            rebuildTeeDropdowns(this.value);
+        });
+    })();
+    </script>
     <?php
     return ob_get_clean();
 });
@@ -168,7 +235,7 @@ add_shortcode('golf_edit_grid', function () {
         LIMIT 30
     ");
 
-    $tees = golf_828ers_get_ramsey_tees();
+    $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
 
     ob_start();
     ?>
@@ -267,11 +334,10 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
     global $wpdb;
 
-    $scores_table    = $wpdb->prefix . 'golf_scores';
-    $players_table   = $wpdb->prefix . 'golf_players';
-    $tees_table      = $wpdb->prefix . 'golf_tees';
-    $history_view    = 'view_golf_dashboard_history';
-    $allowed_tee_ids = golf_828ers_get_ramsey_tee_ids();
+    $scores_table  = $wpdb->prefix . 'golf_scores';
+    $players_table = $wpdb->prefix . 'golf_players';
+    $tees_table    = $wpdb->prefix . 'golf_tees';
+    $history_view  = 'view_golf_dashboard_history';
 
     $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
@@ -279,12 +345,11 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
         $tee    = isset($r['tee'])       ? (int) $r['tee']       : 0;
-        $gross  = isset($r['gross'])     ? (int) $r['gross']      : 0;
+        $gross  = isset($r['gross'])     ? (int) $r['gross']     : 0;
         $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
         if (!$player || !$tee || !$gross) continue;
-        if (!in_array($tee, $allowed_tee_ids, true)) continue;
 
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
@@ -375,9 +440,8 @@ add_action('wp_ajax_golf_final_action_update', function () {
 
     global $wpdb;
 
-    $scores_table    = $wpdb->prefix . 'golf_scores';
-    $history_view    = 'view_golf_dashboard_history';
-    $allowed_tee_ids = golf_828ers_get_ramsey_tee_ids();
+    $scores_table = $wpdb->prefix . 'golf_scores';
+    $history_view = 'view_golf_dashboard_history';
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
@@ -389,18 +453,13 @@ add_action('wp_ajax_golf_final_action_update', function () {
         $new_date = current_time('Y-m-d');
     }
 
-    $tee_id = isset($_POST['tee']) ? (int) $_POST['tee'] : 0;
-    if (!$tee_id || !in_array($tee_id, $allowed_tee_ids, true)) {
-        wp_send_json_error(['message' => 'Invalid tee selected.']);
-    }
-
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
 
     $updated = $wpdb->update(
         $scores_table,
         [
             'date_played'    => $new_date,
-            'tee_id'         => $tee_id,
+            'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
             'gross_score'    => isset($_POST['gross']) ? (int) $_POST['gross'] : 0,
             'pcc_adjustment' => isset($_POST['pcc'])   ? (int) $_POST['pcc']   : 0,
             'putts'          => isset($_POST['putts']) ? (int) $_POST['putts'] : 0,
@@ -424,10 +483,8 @@ add_action('wp_ajax_golf_final_action_update', function () {
         )
     );
 
-    // FIXED: properly distinguish excluded rounds from genuinely missing rows
     if (!$row) {
         if ($is_excluded) {
-            // Correctly excluded — not in WHS view by design
             wp_send_json_success([
                 'score_id'     => $score_id,
                 'net_score'    => '-',
@@ -436,7 +493,6 @@ add_action('wp_ajax_golf_final_action_update', function () {
                 'is_excluded'  => 1,
             ]);
         } else {
-            // Row missing for unknown reason — surface it for debugging
             wp_send_json_error(['message' => 'Updated but WHS view row not found. Try refreshing.']);
         }
     }
