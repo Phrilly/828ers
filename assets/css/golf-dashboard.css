@@ -208,3 +208,32 @@
   .golf-stats-grid{grid-template-columns:1fr;}
   .stats-table{font-size:12px;}
 }
+/* Header name fix only */
+.golf-card .card-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.golf-card .player-name{
+  display:block;
+  flex:1 1 auto;
+  min-width:0;
+  margin:0;
+  color:#fff;
+  font-size:16px;
+  line-height:1.2;
+  font-weight:700;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.golf-card .player-hi{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+  white-space:nowrap;
+}
