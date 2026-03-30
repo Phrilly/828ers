@@ -39,5 +39,5 @@ join `wp_golf_players` `p` on
 join `wp_golf_tees` `t` on
     (`t`.`tee_id` = `s`.`tee_id`))
 left join `wp_golf_handicap_history` `h` on
-    (`h`.`score_id` = `s`.`score_id`));
+    (`h`.`score_id` = `s`.`score_id`)) where `s`.`is_excluded` = 0;
 -- END_QUERY
