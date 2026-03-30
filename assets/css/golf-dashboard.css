@@ -1,3 +1,60 @@
+.golf-dashboard{
+  scroll-margin-top:50px;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Calibri,Roboto,sans-serif;
+  color:#222;
+}
+
+.filter-bar{
+  margin-bottom:20px;
+  padding:15px;
+  background:#f9f9f9;
+  border:1px solid #ddd;
+  border-radius:6px;
+}
+
+.filter-form{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+}
+
+.filter-form label{font-weight:600;}
+.filter-form select{
+  min-width:100px;
+  padding:6px 10px;
+  border:1px solid #ccc;
+  border-radius:4px;
+  background:#fff;
+}
+.filter-form button{
+  padding:6px 14px;
+  border:0;
+  border-radius:4px;
+  background:#0073aa;
+  color:#fff;
+  cursor:pointer;
+  font-weight:600;
+}
+
+.golf-stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:15px;
+  align-items:stretch;
+}
+
+.golf-card{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:6px;
+  overflow:hidden;
+}
+
 .card-header{
   display:flex;
   justify-content:space-between;
@@ -10,9 +67,7 @@
 
 .player-name{
   margin:0;
-  flex:1 1 auto;
   min-width:0;
-  color:#fff;
   font-size:16px;
   line-height:1.2;
   font-weight:700;
@@ -26,11 +81,130 @@
   align-items:center;
   gap:8px;
   white-space:nowrap;
-  flex:0 0 auto;
 }
 
 .hi-value{
   color:#f39c12;
   font-weight:700;
   font-variant-numeric:tabular-nums;
+}
+
+.hi-indicator{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  border-radius:4px;
+  font-weight:900;
+  line-height:1;
+}
+
+.hi-indicator.up::before{content:"▲";}
+.hi-indicator.down::before{content:"▼";}
+.hi-indicator.same::before{content:"●";font-size:10px;}
+.hi-indicator.up{background:#922020;color:#ffb2b2;}
+.hi-indicator.down{background:#1a6e35;color:#b5f4c9;}
+.hi-indicator.same{background:#1a3a8f;color:#b7cbff;}
+
+.card-section{
+  padding:12px;
+  border-bottom:1px solid #eee;
+}
+.card-section:last-child{border-bottom:0;}
+.card-section.alt{background:#f9f9f9;}
+.card-section.soft{background:#fcfcfc;}
+.card-section.grow{flex:1 1 auto;}
+
+.section-title{
+  margin:0 0 8px;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.5px;
+  color:#888;
+  text-transform:uppercase;
+}
+
+.stats-table{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+  font-size:13px;
+  line-height:1.2;
+}
+
+.stats-table th,
+.stats-table td{
+  padding:4px 0;
+  vertical-align:middle;
+  border-bottom:1px solid #f3f3f3;
+}
+
+.stats-table thead th{
+  padding-bottom:6px;
+  border-bottom:1px solid #ddd;
+  font-size:11px;
+  color:#666;
+  text-align:left;
+  font-weight:600;
+}
+
+.stats-table tbody tr:last-child td{border-bottom:0;}
+
+.stats-table th:first-child,
+.stats-table td:first-child{
+  width:52%;
+  padding-right:8px;
+}
+
+.stats-table th:nth-child(2),
+.stats-table td:nth-child(2),
+.stats-table th:nth-child(3),
+.stats-table td:nth-child(3){
+  width:24%;
+}
+
+.stats-table.handicaps th:first-child,
+.stats-table.handicaps td:first-child{width:32%;}
+.stats-table.handicaps th:nth-child(2),
+.stats-table.handicaps td:nth-child(2){width:38%;}
+.stats-table.handicaps th:nth-child(3),
+.stats-table.handicaps td:nth-child(3){width:30%;}
+
+.right{
+  text-align:right;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+
+.pct{
+  text-align:right;
+  white-space:nowrap;
+  color:#999;
+  font-size:10px;
+  font-variant-numeric:tabular-nums;
+}
+
+.subrow{
+  padding-top:0;
+  padding-bottom:6px;
+  font-size:11px;
+  color:#888;
+  border-bottom:0 !important;
+}
+
+.hcp-exact{
+  font-size:.92em;
+  font-style:italic;
+  color:#666;
+  white-space:nowrap;
+}
+
+@media (max-width:1100px){
+  .golf-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+
+@media (max-width:640px){
+  .golf-stats-grid{grid-template-columns:1fr;}
+  .stats-table{font-size:12px;}
 }
