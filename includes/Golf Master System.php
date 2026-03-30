@@ -5,11 +5,39 @@
    as GolfMasterAjax — do NOT redefine it here.
    ====================================================== */
 
+
 function golf_828ers_can_enter_scores() {
     if (!is_user_logged_in()) return false;
     $user          = wp_get_current_user();
     $allowed_roles = ['administrator', 'editor', 'author', 'golf_member'];
     return (bool) array_intersect($allowed_roles, (array) $user->roles);
+}
+
+function golf_828ers_get_ramsey_course_name() {
+    return 'Ramsey Golf Club';
+}
+
+function golf_828ers_get_ramsey_tees() {
+    global $wpdb;
+
+    $tees_table    = $wpdb->prefix . 'golf_tees';
+    $courses_table = $wpdb->prefix . 'golf_courses';
+
+    return $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT t.tee_id, t.tee_colour
+             FROM {$tees_table} t
+             INNER JOIN {$courses_table} c ON c.course_id = t.course_id
+             WHERE c.course_name = %s
+             ORDER BY t.tee_id",
+            golf_828ers_get_ramsey_course_name()
+        )
+    );
+}
+
+function golf_828ers_get_ramsey_tee_ids() {
+    $tees = golf_828ers_get_ramsey_tees();
+    return array_map('intval', wp_list_pluck($tees, 'tee_id'));
 }
 
 
@@ -28,7 +56,7 @@ add_shortcode('golf_scorecard_entry', function () {
     $tees_table    = $wpdb->prefix . 'golf_tees';
 
     $players = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name");
-    $tees    = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
+    $tees    = golf_828ers_get_ramsey_tees();
 
     $default_date = date('Y-m-d');
 
@@ -140,7 +168,7 @@ add_shortcode('golf_edit_grid', function () {
         LIMIT 30
     ");
 
-    $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
+    $tees = golf_828ers_get_ramsey_tees();
 
     ob_start();
     ?>
@@ -239,10 +267,11 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
     global $wpdb;
 
-    $scores_table  = $wpdb->prefix . 'golf_scores';
-    $players_table = $wpdb->prefix . 'golf_players';
-    $tees_table    = $wpdb->prefix . 'golf_tees';
-    $history_view  = 'view_golf_dashboard_history';
+    $scores_table    = $wpdb->prefix . 'golf_scores';
+    $players_table   = $wpdb->prefix . 'golf_players';
+    $tees_table      = $wpdb->prefix . 'golf_tees';
+    $history_view    = 'view_golf_dashboard_history';
+    $allowed_tee_ids = golf_828ers_get_ramsey_tee_ids();
 
     $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
@@ -255,6 +284,7 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
         if (!$player || !$tee || !$gross) continue;
+        if (!in_array($tee, $allowed_tee_ids, true)) continue;
 
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
@@ -345,8 +375,9 @@ add_action('wp_ajax_golf_final_action_update', function () {
 
     global $wpdb;
 
-    $scores_table = $wpdb->prefix . 'golf_scores';
-    $history_view = 'view_golf_dashboard_history';
+    $scores_table    = $wpdb->prefix . 'golf_scores';
+    $history_view    = 'view_golf_dashboard_history';
+    $allowed_tee_ids = golf_828ers_get_ramsey_tee_ids();
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
@@ -358,17 +389,22 @@ add_action('wp_ajax_golf_final_action_update', function () {
         $new_date = current_time('Y-m-d');
     }
 
+    $tee_id = isset($_POST['tee']) ? (int) $_POST['tee'] : 0;
+    if (!$tee_id || !in_array($tee_id, $allowed_tee_ids, true)) {
+        wp_send_json_error(['message' => 'Invalid tee selected.']);
+    }
+
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
 
     $updated = $wpdb->update(
         $scores_table,
         [
             'date_played'    => $new_date,
-            'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
-            'gross_score'    => isset($_POST['gross'])  ? (int) $_POST['gross']  : 0,
-            'pcc_adjustment' => isset($_POST['pcc'])    ? (int) $_POST['pcc']    : 0,
-            'putts'          => isset($_POST['putts'])  ? (int) $_POST['putts']  : 0,
-            'gir'            => isset($_POST['gir'])    ? (int) $_POST['gir']    : 0,
+            'tee_id'         => $tee_id,
+            'gross_score'    => isset($_POST['gross']) ? (int) $_POST['gross'] : 0,
+            'pcc_adjustment' => isset($_POST['pcc'])   ? (int) $_POST['pcc']   : 0,
+            'putts'          => isset($_POST['putts']) ? (int) $_POST['putts'] : 0,
+            'gir'            => isset($_POST['gir'])   ? (int) $_POST['gir']   : 0,
             'is_excluded'    => $is_excluded,
         ],
         ['score_id' => $score_id],
