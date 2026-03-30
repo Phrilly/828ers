@@ -130,15 +130,29 @@
   border-radius: 3px;
 }
 
-/* Current 20-round HI window cutoff */
+/* Green separator line after the current 20-round window */
 .history-table tr.history-cutoff td {
-  padding: 8px 10px;
-  border-top: 3px solid #1f8f4a;
-  border-bottom: 1px solid #bfe3cc;
+  padding: 0;
+  height: 0;
+  line-height: 0;
+  border-top: 2px solid #1f8f4a;
+  border-bottom: 0;
+  background: transparent !important;
+}
+
+/* Older rounds shown below the cutoff */
+.history-table tbody tr.dropped-out td {
   background: #eefaf2 !important;
-  color: #1f6f3b;
-  font-size: 12px;
-  font-weight: 700;
-  text-align: left;
-  white-space: normal;
+}
+
+.history-table tbody tr.dropped-out.is-esr td {
+  background: #e6f6ec !important;
+}
+
+.history-table tbody tr.dropped-out.is-cap td {
+  background: #edf8ee !important;
+}
+
+.history-table tbody tr.dropped-out.is-esr.is-cap td {
+  background: #e8f4ea !important;
 }

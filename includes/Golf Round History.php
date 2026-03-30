@@ -149,11 +149,11 @@ function gh_load_history() {
     $start_row   = $total ? ($offset + 1) : 0;
     $end_row     = min($offset + $limit, $total);
 
-    // Show the cutoff only for a single filtered player on page 1
     $show_cutoff_line = ($player > 0 && $page === 1);
     $window_size      = 20;
     $window_seen      = 0;
     $cutoff_drawn     = false;
+    $below_cutoff     = false;
 
     // Table HTML
     ob_start();
@@ -186,6 +186,7 @@ function gh_load_history() {
                 if ($cap) $row_class .= ' is-cap';
                 if ($esr) $row_class .= ' is-esr';
                 if (!empty($r['is_excluded'])) $row_class .= ' is-excluded';
+                if ($below_cutoff) $row_class .= ' dropped-out';
 
                 $adj = '';
                 if ($esr) $adj .= 'E';
@@ -235,14 +236,19 @@ function gh_load_history() {
                 </tr>
 
                 <?php
-                if ($show_cutoff_line && !$cutoff_drawn && $qualifies_for_window) {
+                if (
+                    $show_cutoff_line &&
+                    !$cutoff_drawn &&
+                    $qualifies_for_window
+                ) {
                     $window_seen++;
 
                     if ($window_seen === $window_size && $idx < count($rows) - 1) {
                         $cutoff_drawn = true;
+                        $below_cutoff = true;
                         ?>
                         <tr class="history-cutoff">
-                            <td colspan="12">Current HI window ends here — rounds below have dropped out</td>
+                            <td colspan="12"></td>
                         </tr>
                         <?php
                     }
