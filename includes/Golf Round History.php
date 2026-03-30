@@ -123,7 +123,7 @@ function gh_load_history() {
     global $wpdb;
 
 
-    $limit  = 20;
+    $limit  = 25;
     $page   = max(1, (int) ($_POST['page'] ?? 1));
     $player = (int) ($_POST['player'] ?? 0);
     $offset = ($page - 1) * $limit;
