@@ -30,7 +30,9 @@
   white-space: nowrap;
 }
 
-.history-table tr:nth-child(even) { background-color: #fcfcfc; }
+.history-table tr:nth-child(even) {
+  background-color: #fcfcfc;
+}
 
 /* Filter bar */
 .history-filter-bar {
@@ -43,7 +45,12 @@
   align-items: center;
   gap: 10px;
 }
-.history-filter-bar label { font-size: 14px; font-weight: bold; color: #333; }
+
+.history-filter-bar label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
 
 /* Tee badges + counting dot */
 .tee-badge {
@@ -54,9 +61,22 @@
   text-transform: uppercase;
   display: inline-block;
 }
-.tee-white  { background: #fff;    color: #333; border: 1px solid #ccc; }
-.tee-yellow { background: #ffeb3b; color: #333; }
-.tee-black  { background: #000;    color: #fff; }
+
+.tee-white {
+  background: #fff;
+  color: #333;
+  border: 1px solid #ccc;
+}
+
+.tee-yellow {
+  background: #ffeb3b;
+  color: #333;
+}
+
+.tee-black {
+  background: #000;
+  color: #fff;
+}
 
 .count-dot,
 .counting-dot {
@@ -69,9 +89,17 @@
 }
 
 /* Subtle row tinting for ESR/Cap */
-.history-table tbody tr.is-esr        { background: #eef6ff; }
-.history-table tbody tr.is-cap        { background: #fff7e8; }
-.history-table tbody tr.is-esr.is-cap { background: #f3efff; }
+.history-table tbody tr.is-esr {
+  background: #eef6ff;
+}
+
+.history-table tbody tr.is-cap {
+  background: #fff7e8;
+}
+
+.history-table tbody tr.is-esr.is-cap {
+  background: #f3efff;
+}
 
 /* EC badge */
 .history-table .adj-badge {
@@ -86,7 +114,10 @@
 }
 
 /* Excluded rows in history table: dimmed and italic */
-.history-table tbody tr.is-excluded td { opacity: 0.55; font-style: italic; }
+.history-table tbody tr.is-excluded td {
+  opacity: 0.55;
+  font-style: italic;
+}
 
 /* Excl badge — red X shown in the Excl column */
 .excl-badge {
@@ -97,4 +128,17 @@
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 3px;
+}
+
+/* Current 20-round HI window cutoff */
+.history-table tr.history-cutoff td {
+  padding: 8px 10px;
+  border-top: 3px solid #1f8f4a;
+  border-bottom: 1px solid #bfe3cc;
+  background: #eefaf2 !important;
+  color: #1f6f3b;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  white-space: normal;
 }
