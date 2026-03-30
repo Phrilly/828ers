@@ -242,7 +242,7 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
     $scores_table  = $wpdb->prefix . 'golf_scores';
     $players_table = $wpdb->prefix . 'golf_players';
     $tees_table    = $wpdb->prefix . 'golf_tees';
-    $history_view  = 'view.golf_dashboard_history';
+    $history_view  = 'view_golf_dashboard_history';
 
     $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
@@ -346,7 +346,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
-    $history_view = 'view.golf_dashboard_history';
+    $history_view = 'view_golf_dashboard_history';
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {

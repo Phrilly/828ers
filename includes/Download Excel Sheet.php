@@ -12,7 +12,7 @@ function golf_export_engine_v1() {
     global $wpdb;
 
     // Use $wpdb->prefix — never hardcode 'wp_'
-    $history_view = 'view.golf_dashboard_history';
+    $history_view = 'view_golf_dashboard_history';
     $results = $wpdb->get_results("SELECT * FROM {$history_view} ORDER BY date_played DESC", ARRAY_A);
 
     if (empty($results)) wp_die('No data found to export.');
