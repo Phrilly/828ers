@@ -237,37 +237,29 @@
   flex:0 0 auto;
   white-space:nowrap;
 }
-/* All your previous CSS remains same... adding Trend Arrow specific logic at the bottom */
 
-.hi-indicator{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:22px;
-  height:22px;
-  border-radius:4px;
-  font-weight:900;
-  line-height:1;
-}
-
-/* New Table Indicators */
-.playing-indicator{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:14px;
-  height:14px;
-  border-radius:3px;
-  font-size:8px;
-  font-weight:900;
-  vertical-align: middle;
+/* ==========================================================
+   NEW: Playing Handicap Indicators (Table Arrows)
+   ========================================================== */
+.playing-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  font-size: 8px;
   margin-left: 4px;
+  vertical-align: middle;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.hi-indicator.up::before, .playing-indicator.up::before{content:"▲";}
-.hi-indicator.down::before, .playing-indicator.down::before{content:"▼";}
-.hi-indicator.same::before, .playing-indicator.same::before{content:"●";font-size:7px;}
+.playing-indicator.up::before { content: "▲"; }
+.playing-indicator.down::before { content: "▼"; }
 
-.hi-indicator.up, .playing-indicator.up{background:#922020;color:#ffb2b2;}
-.hi-indicator.down, .playing-indicator.down{background:#1a6e35;color:#b5f4c9;}
-.hi-indicator.same, .playing-indicator.same{background:#1a3a8f;color:#b7cbff;}
+.playing-indicator.up { background: #922020; color: #ffb2b2; }
+.playing-indicator.down { background: #1a6e35; color: #b5f4c9; }
+
+/* Hide the indicator entirely if the integer hasn't changed */
+.playing-indicator.same { display: none; }
