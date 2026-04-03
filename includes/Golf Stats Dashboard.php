@@ -110,6 +110,15 @@ add_shortcode('golf_stats_dashboard', function () {
                     </section>
 
                     <section class="card-section soft">
+                        <h4 class="section-title">Low HI</h4>
+                        <table class="stats-table">
+                            <tbody>
+                                <tr><td>Current Low HI</td><td></td><td class="right"><strong><?php echo esc_html($fmt($hi['low_hi_365'] ?? null)); ?></strong></td></tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <section class="card-section soft">
                         <h4 class="section-title">Last 20 Rounds</h4>
                         <table class="stats-table">
                             <tbody>
