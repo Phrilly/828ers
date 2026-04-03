@@ -33,13 +33,13 @@ SELECT
     `h`.`esr_amount` AS `esr_amount`,
     `h`.`esr_adj` AS `esr_adj`,
     TRIM(CONCAT(
-        CASE WHEN `h`.`esr_triggered` = 1 THEN 'ESR ' ELSE '' END, 
+        CASE WHEN `h`.`esr_triggered` = 1 THEN 'ESR ' ELSE '' END,
         CASE WHEN `h`.`cap_type` IS NOT NULL AND `h`.`cap_type` <> 'NONE' THEN `h`.`cap_type` ELSE '' END
     )) AS `adj_flag`
 FROM
     (((`wp_golf_scores` `s`
 JOIN `wp_golf_players` `p` ON (`p`.`player_id` = `s`.`player_id`))
 JOIN `wp_golf_tees` `t` ON (`t`.`tee_id` = `s`.`tee_id`))
-LEFT JOIN `wp_golf_handicap_history` `h` ON (`h`.`score_id` = `s`.`score_id`)) 
+LEFT JOIN `wp_golf_handicap_history` `h` ON (`h`.`score_id` = `s`.`score_id`))
 WHERE `s`.`is_excluded` = 0;
 -- END_QUERY
