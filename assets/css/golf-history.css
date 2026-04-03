@@ -156,3 +156,48 @@
 .history-table tbody tr.dropped-out.is-esr.is-cap td {
   background: #e8f4ea !important;
 }
+
+/* ==========================================================
+   NEW: Custom Column Formatting (Low HI, PCC, Under-Dot)
+   ========================================================== */
+
+/* Center alignment for the new columns */
+.history-table .tc { 
+  text-align: center; 
+}
+
+/* Gross Score Cell - creates space at the bottom for the dot */
+.history-table .gross-cell {
+  position: relative;
+  text-align: center;
+  padding-bottom: 8px !important; 
+}
+
+.history-table .gross-value {
+  display: block;
+}
+
+/* The green 'Counted' dot - absolutely positioned under the gross text */
+.history-table .counting-dot-under {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background-color: #137a3d; /* Using your existing green */
+  border-radius: 50%;
+}
+
+/* Highlight the PCC in red when it applies */
+.history-table .pcc-value {
+  color: #d9534f;
+  font-weight: bold;
+}
+
+/* Fade the Low HI slightly so it doesn't compete with the main Index */
+.history-table .low-hi-value {
+  color: #888;
+  font-style: italic;
+  font-size: 0.9em;
+}

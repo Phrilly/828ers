@@ -41,6 +41,29 @@ add_shortcode('golf_round_history', function () {
         <div class="history-pagination" id="gh-pagination"></div>
     </div>
 
+    <style>
+        /* Embedded styling for the gross cell layout */
+        .gross-cell {
+            position: relative;
+            text-align: center;
+            padding-bottom: 8px !important;
+        }
+        .gross-value {
+            display: block;
+        }
+        .counting-dot-under {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            background-color: #28a745;
+            border-radius: 50%;
+        }
+        .tc { text-align: center; }
+    </style>
+
     <script>
     (function () {
         const app    = document.getElementById('golf-history-app');
@@ -168,11 +191,12 @@ function gh_load_history() {
                 <th class="tc">Gross</th>
                 <th class="tc">Nett</th>
                 <th class="tc">Diff</th>
+                <th class="tc">PCC</th>
+                <th class="tc">Low HI</th>
                 <th class="tc">Putts</th>
                 <th class="tc">GIR</th>
                 <th class="tc">Adj</th>
                 <th class="tc">Excl</th>
-                <th class="tc">Count</th>
             </tr>
         </thead>
         <tbody>
@@ -195,6 +219,14 @@ function gh_load_history() {
                 $hi = (isset($r['starting_index']) && $r['starting_index'] !== null && $r['starting_index'] !== '')
                     ? number_format((float) $r['starting_index'], 1)
                     : '-';
+                    
+                $low_hi = (isset($r['low_hi_365']) && $r['low_hi_365'] !== null && $r['low_hi_365'] !== '')
+                    ? number_format((float) $r['low_hi_365'], 1)
+                    : '-';
+                    
+                $pcc = (isset($r['pcc']) && $r['pcc'] != 0) 
+                    ? '<strong style="color: #d9534f;">'.(int)$r['pcc'].'</strong>' 
+                    : '0';
 
                 $qualifies_for_window =
                     empty($r['is_excluded']) &&
@@ -212,9 +244,19 @@ function gh_load_history() {
                     </td>
 
                     <td class="tc"><?php echo esc_html($hi); ?></td>
-                    <td class="tc"><?php echo (int) ($r['gross_score'] ?? 0); ?></td>
+                    
+                    <td class="gross-cell">
+                        <span class="gross-value"><?php echo (int) ($r['gross_score'] ?? 0); ?></span>
+                        <?php if (!empty($r['is_counting'])): ?>
+                            <div class="counting-dot-under" title="Used in Handicap Index calculation"></div>
+                        <?php endif; ?>
+                    </td>
+                    
                     <td class="tc"><?php echo (int) ($r['net_score'] ?? 0); ?></td>
                     <td class="tc"><?php echo esc_html(number_format((float) ($r['differential'] ?? 0), 1)); ?></td>
+                    <td class="tc"><?php echo wp_kses($pcc, ['strong' => ['style' => true]]); ?></td>
+                    <td class="tc" style="color: #666; font-style: italic;"><?php echo esc_html($low_hi); ?></td>
+                    
                     <td class="tc"><?php echo (int) ($r['putts'] ?? 0); ?></td>
                     <td class="tc"><?php echo (int) ($r['gir'] ?? 0); ?></td>
 
@@ -228,10 +270,6 @@ function gh_load_history() {
                         <?php if (!empty($r['is_excluded'])): ?>
                             <span class="excl-badge" title="Excluded from handicap">X</span>
                         <?php endif; ?>
-                    </td>
-
-                    <td class="tc">
-                        <?php echo !empty($r['is_counting']) ? '<span class="counting-dot"></span>' : ''; ?>
                     </td>
                 </tr>
 
@@ -248,7 +286,7 @@ function gh_load_history() {
                         $below_cutoff = true;
                         ?>
                         <tr class="history-cutoff">
-                            <td colspan="12"></td>
+                            <td colspan="13"></td>
                         </tr>
                         <?php
                     }
@@ -256,7 +294,7 @@ function gh_load_history() {
                 ?>
             <?php endforeach; ?>
         <?php else: ?>
-            <tr><td colspan="12">No rounds found.</td></tr>
+            <tr><td colspan="13">No rounds found.</td></tr>
         <?php endif; ?>
         </tbody>
     </table>
