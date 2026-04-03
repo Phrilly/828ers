@@ -6,8 +6,10 @@ CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_rolling_averages` AS
 select
     `ranked_history`.`player_id` AS `player_id`,
     `ranked_history`.`player_name` AS `player_name`,
-    round(avg(`ranked_history`.`putts`), 1) AS `avg_putts_20`,
-    round(avg(`ranked_history`.`gir`), 1) AS `avg_gir_20`
+    
+    /* Logic: If putts is 0, treat as NULL so it's ignored by the AVG function */
+    ROUND(AVG(CASE WHEN putts > 0 THEN putts ELSE NULL END), 1) AS avg_putts_20, 
+    ROUND(AVG(CASE WHEN putts > 0 THEN gir ELSE NULL END), 1) AS avg_gir_20,
 from
     (
     select

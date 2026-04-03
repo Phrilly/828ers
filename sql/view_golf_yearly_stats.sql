@@ -8,8 +8,11 @@ select
     year(`s`.`date_played`) AS `stat_year`,
     count(`s`.`score_id`) AS `total_rounds`,
     round(avg(`s`.`gross_score`), 1) AS `avg_gross_year`,
-    round(avg(`s`.`putts`), 1) AS `avg_putts_year`,
-    round(avg(`s`.`gir`), 1) AS `avg_gir_year`,
+
+    /* Logic: If putts is 0, treat as NULL so it's ignored by the AVG function */
+    ROUND(AVG(CASE WHEN s.putts > 0 THEN s.putts ELSE NULL END), 1) AS avg_putts_year, 
+    ROUND(AVG(CASE WHEN s.putts > 0 THEN s.gir ELSE NULL END), 1) AS avg_gir_year,
+    
     sum(case when `s`.`gross_score` < 80 then 1 else 0 end) AS `sub_80`,
     sum(case when `s`.`gross_score` between 80 and 84 then 1 else 0 end) AS `cat_80_84`,
     sum(case when `s`.`gross_score` between 85 and 89 then 1 else 0 end) AS `cat_85_89`,
