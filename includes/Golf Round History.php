@@ -42,24 +42,18 @@ add_shortcode('golf_round_history', function () {
     </div>
 
     <style>
-        /* Embedded styling for the gross cell layout */
         .gross-cell {
-            position: relative;
             text-align: center;
-            padding-bottom: 8px !important;
         }
         .gross-value {
-            display: block;
+            display: inline-block;
         }
-        .counting-dot-under {
-            position: absolute;
-            bottom: 2px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 6px;
-            height: 6px;
-            background-color: #28a745;
-            border-radius: 50%;
+        .gross-value.is-counting {
+            background-color: #d4edda;
+            color: #137a3d;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 2px 6px;
         }
         .tc { text-align: center; }
     </style>
@@ -233,6 +227,9 @@ function gh_load_history() {
                     isset($r['starting_index']) &&
                     $r['starting_index'] !== null &&
                     $r['starting_index'] !== '';
+
+                $gross_class = !empty($r['is_counting']) ? 'gross-value is-counting' : 'gross-value';
+                $gross_title = !empty($r['is_counting']) ? ' title="Counts toward Handicap Index"' : '';
                 ?>
                 <tr class="<?php echo esc_attr(trim($row_class)); ?>">
                     <td><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
@@ -244,19 +241,18 @@ function gh_load_history() {
                     </td>
 
                     <td class="tc"><?php echo esc_html($hi); ?></td>
-                    
+
                     <td class="gross-cell">
-                        <span class="gross-value"><?php echo (int) ($r['gross_score'] ?? 0); ?></span>
-                        <?php if (!empty($r['is_counting'])): ?>
-                            <div class="counting-dot-under" title="Used in Handicap Index calculation"></div>
-                        <?php endif; ?>
+                        <span class="<?php echo esc_attr($gross_class); ?>"<?php echo $gross_title; ?>>
+                            <?php echo (int) ($r['gross_score'] ?? 0); ?>
+                        </span>
                     </td>
-                    
+
                     <td class="tc"><?php echo (int) ($r['net_score'] ?? 0); ?></td>
                     <td class="tc"><?php echo esc_html(number_format((float) ($r['differential'] ?? 0), 1)); ?></td>
                     <td class="tc"><?php echo wp_kses($pcc, ['strong' => ['style' => true]]); ?></td>
                     <td class="tc" style="color: #666; font-style: italic;"><?php echo esc_html($low_hi); ?></td>
-                    
+
                     <td class="tc"><?php echo (int) ($r['putts'] ?? 0); ?></td>
                     <td class="tc"><?php echo (int) ($r['gir'] ?? 0); ?></td>
 

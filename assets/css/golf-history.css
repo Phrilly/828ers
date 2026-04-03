@@ -52,7 +52,7 @@
   color: #333;
 }
 
-/* Tee badges + counting dot */
+/* Tee badges */
 .tee-badge {
   padding: 4px 12px;
   border-radius: 15px;
@@ -158,35 +158,29 @@
 }
 
 /* ==========================================================
-   NEW: Custom Column Formatting (Low HI, PCC, Under-Dot)
+   Column Formatting
    ========================================================== */
 
-/* Center alignment for the new columns */
-.history-table .tc { 
-  text-align: center; 
+.history-table .tc {
+  text-align: center;
 }
 
-/* Gross Score Cell - creates space at the bottom for the dot */
+/* Gross score cell */
 .history-table .gross-cell {
-  position: relative;
   text-align: center;
-  padding-bottom: 8px !important; 
 }
 
 .history-table .gross-value {
-  display: block;
+  display: inline-block;
 }
 
-/* The green 'Counted' dot - absolutely positioned under the gross text */
-.history-table .counting-dot-under {
-  position: absolute;
-  bottom: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
-  background-color: #137a3d; /* Using your existing green */
-  border-radius: 50%;
+/* Green pill highlight when the round counts toward the Handicap Index */
+.history-table .gross-value.is-counting {
+  background-color: #d4edda;
+  color: #137a3d;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 2px 6px;
 }
 
 /* Highlight the PCC in red when it applies */
