@@ -65,7 +65,7 @@ add_shortcode('golf_stats_dashboard', function () {
                 $total = (int) ($yr['total_rounds'] ?? 0);
 
                 $dir = $hi['hi_direction'] ?? 'same';
-                $dir_class = $dir === 'up' ? 'up' : ($dir === 'down' ? 'down' : 'same');
+                $dir_class = esc_attr($dir);
                 $dir_label = $dir === 'up' ? 'HI increased recently' : ($dir === 'down' ? 'HI decreased recently' : 'HI unchanged');
 
                 $score_rows = [
@@ -86,7 +86,7 @@ add_shortcode('golf_stats_dashboard', function () {
                         <h3 class="player-name"><?php echo esc_html($name); ?></h3>
                         <div class="player-hi">
                             <span class="hi-value"><?php echo esc_html(number_format((float) ($hi['current_handicap_index'] ?? 0), 1)); ?></span>
-                            <span class="hi-indicator <?php echo esc_attr($dir_class); ?>" title="<?php echo esc_attr($dir_label); ?>" aria-label="<?php echo esc_attr($dir_label); ?>"></span>
+                            <span class="hi-indicator <?php echo $dir_class; ?>" title="<?php echo esc_attr($dir_label); ?>"></span>
                         </div>
                     </header>
 
@@ -97,9 +97,9 @@ add_shortcode('golf_stats_dashboard', function () {
                                 <tr><th>Tee</th><th class="right">Course</th><th class="right">Playing</th></tr>
                             </thead>
                             <tbody>
-                                <tr><td>White</td><td class="right"><?php echo wp_kses($course($hp['white_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['white_play'] ?? 0); ?></strong></td></tr>
-                                <tr><td>Yellow</td><td class="right"><?php echo wp_kses($course($hp['yellow_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['yellow_play'] ?? 0); ?></strong></td></tr>
-                                <tr><td>Black</td><td class="right"><?php echo wp_kses($course($hp['black_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['black_play'] ?? 0); ?></strong></td></tr>
+                                <tr><td>White</td><td class="right"><?php echo wp_kses($course($hp['white_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['white_play'] ?? 0); ?></strong> <span class="playing-indicator <?php echo $dir_class; ?>"></span></td></tr>
+                                <tr><td>Yellow</td><td class="right"><?php echo wp_kses($course($hp['yellow_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['yellow_play'] ?? 0); ?></strong> <span class="playing-indicator <?php echo $dir_class; ?>"></span></td></tr>
+                                <tr><td>Black</td><td class="right"><?php echo wp_kses($course($hp['black_exact'] ?? 0), ['span' => ['class' => true]]); ?></td><td class="right"><strong><?php echo (int) ($hp['black_play'] ?? 0); ?></strong> <span class="playing-indicator <?php echo $dir_class; ?>"></span></td></tr>
                             </tbody>
                         </table>
                     </section>

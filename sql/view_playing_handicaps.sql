@@ -1,11 +1,13 @@
 DROP VIEW IF EXISTS `view_playing_handicaps`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.61
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_playing_handicaps` AS
 select
     `vhi`.`player_id` AS `player_id`,
     `vhi`.`player_name` AS `player_name`,
+    `vhi`.`hi_direction` AS `hi_direction`,
+    `vhi`.`current_handicap_index` AS `current_handicap_index`,
     round(`vhi`.`current_handicap_index` * (`tw`.`slope_rating` / 113) + (`tw`.`course_rating` - `tw`.`par`), 2) AS `white_exact`,
     round((`vhi`.`current_handicap_index` * (`tw`.`slope_rating` / 113) + (`tw`.`course_rating` - `tw`.`par`)) * 0.95, 0) AS `white_play`,
     round(`vhi`.`current_handicap_index` * (`ty`.`slope_rating` / 113) + (`ty`.`course_rating` - `ty`.`par`), 2) AS `yellow_exact`,
