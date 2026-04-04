@@ -11,7 +11,7 @@ sp_label: BEGIN
     DECLARE v_course_rating DECIMAL(4,1);
     DECLARE v_slope_rating  INT;
     DECLARE v_par           INT;
-    DECLARE v_diff_raw      DECIMAL(5,1);
+    DECLARE v_diff_raw      DECIMAL(5,2);
     DECLARE v_hcp_before    DECIMAL(5,1);
     DECLARE v_hcp_unadj     DECIMAL(5,3);
     DECLARE v_hcp_working   DECIMAL(5,3);
