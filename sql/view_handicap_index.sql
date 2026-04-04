@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_handicap_index`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.66
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_handicap_index` AS
 select
     `p`.`player_id` AS `player_id`,
@@ -9,6 +9,7 @@ select
     coalesce(`h`.`rounds_in_window`, 0) AS `rounds_counted`,
     `h`.`hcp_after` AS `current_handicap_index`,
     `h`.`previous_hcp_after` AS `previous_handicap_index`,
+    `h`.`low_hi_365` AS `low_hi_365`,
     case
         when `h`.`previous_hcp_after` is null then 'same'
         when `h`.`hcp_after` > `h`.`previous_hcp_after` then 'up'
@@ -21,6 +22,7 @@ left join (
     select
         `last`.`player_id` AS `player_id`,
         `last`.`hcp_after` AS `hcp_after`,
+        `last`.`low_hi_365` AS `low_hi_365`,
         (
         select
             `prev`.`hcp_after`
