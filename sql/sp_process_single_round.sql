@@ -39,7 +39,7 @@ sp_label: BEGIN
         LEAVE sp_label;
     END IF;
 
-    SET v_diff_raw = ROUND(113.0 / v_slope_rating * (v_gross_score - v_course_rating - v_pcc), 1);
+    SET v_diff_raw = ROUND(113.0 / v_slope_rating * (v_gross_score - v_course_rating - v_pcc), 2);
 
     INSERT INTO wp_golf_handicap_history
         (player_id, score_id, date_played, diff_raw, differential, esr_adj, esr_triggered, esr_amount, cap_type, cap_reduction)
