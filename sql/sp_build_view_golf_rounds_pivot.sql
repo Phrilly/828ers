@@ -23,7 +23,6 @@ BEGIN
     'CREATE OR REPLACE VIEW view_golf_rounds_pivot AS
      SELECT
        r.date_played,
-       MAX(h.tee_id) AS tee_id,
        r.tee_colour,
        CASE WHEN r.winners_count > 1 THEN ''TIE'' ELSE r.winner_player END AS winner,
        '''' AS winner_colour,
