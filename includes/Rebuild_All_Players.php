@@ -2,40 +2,15 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
- * 1. Inject the Rebuild Button as a Floating Action Button
- * Guaranteed to be visible, ignoring brittle text-matching.
+ * 1. Create the Shortcode [828ers_rebuild]
+ * You can place this anywhere in Divi (Text Module, Code Module, etc.)
  */
-add_action('wp_footer', function() {
+add_shortcode('828ers_rebuild', function() {
+    ob_start();
     ?>
-    <style>
-        .828ers-floating-rebuild {
-            position: fixed;
-            bottom: 25px;
-            right: 25px;
-            z-index: 999999;
-            background-color: #0073aa;
-            color: #ffffff;
-            border: none;
-            border-radius: 50px;
-            padding: 12px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: background-color 0.2s, transform 0.2s;
-        }
-        .828ers-floating-rebuild:hover {
-            background-color: #005177;
-            transform: scale(1.05);
-        }
-    </style>
-
-    <button id="828ers-rebuild-trigger" class="828ers-floating-rebuild">
+    <a href="#" id="828ers-rebuild-trigger" style="color: #ffffff; font-size: 14px; text-decoration: underline; cursor: pointer; font-weight: bold;">
         &#x267B; Rebuild All Players
-    </button>
+    </a>
 
     <script type="text/javascript">
     document.addEventListener('DOMContentLoaded', function() {
@@ -45,7 +20,6 @@ add_action('wp_footer', function() {
             trigger.addEventListener('click', function(e) {
                 e.preventDefault(); 
                 
-                // Simple confirmation so a stray tap doesn't freeze the phone
                 if (!confirm('Rebuild WHS History for all players? This takes a few seconds.')) {
                     return;
                 }
@@ -53,6 +27,7 @@ add_action('wp_footer', function() {
                 const originalText = trigger.innerHTML;
                 trigger.innerHTML = '⏳ Rebuilding...';
                 trigger.style.pointerEvents = 'none';
+                trigger.style.opacity = '0.7';
 
                 const ajaxUrl = typeof GolfMasterAjax !== 'undefined' ? GolfMasterAjax.ajaxUrl : '<?php echo admin_url('admin-ajax.php'); ?>';
                 const nonce = '<?php echo wp_create_nonce('golf_rebuild_nonce'); ?>';
@@ -75,23 +50,26 @@ add_action('wp_footer', function() {
                         alert('Error: ' + data.data);
                         trigger.innerHTML = originalText;
                         trigger.style.pointerEvents = 'auto';
+                        trigger.style.opacity = '1';
                     }
                 })
                 .catch(err => {
                     alert('A network error occurred while rebuilding.');
                     trigger.innerHTML = originalText;
                     trigger.style.pointerEvents = 'auto';
+                    trigger.style.opacity = '1';
                 });
             });
         }
     });
     </script>
     <?php
+    return ob_get_clean();
 });
 
 /**
  * 2. The AJAX Handler
- * Accessible to everyone on the frontend (no login required)
+ * Executes the stored procedure safely in the background.
  */
 add_action('wp_ajax_golf_execute_visible_rebuild', 'golf_handle_visible_rebuild');
 add_action('wp_ajax_nopriv_golf_execute_visible_rebuild', 'golf_handle_visible_rebuild');
