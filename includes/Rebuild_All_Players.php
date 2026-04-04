@@ -2,30 +2,28 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
- * 1. Create the Shortcode [828ers_rebuild]
- * You can place this anywhere in Divi (Text Module, Code Module, etc.)
+ * 1. The Javascript Listener
+ * Waits for the user to click the Divi button with the ID "rebuild-history-btn"
  */
-add_shortcode('828ers_rebuild', function() {
-    ob_start();
+add_action('wp_footer', function() {
     ?>
-    <a href="#" id="828ers-rebuild-trigger" style="color: #ffffff; font-size: 14px; text-decoration: underline; cursor: pointer; font-weight: bold;">
-        &#x267B; Rebuild All Players
-    </a>
-
     <script type="text/javascript">
     document.addEventListener('DOMContentLoaded', function() {
-        const trigger = document.getElementById('828ers-rebuild-trigger');
+        // Target the exact CSS ID you set in the Divi Builder
+        const trigger = document.getElementById('rebuild-history-btn');
 
         if (trigger) {
             trigger.addEventListener('click', function(e) {
                 e.preventDefault(); 
                 
+                // Safety check
                 if (!confirm('Rebuild WHS History for all players? This takes a few seconds.')) {
                     return;
                 }
 
-                const originalText = trigger.innerHTML;
-                trigger.innerHTML = '⏳ Rebuilding...';
+                // Change the Divi button text to show it's working
+                const originalText = trigger.innerText;
+                trigger.innerText = '⏳ Rebuilding...';
                 trigger.style.pointerEvents = 'none';
                 trigger.style.opacity = '0.7';
 
@@ -36,6 +34,7 @@ add_shortcode('828ers_rebuild', function() {
                 formData.append('action', 'golf_execute_visible_rebuild');
                 formData.append('nonce', nonce);
 
+                // Send the request to the backend PHP function
                 fetch(ajaxUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -48,14 +47,14 @@ add_shortcode('828ers_rebuild', function() {
                         location.reload(); 
                     } else {
                         alert('Error: ' + data.data);
-                        trigger.innerHTML = originalText;
+                        trigger.innerText = originalText;
                         trigger.style.pointerEvents = 'auto';
                         trigger.style.opacity = '1';
                     }
                 })
                 .catch(err => {
                     alert('A network error occurred while rebuilding.');
-                    trigger.innerHTML = originalText;
+                    trigger.innerText = originalText;
                     trigger.style.pointerEvents = 'auto';
                     trigger.style.opacity = '1';
                 });
@@ -64,17 +63,17 @@ add_shortcode('828ers_rebuild', function() {
     });
     </script>
     <?php
-    return ob_get_clean();
 });
 
 /**
- * 2. The AJAX Handler
- * Executes the stored procedure safely in the background.
+ * 2. The AJAX Handler (The PHP Backend)
+ * Executes the stored procedure safely.
  */
 add_action('wp_ajax_golf_execute_visible_rebuild', 'golf_handle_visible_rebuild');
 add_action('wp_ajax_nopriv_golf_execute_visible_rebuild', 'golf_handle_visible_rebuild');
 
 function golf_handle_visible_rebuild() {
+    // Security check
     check_ajax_referer('golf_rebuild_nonce', 'nonce');
 
     global $wpdb;
