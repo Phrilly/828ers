@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_handicap_index`;
 -- END_QUERY
 
--- WATERMARK 1.0.66
+-- WATERMARK 1.0.67
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_handicap_index` AS
 select
     `p`.`player_id` AS `player_id`,
@@ -33,9 +33,13 @@ left join (
         where
             `prev`.`player_id` = `last`.`player_id`
             and `ps`.`tee_id` in (1, 2, 3)
-            and (`prev`.`date_played` < `last`.`date_played`
-                or `prev`.`date_played` = `last`.`date_played`
-                and `prev`.`score_id` < `last`.`score_id`)
+            and (
+                `prev`.`date_played` < `last`.`date_played`
+                or (
+                    `prev`.`date_played` = `last`.`date_played`
+                    and `prev`.`score_id` < `last`.`score_id`
+                )
+            )
         order by
             `prev`.`date_played` desc,
             `prev`.`score_id` desc
@@ -50,9 +54,14 @@ left join (
         where
             `h2`.`player_id` = `last`.`player_id`
             and `s2`.`tee_id` in (1, 2, 3)
-                and (`h2`.`date_played` < `last`.`date_played`
-                    or `h2`.`date_played` = `last`.`date_played`
-                    and `h2`.`score_id` <= `last`.`score_id`)) AS `rounds_in_window`
+            and (
+                `h2`.`date_played` < `last`.`date_played`
+                or (
+                    `h2`.`date_played` = `last`.`date_played`
+                    and `h2`.`score_id` <= `last`.`score_id`
+                )
+            )
+        ) AS `rounds_in_window`
     from
         (((`wp_golf_handicap_history` `last`
     join `wp_golf_scores` `s` on
@@ -84,7 +93,9 @@ left join (
         group by
             `hh`.`player_id`,
             `hh`.`date_played`) `ms` on
-        (`ms`.`player_id` = `last`.`player_id` and `ms`.`date_played` = `last`.`date_played` and `ms`.`max_score_id` = `last`.`score_id`))
+        (`ms`.`player_id` = `last`.`player_id`
+         and `ms`.`date_played` = `last`.`date_played`
+         and `ms`.`max_score_id` = `last`.`score_id`))
     where
         `s`.`tee_id` in (1, 2, 3)) `h` on
     (`h`.`player_id` = `p`.`player_id`));
