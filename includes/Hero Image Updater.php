@@ -61,7 +61,7 @@ function golf_update_latest_winner_hero_image() {
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Fluked-Portrait.png' 
         ],
         2 => [ 
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Proper_Golfer.png', 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Proper-Golfer.png', 
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Proper-Portrait.png' 
         ],
         3 => [ 
