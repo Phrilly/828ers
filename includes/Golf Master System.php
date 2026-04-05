@@ -5,6 +5,7 @@
    as GolfMasterAjax — do NOT redefine it here.
    ====================================================== */
 
+
 function golf_828ers_can_enter_scores() {
     if (!is_user_logged_in()) return false;
     $user          = wp_get_current_user();
@@ -12,22 +13,28 @@ function golf_828ers_can_enter_scores() {
     return (bool) array_intersect($allowed_roles, (array) $user->roles);
 }
 
+
 function golf_828ers_default_course_name() {
     return 'Ramsey Golf Club';
 }
 
+
 function golf_828ers_get_courses() {
     global $wpdb;
+
 
     $courses_table = $wpdb->prefix . 'golf_courses';
     return $wpdb->get_results("SELECT course_id, course_name FROM {$courses_table} ORDER BY course_name ASC");
 }
 
+
 function golf_828ers_get_tees_grouped_by_course() {
     global $wpdb;
 
+
     $courses_table = $wpdb->prefix . 'golf_courses';
     $tees_table    = $wpdb->prefix . 'golf_tees';
+
 
     $rows = $wpdb->get_results(
         "SELECT c.course_name, t.tee_id, t.tee_colour
@@ -35,6 +42,7 @@ function golf_828ers_get_tees_grouped_by_course() {
          JOIN {$tees_table} t ON t.course_id = c.course_id
          ORDER BY c.course_name ASC, t.tee_id ASC"
     );
+
 
     $grouped = [];
     foreach ($rows as $row) {
@@ -47,13 +55,16 @@ function golf_828ers_get_tees_grouped_by_course() {
         ];
     }
 
+
     return $grouped;
 }
+
 
 function golf_828ers_get_tees_for_course($course_name) {
     $grouped = golf_828ers_get_tees_grouped_by_course();
     return $grouped[$course_name] ?? [];
 }
+
 
 
 /* ============================
@@ -65,7 +76,9 @@ add_shortcode('golf_scorecard_entry', function () {
         return '<p>You do not have permission to enter scores.</p>';
     }
 
+
     global $wpdb;
+
 
     $players_table   = $wpdb->prefix . 'golf_players';
     $default_course  = golf_828ers_default_course_name();
@@ -76,13 +89,17 @@ add_shortcode('golf_scorecard_entry', function () {
         return isset($c->course_name) && $c->course_name !== $default_course;
     }));
 
+
     $players = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name");
 
+
     $default_date = date('Y-m-d');
+
 
     ob_start();
     ?>
     <div class="golf-management-root golf-entry-box">
+
 
         <div class="golf-grid-header entry-header">
             <div>Player</div>
@@ -93,6 +110,7 @@ add_shortcode('golf_scorecard_entry', function () {
             <div class="tc">GIR</div>
             <div class="tc">Status</div>
         </div>
+
 
         <?php for ($i = 0; $i < 4; $i++): ?>
             <div class="golf-grid-row entry-row">
@@ -105,7 +123,9 @@ add_shortcode('golf_scorecard_entry', function () {
                     <?php endforeach; ?>
                 </select>
 
+
                 <input type="date" class="golf-input in-date" value="<?php echo esc_attr($default_date); ?>">
+
 
                 <div class="field field-tee">
                     <div class="lbl">Tee</div>
@@ -118,30 +138,37 @@ add_shortcode('golf_scorecard_entry', function () {
                     </select>
                 </div>
 
+
                 <div class="field field-gross">
                     <div class="lbl">Gross</div>
                     <input type="number" class="golf-input in-gross tc" placeholder="-">
                 </div>
 
+
                 <input type="hidden" class="golf-input in-pcc" value="0">
+
 
                 <div class="field field-putts">
                     <div class="lbl">Putts</div>
                     <input type="number" class="golf-input in-putts tc" placeholder="-">
                 </div>
 
+
                 <div class="field field-gir">
                     <div class="lbl">GIR</div>
                     <input type="number" class="golf-input in-gir tc" placeholder="-">
                 </div>
 
+
                 <div class="tc status-cell">-</div>
             </div>
         <?php endfor; ?>
 
+
         <div class="entry-footer">
             <button class="golf-btn btn-save" type="button" onclick="golfSaveAll()">SAVE ALL ROUNDS</button>
         </div>
+
 
         <div class="entry-course-switch" style="margin-top:8px; text-align:right; font-size:11px; color:#666;">
             <label for="golf-entry-course" style="margin-right:6px;">Playing another club?</label>
@@ -154,20 +181,25 @@ add_shortcode('golf_scorecard_entry', function () {
         </div>
     </div>
 
+
     <script>
     (function () {
         const courseSelect = document.getElementById('golf-entry-course');
         if (!courseSelect) return;
 
+
         const teesByCourse = <?php echo wp_json_encode($tees_by_course); ?>;
+
 
         function rebuildTeeDropdowns(courseName) {
             const tees = teesByCourse[courseName] || [];
             const teeSelects = document.querySelectorAll('.golf-entry-box .in-tee');
 
+
             teeSelects.forEach((select) => {
                 const current = select.value;
                 select.innerHTML = '';
+
 
                 tees.forEach((tee) => {
                     const option = document.createElement('option');
@@ -179,11 +211,13 @@ add_shortcode('golf_scorecard_entry', function () {
                     select.appendChild(option);
                 });
 
+
                 if (!select.value && select.options.length) {
                     select.selectedIndex = 0;
                 }
             });
         }
+
 
         courseSelect.addEventListener('change', function () {
             rebuildTeeDropdowns(this.value);
@@ -195,6 +229,7 @@ add_shortcode('golf_scorecard_entry', function () {
 });
 
 
+
 /* ============================
    2) BOTTOM GRID: Historic Edit
    Shortcode: [golf_edit_grid]
@@ -204,14 +239,37 @@ add_shortcode('golf_edit_grid', function () {
         return '<p>You do not have permission to edit scores.</p>';
     }
 
+
     global $wpdb;
+
 
     $scores_table  = $wpdb->prefix . 'golf_scores';
     $players_table = $wpdb->prefix . 'golf_players';
     $tees_table    = $wpdb->prefix . 'golf_tees';
     $history_view  = 'view_golf_dashboard_history';
 
-    $rounds = $wpdb->get_results("
+    $per_page    = 40;
+    $page        = isset($_GET['historic_page']) ? max(1, (int) $_GET['historic_page']) : 1;
+    $offset      = ($page - 1) * $per_page;
+
+    $total_rows = (int) $wpdb->get_var("
+        SELECT COUNT(*)
+        FROM      {$scores_table}  s
+        JOIN      {$players_table} p ON p.player_id = s.player_id
+        JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
+    ");
+
+    $total_pages = max(1, (int) ceil($total_rows / $per_page));
+
+    if ($page > $total_pages) {
+        $page   = $total_pages;
+        $offset = ($page - 1) * $per_page;
+    }
+
+    $range_start = $total_rows ? ($offset + 1) : 0;
+    $range_end   = min($offset + $per_page, $total_rows);
+
+    $rounds = $wpdb->get_results($wpdb->prepare("
         SELECT
             s.score_id,
             s.player_id,
@@ -232,10 +290,15 @@ add_shortcode('golf_edit_grid', function () {
         JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
         LEFT JOIN {$history_view}  v ON v.score_id  = s.score_id
         ORDER BY  s.date_played DESC, s.score_id DESC
-        LIMIT 30
-    ");
+        LIMIT %d OFFSET %d
+    ", $per_page, $offset));
+
 
     $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
+
+    $base_url = remove_query_arg('historic_page');
+    $prev_url = add_query_arg('historic_page', max(1, $page - 1), $base_url);
+    $next_url = add_query_arg('historic_page', min($total_pages, $page + 1), $base_url);
 
     ob_start();
     ?>
@@ -245,6 +308,7 @@ add_shortcode('golf_edit_grid', function () {
             <strong>Excl</strong> = round played but not submitted to England Golf — saves for records but excluded from handicap calculation.
             Note: after saving, refresh the page to see updated "counting" dots across all rounds.
         </div>
+
 
         <div class="golf-grid-header edit-header">
             <div>Player</div>
@@ -259,15 +323,19 @@ add_shortcode('golf_edit_grid', function () {
             <div class="tc">Action</div>
         </div>
 
+
         <?php foreach ($rounds as $r): ?>
             <?php $is_excl = !empty($r->is_excluded) ? 1 : 0; ?>
             <div class="golf-grid-row edit-row <?php echo $is_excl ? 'row-excluded' : ''; ?>"
                  id="row-<?php echo esc_attr($r->score_id); ?>">
 
+
                 <div><strong><?php echo esc_html($r->player_name); ?></strong></div>
+
 
                 <input type="date" class="golf-input ed-date"
                        value="<?php echo esc_attr($r->date_played); ?>">
+
 
                 <select class="golf-input ed-tee">
                     <?php foreach ($tees as $t): ?>
@@ -278,8 +346,10 @@ add_shortcode('golf_edit_grid', function () {
                     <?php endforeach; ?>
                 </select>
 
+
                 <input type="number" class="golf-input ed-gross tc"
                        value="<?php echo esc_attr($r->gross_score); ?>">
+
 
                 <select class="golf-input ed-pcc tc">
                     <?php
@@ -292,21 +362,25 @@ add_shortcode('golf_edit_grid', function () {
                     ?>
                 </select>
 
+
                 <input type="number" class="golf-input ed-putts tc"
                        value="<?php echo esc_attr($r->putts); ?>">
                 <input type="number" class="golf-input ed-gir tc"
                        value="<?php echo esc_attr($r->gir); ?>">
+
 
                 <div class="tc">
                     <input type="checkbox" class="golf-input ed-excl" value="1"
                            <?php checked($is_excl, 1); ?> title="Exclude from handicap">
                 </div>
 
+
                 <div class="computed tc ed-net">
                     <span class="net-val <?php echo ((int) $r->is_counting === 1) ? 'count-circle' : ''; ?>">
                         <?php echo esc_html($r->net_score); ?>
                     </span>
                 </div>
+
 
                 <div class="tc action-btns">
                     <button class="golf-btn btn-save" type="button"
@@ -316,10 +390,31 @@ add_shortcode('golf_edit_grid', function () {
                 </div>
             </div>
         <?php endforeach; ?>
+
+        <div class="edit-grid-pager" style="margin:16px 10px 4px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; font-size:13px;">
+            <span style="color:#555;">
+                Showing <?php echo esc_html($range_start); ?>–<?php echo esc_html($range_end); ?> of <?php echo esc_html($total_rows); ?>
+            </span>
+            <span style="display:flex; align-items:center; gap:10px;">
+                <?php if ($page > 1): ?>
+                    <a href="<?php echo esc_url($prev_url); ?>" class="golf-btn btn-save" style="text-decoration:none;">Prev</a>
+                <?php else: ?>
+                    <span class="golf-btn btn-save" style="opacity:.4; pointer-events:none; cursor:default;">Prev</span>
+                <?php endif; ?>
+                <span>Page <?php echo esc_html($page); ?> of <?php echo esc_html($total_pages); ?></span>
+                <?php if ($page < $total_pages): ?>
+                    <a href="<?php echo esc_url($next_url); ?>" class="golf-btn btn-save" style="text-decoration:none;">Next</a>
+                <?php else: ?>
+                    <span class="golf-btn btn-save" style="opacity:.4; pointer-events:none; cursor:default;">Next</span>
+                <?php endif; ?>
+            </span>
+        </div>
+
     </div>
     <?php
     return ob_get_clean();
 });
+
 
 
 /* ============================
@@ -328,19 +423,24 @@ add_shortcode('golf_edit_grid', function () {
 add_action('wp_ajax_golf_final_action_bulk_save', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
+
     if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
+
     global $wpdb;
+
 
     $scores_table  = $wpdb->prefix . 'golf_scores';
     $players_table = $wpdb->prefix . 'golf_players';
     $tees_table    = $wpdb->prefix . 'golf_tees';
     $history_view  = 'view_golf_dashboard_history';
 
+
     $rounds       = (isset($_POST['rounds']) && is_array($_POST['rounds'])) ? $_POST['rounds'] : [];
     $inserted_ids = [];
+
 
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
@@ -348,8 +448,10 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         $gross  = isset($r['gross'])     ? (int) $r['gross']     : 0;
         $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
 
+
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
         if (!$player || !$tee || !$gross) continue;
+
 
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
@@ -362,14 +464,17 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             'is_excluded'    => 0,
         ]);
 
+
         if ($ok) {
             $inserted_ids[] = (int) $wpdb->insert_id;
         }
     }
 
+
     if (!$inserted_ids) {
         wp_send_json_error(['message' => 'No valid rounds to save.']);
     }
+
 
     $placeholders = implode(',', array_fill(0, count($inserted_ids), '%d'));
     $rows = $wpdb->get_results(
@@ -390,8 +495,10 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         )
     );
 
+
     wp_send_json_success(['inserted_ids' => $inserted_ids, 'rows' => $rows]);
 });
+
 
 
 /* ============================
@@ -400,22 +507,27 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
 add_action('wp_ajax_golf_final_action_delete', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
+
     if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
+
     global $wpdb;
+
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
+
     $deleted = $wpdb->delete(
         $wpdb->prefix . 'golf_scores',
         ['score_id' => $score_id],
         ['%d']
     );
+
 
     if ($deleted === false) {
         wp_send_json_error(['message' => 'Database delete failed', 'db_error' => $wpdb->last_error]);
@@ -424,8 +536,10 @@ add_action('wp_ajax_golf_final_action_delete', function () {
         wp_send_json_error(['message' => 'No rows deleted', 'score_id' => $score_id]);
     }
 
+
     wp_send_json_success(['deleted' => (int) $deleted, 'score_id' => $score_id]);
 });
+
 
 
 /* ============================
@@ -434,26 +548,33 @@ add_action('wp_ajax_golf_final_action_delete', function () {
 add_action('wp_ajax_golf_final_action_update', function () {
     check_ajax_referer('golf_master_nonce', 'nonce');
 
+
     if (!golf_828ers_can_enter_scores()) {
         wp_send_json_error(['message' => 'Unauthorized.']);
     }
 
+
     global $wpdb;
+
 
     $scores_table = $wpdb->prefix . 'golf_scores';
     $history_view = 'view_golf_dashboard_history';
+
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
     if (!$score_id) {
         wp_send_json_error(['message' => 'Invalid score_id']);
     }
 
+
     $new_date = isset($_POST['date']) ? sanitize_text_field($_POST['date']) : '';
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $new_date)) {
         $new_date = current_time('Y-m-d');
     }
 
+
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
+
 
     $updated = $wpdb->update(
         $scores_table,
@@ -471,9 +592,11 @@ add_action('wp_ajax_golf_final_action_update', function () {
         ['%d']
     );
 
+
     if ($updated === false) {
         wp_send_json_error(['message' => 'Database update failed', 'db_error' => $wpdb->last_error]);
     }
+
 
     $row = $wpdb->get_row(
         $wpdb->prepare(
@@ -482,6 +605,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
             $score_id
         )
     );
+
 
     if (!$row) {
         if ($is_excluded) {
@@ -496,6 +620,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
             wp_send_json_error(['message' => 'Updated but WHS view row not found. Try refreshing.']);
         }
     }
+
 
     wp_send_json_success([
         'score_id'     => (int) $row->score_id,
