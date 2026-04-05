@@ -98,7 +98,8 @@ sp_label: BEGIN
     -- 5. Soft/Hard Cap Math (Perform on Raw v_hcp_working)
     SELECT COALESCE(MIN(hcp_after), v_hcp_working) INTO v_low_hi_365
     FROM wp_golf_handicap_history WHERE player_id = v_player_id
-    AND date_played >= DATE_SUB(v_date_played, INTERVAL 1 YEAR) AND date_played < v_date_played;
+    AND date_played >= DATE_SUB(v_date_played, INTERVAL 1 YEAR)
+    AND (date_played < v_date_played OR (date_played = v_date_played AND score_id < p_score_id));
 
     SET v_cap_original = v_hcp_working;
     IF v_hcp_working > v_low_hi_365 + 3.0 THEN
