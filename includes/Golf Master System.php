@@ -248,16 +248,46 @@ add_shortcode('golf_edit_grid', function () {
     $tees_table    = $wpdb->prefix . 'golf_tees';
     $history_view  = 'view_golf_dashboard_history';
 
-    $per_page    = 40;
-    $page        = isset($_GET['historic_page']) ? max(1, (int) $_GET['historic_page']) : 1;
-    $offset      = ($page - 1) * $per_page;
+    $players = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name ASC");
 
-    $total_rows = (int) $wpdb->get_var("
-        SELECT COUNT(*)
-        FROM      {$scores_table}  s
-        JOIN      {$players_table} p ON p.player_id = s.player_id
-        JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
-    ");
+    $selected_player = isset($_GET['historic_player']) ? (int) $_GET['historic_player'] : 0;
+    $valid_player_ids = array_map(static function ($p) {
+        return (int) $p->player_id;
+    }, $players);
+    if ($selected_player && !in_array($selected_player, $valid_player_ids, true)) {
+        $selected_player = 0;
+    }
+
+    $per_page = 40;
+    $page     = isset($_GET['historic_page']) ? max(1, (int) $_GET['historic_page']) : 1;
+    $offset   = ($page - 1) * $per_page;
+
+    $where_sql    = '';
+    $where_params = [];
+    if ($selected_player > 0) {
+        $where_sql = 'WHERE s.player_id = %d';
+        $where_params[] = $selected_player;
+    }
+
+    if ($where_sql) {
+        $total_rows = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*)
+                 FROM      {$scores_table}  s
+                 JOIN      {$players_table} p ON p.player_id = s.player_id
+                 JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
+                 {$where_sql}",
+                ...$where_params
+            )
+        );
+    } else {
+        $total_rows = (int) $wpdb->get_var(
+            "SELECT COUNT(*)
+             FROM      {$scores_table}  s
+             JOIN      {$players_table} p ON p.player_id = s.player_id
+             JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id"
+        );
+    }
 
     $total_pages = max(1, (int) ceil($total_rows / $per_page));
 
@@ -269,7 +299,7 @@ add_shortcode('golf_edit_grid', function () {
     $range_start = $total_rows ? ($offset + 1) : 0;
     $range_end   = min($offset + $per_page, $total_rows);
 
-    $rounds = $wpdb->get_results($wpdb->prepare("
+    $rounds_sql = "
         SELECT
             s.score_id,
             s.player_id,
@@ -289,10 +319,15 @@ add_shortcode('golf_edit_grid', function () {
         JOIN      {$players_table} p ON p.player_id = s.player_id
         JOIN      {$tees_table}    t ON t.tee_id    = s.tee_id
         LEFT JOIN {$history_view}  v ON v.score_id  = s.score_id
+        {$where_sql}
         ORDER BY  s.date_played DESC, s.score_id DESC
         LIMIT %d OFFSET %d
-    ", $per_page, $offset));
+    ";
 
+    $round_params = $where_params;
+    $round_params[] = $per_page;
+    $round_params[] = $offset;
+    $rounds = $wpdb->get_results($wpdb->prepare($rounds_sql, ...$round_params));
 
     $tees = $wpdb->get_results("SELECT tee_id, tee_colour FROM {$tees_table} ORDER BY tee_id");
 
@@ -303,6 +338,33 @@ add_shortcode('golf_edit_grid', function () {
     ob_start();
     ?>
     <div class="golf-management-root golf-edit-box">
+        <form method="get" class="edit-grid-filter" style="margin:0 10px 12px; display:flex; align-items:end; gap:10px; flex-wrap:wrap;">
+            <?php foreach ($_GET as $key => $value): ?>
+                <?php if ($key === 'historic_player' || $key === 'historic_page') continue; ?>
+                <?php if (is_array($value)) continue; ?>
+                <input type="hidden" name="<?php echo esc_attr($key); ?>" value="<?php echo esc_attr(wp_unslash($value)); ?>">
+            <?php endforeach; ?>
+
+            <div>
+                <label for="historic-player-filter" style="display:block; margin-bottom:4px; font-size:12px; color:#555;">Filter player</label>
+                <select id="historic-player-filter" name="historic_player" class="golf-input" style="min-width:180px;">
+                    <option value="0">All players</option>
+                    <?php foreach ($players as $player): ?>
+                        <option value="<?php echo esc_attr($player->player_id); ?>" <?php selected($selected_player, (int) $player->player_id); ?>>
+                            <?php echo esc_html($player->name); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button type="submit" class="golf-btn btn-save">FILTER</button>
+                <?php if ($selected_player > 0): ?>
+                    <a href="<?php echo esc_url(remove_query_arg(['historic_player', 'historic_page'])); ?>" class="golf-btn btn-del" style="text-decoration:none; display:inline-flex; align-items:center;">CLEAR</a>
+                <?php endif; ?>
+            </div>
+        </form>
+
         <div class="edit-grid-notice" style="padding:10px; margin:0 10px 12px; background:#d1ecf1; border:1px solid #bee5eb; border-radius:4px; font-size:13px; color:#0c5460;">
             💡 <strong>Edit Grid:</strong> Update PCC here the next day (typically -1, 0, +1, +2, or +3).
             <strong>Excl</strong> = round played but not submitted to England Golf — saves for records but excluded from handicap calculation.
