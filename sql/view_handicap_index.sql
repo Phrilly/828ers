@@ -1,7 +1,8 @@
 DROP VIEW IF EXISTS `view_handicap_index`;
 -- END_QUERY
 
--- WATERMARK 1.0.67
+
+-- WATERMARK 1.0.68
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_handicap_index` AS
 select
     `p`.`player_id` AS `player_id`,
@@ -32,7 +33,7 @@ left join (
             (`prev`.`score_id` = `ps`.`score_id`))
         where
             `prev`.`player_id` = `last`.`player_id`
-            and `ps`.`tee_id` in (1, 2, 3)
+            and `ps`.`is_excluded` = 0
             and (
                 `prev`.`date_played` < `last`.`date_played`
                 or (
@@ -53,7 +54,7 @@ left join (
             (`h2`.`score_id` = `s2`.`score_id`))
         where
             `h2`.`player_id` = `last`.`player_id`
-            and `s2`.`tee_id` in (1, 2, 3)
+            and `s2`.`is_excluded` = 0
             and (
                 `h2`.`date_played` < `last`.`date_played`
                 or (
@@ -75,7 +76,7 @@ left join (
         join `wp_golf_scores` `ss` on
             (`hh`.`score_id` = `ss`.`score_id`))
         where
-            `ss`.`tee_id` in (1, 2, 3)
+            `ss`.`is_excluded` = 0
         group by
             `hh`.`player_id`) `mx` on
         (`mx`.`player_id` = `last`.`player_id` and `mx`.`max_date` = `last`.`date_played`))
@@ -89,7 +90,7 @@ left join (
         join `wp_golf_scores` `ss` on
             (`hh`.`score_id` = `ss`.`score_id`))
         where
-            `ss`.`tee_id` in (1, 2, 3)
+            `ss`.`is_excluded` = 0
         group by
             `hh`.`player_id`,
             `hh`.`date_played`) `ms` on
@@ -97,6 +98,6 @@ left join (
          and `ms`.`date_played` = `last`.`date_played`
          and `ms`.`max_score_id` = `last`.`score_id`))
     where
-        `s`.`tee_id` in (1, 2, 3)) `h` on
+        `s`.`is_excluded` = 0) `h` on
     (`h`.`player_id` = `p`.`player_id`));
 -- END_QUERY
