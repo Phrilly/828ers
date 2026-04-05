@@ -15,7 +15,9 @@ order by
     `e`.`tee_colour`,
     `e`.`score_id` rows between unbounded preceding and current row ) AS `break_grp`
 from
-    `view_golf_round_entries` `e`),
+    `view_golf_round_entries` `e`)
+where
+    `e`.`player_count` > 1),
 wins as (
 select
     `r`.`player` AS `player`,
