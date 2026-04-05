@@ -190,7 +190,6 @@ function gh_load_history() {
                 <th class="tc">Putts</th>
                 <th class="tc">GIR</th>
                 <th class="tc">Adj</th>
-                <th class="tc">Excl</th>
             </tr>
         </thead>
         <tbody>
@@ -261,12 +260,6 @@ function gh_load_history() {
                             <span class="adj-badge"><?php echo esc_html($adj); ?></span>
                         <?php endif; ?>
                     </td>
-
-                    <td class="tc">
-                        <?php if (!empty($r['is_excluded'])): ?>
-                            <span class="excl-badge" title="Excluded from handicap">X</span>
-                        <?php endif; ?>
-                    </td>
                 </tr>
 
                 <?php
@@ -282,7 +275,7 @@ function gh_load_history() {
                         $below_cutoff = true;
                         ?>
                         <tr class="history-cutoff">
-                            <td colspan="13"></td>
+                            <td colspan="12"></td>
                         </tr>
                         <?php
                     }
@@ -290,7 +283,7 @@ function gh_load_history() {
                 ?>
             <?php endforeach; ?>
         <?php else: ?>
-            <tr><td colspan="13">No rounds found.</td></tr>
+            <tr><td colspan="12">No rounds found.</td></tr>
         <?php endif; ?>
         </tbody>
     </table>
