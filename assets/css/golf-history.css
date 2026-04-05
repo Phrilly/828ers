@@ -12,20 +12,20 @@
 .history-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px; /* Reduced from 13px to save horizontal space */
 }
 
 .history-table th {
   background: #f4f4f4;
   color: #333;
   text-align: left;
-  padding: 12px 10px;
+  padding: 8px 5px; /* Tightened from 12px 10px */
   border-bottom: 2px solid #ddd;
   white-space: nowrap;
 }
 
 .history-table td {
-  padding: 10px 8px;
+  padding: 6px 4px; /* Tightened from 10px 8px */
   border-bottom: 1px solid #eee;
   white-space: nowrap;
 }
@@ -54,9 +54,9 @@
 
 /* Tee badges */
 .tee-badge {
-  padding: 4px 12px;
+  padding: 2px 8px; /* Tightened badge padding */
   border-radius: 15px;
-  font-size: 11px;
+  font-size: 10px; /* Smaller badge text */
   font-weight: bold;
   text-transform: uppercase;
   display: inline-block;
@@ -80,8 +80,8 @@
 
 .count-dot,
 .counting-dot {
-  height: 10px;
-  width: 10px;
+  height: 8px; /* Slightly smaller dots */
+  width: 8px;
   background-color: #137a3d;
   border-radius: 50%;
   display: inline-block;
@@ -104,9 +104,9 @@
 /* EC badge */
 .history-table .adj-badge {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 1px 4px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.2;
   border: 1px solid rgba(0,0,0,.12);
   background: #fff;
@@ -124,9 +124,9 @@
   display: inline-block;
   background: #dc3545;
   color: #fff;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 3px;
 }
 
@@ -176,8 +176,8 @@
 
 /* Green circle when the round counts toward the Handicap Index */
 .history-table .gross-value.is-counting {
-  width: 30px;
-  height: 30px;
+  width: 24px; /* Reduced from 30px */
+  height: 24px; /* Reduced from 30px */
   border-radius: 50%;
   background-color: #d4edda;
   color: #137a3d;
