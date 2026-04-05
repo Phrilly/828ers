@@ -3,7 +3,7 @@ DROP PROCEDURE IF EXISTS `sp_process_single_round`;
 
 CREATE PROCEDURE `sp_process_single_round`(IN p_score_id INT)
 sp_label: BEGIN
--- WATERMARK 1.0.69 --
+-- WATERMARK 1.0.75 --
     DECLARE v_player_id     INT;
     DECLARE v_date_played   DATE;
     DECLARE v_gross_score   INT;
@@ -119,8 +119,8 @@ sp_label: BEGIN
         low_hi_365 = v_low_hi_365
     WHERE score_id = p_score_id;
 
-    -- 7. Course/Playing Handicap (Post-Round Index)
-    SET v_course_hcp  = ROUND(ROUND(v_hcp_working, 1) * v_slope_rating / 113.0 + (v_course_rating - v_par), 2);
+    -- 7. Course/Playing Handicap (Pre-Round Index!)
+    SET v_course_hcp  = ROUND(v_hcp_before * v_slope_rating / 113.0 + (v_course_rating - v_par), 2);
     SET v_playing_hcp = ROUND(v_course_hcp * 0.95, 0);
     SET v_net_score   = v_gross_score - v_playing_hcp;
     
