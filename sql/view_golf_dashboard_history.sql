@@ -7,6 +7,7 @@ SELECT
     `s`.`score_id` AS `score_id`,
     `p`.`player_id` AS `player_id`,
     `p`.`name` AS `player_name`,
+    `p`.`inititals` AS `player_initials`,
     `s`.`date_played` AS `date_played`,
     `t`.`tee_colour` AS `tee_colour`,
     `s`.`gross_score` AS `gross_score`,
