@@ -10,7 +10,6 @@ add_shortcode('golf_round_history', function () {
 
     $players_table = $wpdb->prefix . 'golf_players';
 
-    // Fetch players for the dropdown
     $player_list = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name ASC");
 
     $nonce = wp_create_nonce('gh_ajax_nonce');
@@ -56,6 +55,13 @@ add_shortcode('golf_round_history', function () {
             padding: 2px 6px;
         }
         .tc { text-align: center; }
+
+        .player-full {
+            display: inline;
+        }
+        .player-initials {
+            display: none;
+        }
     </style>
 
     <script>
@@ -137,7 +143,6 @@ function gh_load_history() {
         $where_args[] = $player;
     }
 
-    // Total rows
     if ($where_sql) {
         $total = (int) $wpdb->get_var(
             $wpdb->prepare("SELECT COUNT(*) FROM {$history_view} {$where_sql}", ...$where_args)
@@ -146,7 +151,6 @@ function gh_load_history() {
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$history_view}");
     }
 
-    // Rows
     if ($where_sql) {
         $sql = $wpdb->prepare(
             "SELECT * FROM {$history_view} {$where_sql} ORDER BY date_played DESC, score_id DESC LIMIT %d OFFSET %d",
@@ -172,7 +176,6 @@ function gh_load_history() {
     $cutoff_drawn     = false;
     $below_cutoff     = false;
 
-    // Table HTML
     ob_start();
     ?>
     <table class="history-table">
@@ -212,13 +215,13 @@ function gh_load_history() {
                 $hi = (isset($r['starting_index']) && $r['starting_index'] !== null && $r['starting_index'] !== '')
                     ? number_format((float) $r['starting_index'], 1)
                     : '-';
-                    
+
                 $low_hi = (isset($r['low_hi_365']) && $r['low_hi_365'] !== null && $r['low_hi_365'] !== '')
                     ? number_format((float) $r['low_hi_365'], 1)
                     : '-';
-                    
-                $pcc = (isset($r['pcc']) && $r['pcc'] != 0) 
-                    ? '<strong style="color: #d9534f;">'.(int)$r['pcc'].'</strong>' 
+
+                $pcc = (isset($r['pcc']) && $r['pcc'] != 0)
+                    ? '<strong style="color: #d9534f;">'.(int)$r['pcc'].'</strong>'
                     : '0';
 
                 $qualifies_for_window =
@@ -229,10 +232,19 @@ function gh_load_history() {
 
                 $gross_class = !empty($r['is_counting']) ? 'gross-value is-counting' : 'gross-value';
                 $gross_title = !empty($r['is_counting']) ? ' title="Counts toward Handicap Index"' : '';
+
+                $player_name    = (string) ($r['player_name'] ?? '');
+                $player_initial = trim((string) ($r['player_initials'] ?? ''));
+                if ($player_initial === '') {
+                    $player_initial = $player_name;
+                }
                 ?>
                 <tr class="<?php echo esc_attr(trim($row_class)); ?>">
-                    <td><?php echo esc_html(date('j M Y', strtotime($r['date_played']))); ?></td>
-                    <td><strong><?php echo esc_html($r['player_name']); ?></strong></td>
+                    <td><?php echo esc_html(date('d/m/y', strtotime($r['date_played']))); ?></td>
+                    <td>
+                        <strong class="player-full"><?php echo esc_html($player_name); ?></strong>
+                        <strong class="player-initials"><?php echo esc_html($player_initial); ?></strong>
+                    </td>
                     <td>
                         <span class="tee-badge tee-<?php echo esc_attr(strtolower($r['tee_colour'] ?? '')); ?>">
                             <?php echo esc_html($r['tee_colour'] ?? ''); ?>
@@ -290,7 +302,6 @@ function gh_load_history() {
     <?php
     $table_html = ob_get_clean();
 
-    // Pagination HTML
     ob_start();
 
     $window = 2;
