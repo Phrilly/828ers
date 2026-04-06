@@ -1,19 +1,32 @@
-# save as eg_probe.py in your scripts folder and run it
-# python eg_probe.py
-
+# save as eg_probe2.py
 import sys
-from eg_utils import eg_login, with_retry, EGLoginError, EGAPIError
+import json
+from eg_utils import eg_login, EGLoginError
 
-print("Logging in...")
+print("Step 1: Login to members.whsplatform.englandgolf.org...")
 try:
     session = eg_login(force=True)
 except EGLoginError as exc:
     print(f"Login failed: {exc}")
     sys.exit(1)
 
-print(f"Cookies: {list(session.cookies.keys())}")
-print(f"Cookie domains: {[c.domain for c in session.cookies]}\n")
+print(f"Cookies after login: {list(session.cookies.keys())}")
 
+print("\nStep 2: Visit www.englandgolf.org/my-scores to collect CWApiToken...")
+page = session.get(
+    "https://www.englandgolf.org/my-scores",
+    timeout=30,
+    allow_redirects=True
+)
+print(f"Status: {page.status_code}")
+print(f"Cookies now: {list(session.cookies.keys())}")
+
+cwtoken = session.cookies.get("CWApiToken")
+print(f"CWApiToken present: {'YES ✓' if cwtoken else 'NO ✗'}")
+if cwtoken:
+    print(f"CWApiToken (first 50 chars): {cwtoken[:50]}...")
+
+print("\nStep 3: Now try the API with CWApiToken in place...")
 PAYLOAD = {
     "pageNumber": 1, "pageSize": 5,
     "otherPassportId": None,
@@ -21,24 +34,31 @@ PAYLOAD = {
     "casualScoresOnly": False,
     "getDefaultFacility": True,
 }
-HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
+HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Referer": "https://www.englandgolf.org/my-scores",
+    "X-Requested-With": "XMLHttpRequest",
+}
 
-# Try every plausible URL
-CANDIDATE_URLS = [
-    "https://members.whsplatform.englandgolf.org/api/Score/GetMyScores",
-    "https://members.whsplatform.englandgolf.org/api/score/getmyscores",
-    "https://members.whsplatform.englandgolf.org/Score/GetMyScores",
+r = session.post(
     "https://www.englandgolf.org/api/Score/GetMyScores",
-    "https://whsplatform.englandgolf.org/api/Score/GetMyScores",
-]
-
-for url in CANDIDATE_URLS:
-    try:
-        r = session.post(url, json=PAYLOAD, headers=HEADERS, timeout=15)
-        print(f"  {r.status_code}  {url}")
-        if r.status_code == 200:
-            print(f"         ✓ GOT DATA: {r.text[:200]}")
-        elif r.status_code not in (401, 403, 404):
-            print(f"         Response: {r.text[:200]}")
-    except Exception as exc:
-        print(f"  ERR  {url} — {exc}")
+    json=PAYLOAD,
+    headers=HEADERS,
+    timeout=30,
+)
+print(f"API status: {r.status_code}")
+if r.status_code == 200:
+    data = r.json()
+    print(f"✓ GOT DATA!")
+    print(f"Response type: {type(data)}")
+    if isinstance(data, list) and data:
+        print(f"Records returned: {len(data)}")
+        print(f"\nFirst record field names:")
+        for k, v in data[0].items():
+            print(f"  '{k}': {repr(v)[:60]}")
+    elif isinstance(data, dict):
+        print(f"Keys: {list(data.keys())}")
+        print(json.dumps(data, indent=2, default=str)[:1000])
+else:
+    print(f"✗ Failed: {r.text[:300]}")
