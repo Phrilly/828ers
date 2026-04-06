@@ -232,17 +232,6 @@
 
 
 /* ==========================================================
-   Mobile — hide Low HI (col 9), Putts (col 10), GIR (col 11)
+   Mobile column hiding is handled entirely in golf-mobile.css
+   (must load after this file) — do not add column-hiding rules here.
    ========================================================== */
-
-
-@media (max-width: 600px) {
-  .history-table th:nth-child(9),
-  .history-table td:nth-child(9),
-  .history-table th:nth-child(10),
-  .history-table td:nth-child(10),
-  .history-table th:nth-child(11),
-  .history-table td:nth-child(11) {
-    display: none;
-  }
-}

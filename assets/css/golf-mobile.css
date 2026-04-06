@@ -17,13 +17,21 @@
   .sect-averages { padding: 10px 12px; min-height: auto; }
   .sect-averages div { flex-direction: column; gap: 5px; }
 
-  /* History: hide unwanted columns (keeps Date | Player | Tee | Gross | Count) */
-  .history-table th:nth-child(5), .history-table td:nth-child(5),
-  .history-table th:nth-child(6), .history-table td:nth-child(6),
-  .history-table th:nth-child(7), .history-table td:nth-child(7),
-  .history-table th:nth-child(8), .history-table td:nth-child(8) { display: none !important; }
+  /* History: keep Date | Player Initials | Tee | Gross | HI
+     Column order: 1=Date 2=Player 3=Tee 4=Gross 5=HI 6=Nett 7=Diff 8=PCC 9=Low HI 10=Putts 11=GIR 12=Adj */
+  .history-table th:nth-child(6),  .history-table td:nth-child(6),
+  .history-table th:nth-child(7),  .history-table td:nth-child(7),
+  .history-table th:nth-child(8),  .history-table td:nth-child(8),
+  .history-table th:nth-child(9),  .history-table td:nth-child(9),
+  .history-table th:nth-child(10), .history-table td:nth-child(10),
+  .history-table th:nth-child(11), .history-table td:nth-child(11),
+  .history-table th:nth-child(12), .history-table td:nth-child(12) { display: none !important; }
 
-  /* Tee badge initials */
+  /* Switch Player column from full name to initials on mobile */
+  .history-table .player-full     { display: none !important; }
+  .history-table .player-initials { display: inline !important; }
+
+  /* Tee badge: shrink to a small circle showing one initial */
   .history-table .tee-badge {
     font-size: 0 !important;
     width: 18px; height: 18px; line-height: 18px;
