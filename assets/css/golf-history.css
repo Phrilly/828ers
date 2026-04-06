@@ -2,6 +2,7 @@
    GOLF SYSTEM — HISTORY TABLE
    ====================================================== */
 
+
 .history-scroll {
   overflow-x: auto;
   border: 1px solid #ddd;
@@ -9,30 +10,35 @@
   background: #fff;
 }
 
+
 .history-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px; /* Reduced from 13px to save horizontal space */
+  font-size: 12px;
 }
+
 
 .history-table th {
   background: #f4f4f4;
   color: #333;
   text-align: left;
-  padding: 8px 5px; /* Tightened from 12px 10px */
+  padding: 8px 5px;
   border-bottom: 2px solid #ddd;
   white-space: nowrap;
 }
 
+
 .history-table td {
-  padding: 6px 4px; /* Tightened from 10px 8px */
+  padding: 6px 4px;
   border-bottom: 1px solid #eee;
   white-space: nowrap;
 }
 
+
 .history-table tr:nth-child(even) {
   background-color: #fcfcfc;
 }
+
 
 /* Filter bar */
 .history-filter-bar {
@@ -46,21 +52,24 @@
   gap: 10px;
 }
 
+
 .history-filter-bar label {
   font-size: 14px;
   font-weight: bold;
   color: #333;
 }
 
+
 /* Tee badges */
 .tee-badge {
-  padding: 2px 8px; /* Tightened badge padding */
+  padding: 2px 8px;
   border-radius: 15px;
-  font-size: 10px; /* Smaller badge text */
+  font-size: 10px;
   font-weight: bold;
   text-transform: uppercase;
   display: inline-block;
 }
+
 
 .tee-white {
   background: #fff;
@@ -68,19 +77,22 @@
   border: 1px solid #ccc;
 }
 
+
 .tee-yellow {
   background: #ffeb3b;
   color: #333;
 }
+
 
 .tee-black {
   background: #000;
   color: #fff;
 }
 
+
 .count-dot,
 .counting-dot {
-  height: 8px; /* Slightly smaller dots */
+  height: 8px;
   width: 8px;
   background-color: #137a3d;
   border-radius: 50%;
@@ -88,18 +100,22 @@
   margin: 0 auto;
 }
 
+
 /* Subtle row tinting for ESR/Cap */
 .history-table tbody tr.is-esr {
   background: #eef6ff;
 }
 
+
 .history-table tbody tr.is-cap {
   background: #fff7e8;
 }
 
+
 .history-table tbody tr.is-esr.is-cap {
   background: #f3efff;
 }
+
 
 /* EC badge */
 .history-table .adj-badge {
@@ -113,11 +129,13 @@
   color: #333;
 }
 
+
 /* Excluded rows in history table: dimmed and italic */
 .history-table tbody tr.is-excluded td {
   opacity: 0.55;
   font-style: italic;
 }
+
 
 /* Excl badge */
 .excl-badge {
@@ -130,6 +148,7 @@
   border-radius: 3px;
 }
 
+
 /* Green separator line after the current 20-round window */
 .history-table tr.history-cutoff td {
   padding: 0;
@@ -140,44 +159,53 @@
   background: transparent !important;
 }
 
+
 /* Older rounds shown below the cutoff */
 .history-table tbody tr.dropped-out td {
   background: #eefaf2 !important;
 }
 
+
 .history-table tbody tr.dropped-out.is-esr td {
   background: #e6f6ec !important;
 }
+
 
 .history-table tbody tr.dropped-out.is-cap td {
   background: #edf8ee !important;
 }
 
+
 .history-table tbody tr.dropped-out.is-esr.is-cap td {
   background: #e8f4ea !important;
 }
+
 
 /* ==========================================================
    Column Formatting
    ========================================================== */
 
+
 .history-table .tc {
   text-align: center;
 }
+
 
 /* Gross score cell */
 .history-table .gross-cell {
   text-align: center;
 }
 
+
 .history-table .gross-value {
   display: inline-block;
 }
 
+
 /* Green circle when the round counts toward the Handicap Index */
 .history-table .gross-value.is-counting {
-  width: 24px; /* Reduced from 30px */
-  height: 24px; /* Reduced from 30px */
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background-color: #d4edda;
   color: #137a3d;
@@ -187,15 +215,34 @@
   justify-content: center;
 }
 
+
 /* Highlight the PCC in red when it applies */
 .history-table .pcc-value {
   color: #d9534f;
   font-weight: bold;
 }
 
+
 /* Fade the Low HI slightly so it doesn't compete with the main Index */
 .history-table .low-hi-value {
   color: #888;
   font-style: italic;
   font-size: 0.9em;
+}
+
+
+/* ==========================================================
+   Mobile — hide Low HI (col 9), Putts (col 10), GIR (col 11)
+   ========================================================== */
+
+
+@media (max-width: 600px) {
+  .history-table th:nth-child(9),
+  .history-table td:nth-child(9),
+  .history-table th:nth-child(10),
+  .history-table td:nth-child(10),
+  .history-table th:nth-child(11),
+  .history-table td:nth-child(11) {
+    display: none;
+  }
 }
