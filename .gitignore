@@ -46,3 +46,7 @@ wp-config.php
 # Note: If you wish to whitelist themes,
 # uncomment the next line
 #/wp-content/themes
+scripts/config.py
+scripts/eg_session.pkl
+scripts/cron.log
+scripts/golf_checker.log
