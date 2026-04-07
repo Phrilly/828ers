@@ -2,57 +2,69 @@ name: 828ers Daily Score Checker
 
 on:
   schedule:
-    # Runs at 6:00 AM local time (GMT/BST) every day
-    - cron: '0 6 * * *'
-      timezone: 'Europe/London'
+    - cron: "0 6 * * *"
+      timezone: "Europe/London"
   workflow_dispatch:
-    # Adds a manual "Run" button so you can test it instantly!
+    inputs:
+      test_mode:
+        description: "Run in test mode (checks today's scores)"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   check-scores:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pymysql requests
+          if [ -f scripts/requirements.txt ]; then
+            pip install -r scripts/requirements.txt
+          else
+            pip install pymysql requests beautifulsoup4 lxml
+          fi
 
-      - name: Create config.py from Secrets
+      - name: Create config.py from secrets
         run: |
           cat << 'EOF' > scripts/config.py
-          EG_USERNAME = "1017311170"
+          EG_USERNAME = "${{ secrets.EG_USERNAME }}"
           EG_PASSWORD = "${{ secrets.EG_PASSWORD }}"
-          DB_HOST     = "srv1038.hstgr.io"
-          DB_PORT     = 3306
-          DB_NAME     = "u271511030_9syka"
-          DB_USER     = "u271511030_AFpgR"
+          DB_HOST     = "${{ secrets.DB_HOST }}"
+          DB_PORT     = int("${{ secrets.DB_PORT }}")
+          DB_NAME     = "${{ secrets.DB_NAME }}"
+          DB_USER     = "${{ secrets.DB_USER }}"
           DB_PASSWORD = "${{ secrets.DB_PASSWORD }}"
-          DB_PREFIX   = "wp_"
-          SMTP_HOST     = "smtp.gmail.com"
-          SMTP_PORT     = 587
-          SMTP_USER     = "pirip.dunne@gmail.com"
+          DB_PREFIX   = "${{ secrets.DB_PREFIX }}"
+          SMTP_HOST     = "${{ secrets.SMTP_HOST }}"
+          SMTP_PORT     = int("${{ secrets.SMTP_PORT }}")
+          SMTP_USER     = "${{ secrets.SMTP_USER }}"
           SMTP_PASSWORD = "${{ secrets.SMTP_PASSWORD }}"
-          EMAIL_FROM    = "pirrip.dunne@gmail.com"
-          EMAIL_TO      = "pirip.dunne@gmail.com"
-          LOOKBACK_DAYS = 5
+          EMAIL_FROM    = "${{ secrets.EMAIL_FROM }}"
+          EMAIL_TO      = "${{ secrets.EMAIL_TO }}"
+          
           PLAYERS = [
-              {"code": "PD", "name": "Phil D", "eg_passport_id": None, "default_tee": "Green"},
-              {"code": "PB", "name": "Phil B", "eg_passport_id": 463380, "default_tee": "Blue"},
-              {"code": "JC", "name": "Jay", "eg_passport_id": 1259586, "default_tee": "Red"},
-              {"code": "AC", "name": "Adder", "eg_passport_id": 1259582, "default_tee": "Purple"},
+              {"name": "Phil D", "eg_passport_id": None,      "default_tee": "yellow"},
+              {"name": "Phil B", "eg_passport_id": "463380",  "default_tee": "yellow"},
+              {"name": "Jay",    "eg_passport_id": "1259586", "default_tee": "yellow"},
+              {"name": "Adder",  "eg_passport_id": "1259582", "default_tee": "yellow"},
           ]
           EOF
 
-      - name: Run Golf Checker
+      - name: Run golf checker
         run: |
           cd scripts
-          python golf_checker.py --test
+          if [ "${{ inputs.test_mode || 'false' }}" = "true" ]; then
+            python golf_checker.py --test
+          else
+            python golf_checker.py
+          fi
