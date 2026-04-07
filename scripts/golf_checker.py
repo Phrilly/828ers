@@ -159,7 +159,6 @@ def resolve_tee(raw, default_tee, tees):
     if marker and marker in tees:
         return tees[marker]
 
-    # Try course_rating + slope match as a secondary lookup
     cr = raw.get("CourseRating")
     sl = raw.get("Slope")
     if cr and sl:
@@ -181,10 +180,9 @@ def resolve_tee(raw, default_tee, tees):
 def send_email(subject, body):
     """
     Send a plain-text alert email using SMTP settings from config.
-    Config keys used: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
-                      EMAIL_FROM, EMAIL_TO.
-    Only called for non-PCC discrepancies and HI mismatches (Rules 5 & 7).
-    PCC corrections are never included here (Rule 6).
+    Config keys: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
+                 EMAIL_FROM, EMAIL_TO.
+    Called only for Rules 5 and 7 discrepancies. Never for PCC (Rule 6).
     """
     try:
         msg = MIMEMultipart()
@@ -217,14 +215,12 @@ def check():
     log.info("Checking EG scores for yesterday: %s", yesterday_str)
     log.info("Note: scores for today (%s) are always ignored", date.today())
 
-    # EG login
     try:
         session = eg_login()
     except Exception as exc:
         log.error("EG login failed: %s", exc)
         sys.exit(1)
 
-    # DB connection
     try:
         conn = get_conn()
     except Exception as exc:
@@ -244,13 +240,12 @@ def check():
     log.info("DB players : %s", list(db_players.keys()))
     log.info("DB tees    : %s", list(tees.keys()))
 
-    # Collects all discrepancy blocks for the single summary email
     discrepancy_lines = []
     results           = []
 
     for player_cfg in config.PLAYERS:
         name    = player_cfg["name"]
-        eg_id   = player_cfg["eg_passport_id"]   # CDH number, or None for Phil D
+        eg_id   = player_cfg["eg_passport_id"]
         def_tee = player_cfg["default_tee"]
 
         log.info("--- %s (eg_id=%s) ---", name, eg_id)
@@ -264,7 +259,6 @@ def check():
 
         player_id = db_row["player_id"]
 
-        # Fetch EG score history
         try:
             raw_scores = eg_fetch_scores(session, passport_id=eg_id, page_size=40)
             log.info("  EG returned %d records", len(raw_scores))
@@ -274,13 +268,13 @@ def check():
                             "eg_hi": None, "local_hi": None})
             continue
 
-        # Rule 2: filter strictly to yesterday only -- today is always ignored
+        # Rule 2: yesterday only -- today is always ignored
         yesterday_records = [
             r for r in raw_scores
             if parse_play_date(r) == yesterday_str
         ]
 
-        # Read HI values regardless of whether a yesterday score was found
+        # HI is read regardless of whether a yesterday score was found
         eg_hi    = parse_hi(raw_scores[0]) if raw_scores else None
         local_hi = read_local_hi(conn, name)
 
@@ -298,14 +292,13 @@ def check():
                             "issues": 0, "eg_hi": eg_hi, "local_hi": local_hi})
             continue
 
-        # Use the first record returned for yesterday
         raw = yesterday_records[0]
 
         eg_gross   = parse_gross(raw)
         eg_pcc     = parse_pcc(raw)
         eg_tee_row = resolve_tee(raw, def_tee, tees)
         eg_tee_id  = eg_tee_row["tee_id"]     if eg_tee_row else None
-        eg_tee_col = eg_tee_row["tee_colour"]  if eg_tee_row else "UNKNOWN"
+        eg_tee_col = eg_tee_row["tee_colour"] if eg_tee_row else "UNKNOWN"
 
         log.info(
             "  EG: gross=%s  tee=%s (tee_id=%s)  pcc=%s",
@@ -317,11 +310,9 @@ def check():
             "{:.1f}".format(local_hi) if local_hi is not None else "n/a",
         )
 
-        # Look for an existing DB record for this player on yesterday's date
         db_score = get_db_score(conn, player_id, yesterday_str)
 
         if db_score is None:
-            # Rule 1: no record exists and we never insert -- log and move on
             log.info(
                 "  No DB record for %s on %s -- "
                 "no action taken (Rule 1: inserts are forbidden)",
@@ -343,9 +334,7 @@ def check():
 
         player_issues = []
 
-        # -------------------------------------------------------------------
-        # Rule 4: if EG PCC is non-zero, update DB silently -- no email
-        # -------------------------------------------------------------------
+        # Rule 4: non-zero PCC on EG -- update DB silently, no email
         if eg_pcc != 0:
             if int(eg_pcc) != int(db_pcc):
                 log.info(
@@ -361,45 +350,32 @@ def check():
                         name, yesterday_str, exc,
                     )
             else:
-                log.info(
-                    "  PCC already matches EG: %s -- no update needed", eg_pcc
-                )
+                log.info("  PCC already matches EG: %s -- no update needed", eg_pcc)
         else:
             log.info("  PCC is 0 on EG -- no PCC update required")
 
-        # -------------------------------------------------------------------
-        # Rule 5: check gross score -- add to email if different
-        # -------------------------------------------------------------------
+        # Rule 5: gross score check
         if eg_gross is not None and db_gross is not None:
             if int(eg_gross) != int(db_gross):
                 player_issues.append(
-                    "  Gross score mismatch:  EG={}  DB={}".format(
-                        eg_gross, db_gross
-                    )
+                    "  Gross score mismatch:  EG={}  DB={}".format(eg_gross, db_gross)
                 )
 
-        # -------------------------------------------------------------------
-        # Rule 5: check tee -- add to email if different
-        # -------------------------------------------------------------------
+        # Rule 5: tee check
         if eg_tee_id is not None and db_tee_id is not None:
             if int(eg_tee_id) != int(db_tee_id):
                 player_issues.append(
                     "  Tee mismatch:  EG tee_id={} ({})  DB tee_id={}".format(
-                        eg_tee_id, eg_tee_col, db_tee_id
-                    )
+                        eg_tee_id, eg_tee_col, db_tee_id)
                 )
 
-        # -------------------------------------------------------------------
-        # Rule 7: check HI -- add to email unless this player is in
-        # HI_IGNORE_PLAYERS (Jay is always excluded from HI alerts)
-        # -------------------------------------------------------------------
+        # Rule 7: HI check -- suppressed for Jay, emailed for everyone else
         if name not in HI_IGNORE_PLAYERS:
             if eg_hi is not None and local_hi is not None:
                 if abs(eg_hi - local_hi) > 0.5:
                     player_issues.append(
                         "  HI mismatch:  EG={:.1f}  Local={:.1f}  diff={:.1f}".format(
-                            eg_hi, local_hi, abs(eg_hi - local_hi)
-                        )
+                            eg_hi, local_hi, abs(eg_hi - local_hi))
                     )
         else:
             if eg_hi is not None and local_hi is not None and abs(eg_hi - local_hi) > 0.5:
@@ -410,8 +386,7 @@ def check():
                 )
 
         if player_issues:
-            block = "Player: {}  |  Date: {}
-{}".format(
+            block = "Player: {}  |  Date: {}\n{}".format(
                 name, yesterday_str, "\n".join(player_issues)
             )
             discrepancy_lines.append(block)
@@ -431,9 +406,7 @@ def check():
 
     conn.close()
 
-    # -----------------------------------------------------------------------
-    # Send one summary email covering all non-PCC discrepancies (Rules 5 & 7)
-    # -----------------------------------------------------------------------
+    # Send one summary email for all non-PCC discrepancies (Rules 5 & 7)
     if discrepancy_lines:
         subject = "828ers EG Score Discrepancy Alert - {}".format(yesterday_str)
         body = (
@@ -453,7 +426,6 @@ def check():
     else:
         log.info("No discrepancies found -- no alert email sent")
 
-    # Summary log
     log.info("")
     log.info("=== CHECK COMPLETE ===")
     log.info("%-14s  %-26s  %-6s  %-8s  %s",
