@@ -1,0 +1,58 @@
+name: 828ers Daily Score Checker
+
+on:
+  schedule:
+    # Runs at 6:00 AM Europe/London time (BST/GMT)
+    - cron: '0 6 * * *'
+      timezone: 'Europe/London'
+  workflow_dispatch:
+    # Adds a manual "Run" button in the GitHub Actions tab
+
+jobs:
+  check-scores:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pymysql requests
+
+      - name: Create config.py from Secrets
+        run: |
+          cat << 'EOF' > scripts/config.py
+          EG_USERNAME = "1017311170"
+          EG_PASSWORD = "${{ secrets.EG_PASSWORD }}"
+          DB_HOST     = "srv1038.hstgr.io"
+          DB_PORT     = 3306
+          DB_NAME     = "u271511030_9syka"
+          DB_USER     = "u271511030_AFpgR"
+          DB_PASSWORD = "${{ secrets.DB_PASSWORD }}"
+          DB_PREFIX   = "wp_"
+          SMTP_HOST     = "smtp.gmail.com"
+          SMTP_PORT     = 587
+          SMTP_USER     = "pirip.dunne@gmail.com"
+          SMTP_PASSWORD = "${{ secrets.SMTP_PASSWORD }}"
+          EMAIL_FROM    = "pirrip.dunne@gmail.com"
+          EMAIL_TO      = "pirip.dunne@gmail.com"
+          LOOKBACK_DAYS = 5
+          PLAYERS = [
+              {"code": "PD", "name": "Phil D", "eg_passport_id": None, "default_tee": "Green"},
+              {"code": "PB", "name": "Phil B", "eg_passport_id": 463380, "default_tee": "Blue"},
+              {"code": "JC", "name": "Jay", "eg_passport_id": 1259586, "default_tee": "Red"},
+              {"code": "AC", "name": "Adder", "eg_passport_id": 1259582, "default_tee": "Purple"},
+          ]
+          EOF
+
+      - name: Run Golf Checker
+        run: |
+          cd scripts
+          python golf_checker.py
