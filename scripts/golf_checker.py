@@ -1,10 +1,23 @@
 """
 golf_checker.py
-Daily sync: logs in as Phil D, fetches scores for all 4 players,
-upserts into wp_golf_scores. The AFTER INSERT trigger fires
-sp_process_single_round() which rebuilds wp_golf_handicap_history.
+Daily checker: logs in as Phil D, fetches yesterday's scores from EG
+for all 4 players and compares them against existing records in
+wp_golf_scores.
 
-Confirmed April 2026:
+Rules (confirmed April 2026):
+  1. NEVER insert new scores into the DB under any circumstances.
+  2. Only check scores dated yesterday (the day before the script runs).
+     Scores for today are always ignored.
+  3. For each player, compare gross score, tee and PCC from EG against
+     the existing DB row for that date.
+  4. If EG reports a non-zero PCC, silently update pcc_adjustment in the
+     DB to match EG regardless of the current DB value. No email is sent.
+  5. For gross score or tee discrepancies, send one summary alert email.
+  6. PCC corrections are never included in the discrepancy email.
+  7. HI mismatch triggers an alert email for all players EXCEPT Jay,
+     whose HI is known to diverge from EG and is always ignored.
+
+EG field notes (confirmed April 2026):
   - otherPassportId in GetMyScores = CDH number (NOT passport number)
   - Phil D uses None (he is the logged-in account)
   - Score fields: PlayDate (DD/MM/YYYY), AdjustedGross, Marker,
@@ -14,6 +27,9 @@ Confirmed April 2026:
 import sys
 import os
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 
 import pymysql
@@ -42,7 +58,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-LOOKBACK_DAYS = getattr(config, "LOOKBACK_DAYS", 5)
+# Rule 7: HI mismatch is ignored for this player
+HI_IGNORE_PLAYERS = {"Jay"}
 
 
 # ---------------------------------------------------------------------------
@@ -80,31 +97,40 @@ def load_tees(conn):
         return {r["tee_colour"].lower(): r for r in cur.fetchall()}
 
 
-def score_exists(conn, player_id, date_played, gross):
+def get_db_score(conn, player_id, date_played):
+    """
+    Return the DB score row for a player on a specific date, or None
+    if no record exists. Checks date only -- not gross or tee.
+    """
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT score_id FROM {}golf_scores "
-            "WHERE player_id=%s AND date_played=%s AND gross_score=%s".format(
-                config.DB_PREFIX
-            ),
-            (player_id, date_played, gross),
+            "SELECT score_id, gross_score, tee_id, pcc_adjustment "
+            "FROM {}golf_scores "
+            "WHERE player_id=%s AND date_played=%s".format(config.DB_PREFIX),
+            (player_id, date_played),
         )
-        return cur.fetchone() is not None
+        return cur.fetchone()
 
 
-def insert_score(conn, player_id, tee_id, date_played, gross, pcc):
+def update_pcc(conn, score_id, new_pcc):
+    """
+    Silently correct pcc_adjustment on an existing score row.
+    Called only when EG reports a non-zero PCC. No email is sent (Rule 6).
+    """
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO {}golf_scores "
-            "(player_id, date_played, tee_id, gross_score, pcc_adjustment, "
-            "putts, gir, is_excluded) "
-            "VALUES (%s, %s, %s, %s, %s, 0, 0, 0)".format(config.DB_PREFIX),
-            (player_id, date_played, tee_id, gross, pcc),
+            "UPDATE {}golf_scores SET pcc_adjustment=%s "
+            "WHERE score_id=%s".format(config.DB_PREFIX),
+            (int(new_pcc), score_id),
         )
     conn.commit()
 
 
 def read_local_hi(conn, player_name):
+    """
+    Read the player's current handicap index from view_handicap_index.
+    Returns a float or None if the view is unavailable.
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -127,13 +153,13 @@ def resolve_tee(raw, default_tee, tees):
     """
     Match an EG score record to a row in wp_golf_tees.
     EG uses 'Marker' for tee colour (e.g. 'White', 'Yellow', 'Red').
-    Falls back to the player's default tee from config.
+    Falls back to the player's default tee from config if no match found.
     """
     marker = (raw.get("Marker") or "").strip().lower()
     if marker and marker in tees:
         return tees[marker]
 
-    # Try course_rating + slope match
+    # Try course_rating + slope match as a secondary lookup
     cr = raw.get("CourseRating")
     sl = raw.get("Slope")
     if cr and sl:
@@ -145,20 +171,53 @@ def resolve_tee(raw, default_tee, tees):
             except (TypeError, ValueError):
                 continue
 
-    # Fall back to player default
     return tees.get(default_tee.lower())
 
 
 # ---------------------------------------------------------------------------
-# Main sync
+# Email
 # ---------------------------------------------------------------------------
 
-def sync():
-    log.info("=== 828ers EG Daily Sync - %s ===", date.today())
-    cutoff = date.today() - timedelta(days=LOOKBACK_DAYS)
-    log.info("Checking scores back to %s", cutoff)
+def send_email(subject, body):
+    """
+    Send a plain-text alert email using SMTP settings from config.
+    Config keys used: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
+                      EMAIL_FROM, EMAIL_TO.
+    Only called for non-PCC discrepancies and HI mismatches (Rules 5 & 7).
+    PCC corrections are never included here (Rule 6).
+    """
+    try:
+        msg = MIMEMultipart()
+        msg["From"]    = config.EMAIL_FROM
+        msg["To"]      = config.EMAIL_TO
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
 
-    # Login
+        with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.login(config.SMTP_USER, config.SMTP_PASSWORD)
+            smtp.sendmail(config.EMAIL_FROM, config.EMAIL_TO, msg.as_string())
+
+        log.info("Alert email sent: %s", subject)
+
+    except Exception as exc:
+        log.error("Failed to send email '%s': %s", subject, exc)
+
+
+# ---------------------------------------------------------------------------
+# Main checker
+# ---------------------------------------------------------------------------
+
+def check():
+    yesterday     = date.today() - timedelta(days=1)
+    yesterday_str = yesterday.isoformat()
+
+    log.info("=== 828ers EG Daily Check - %s ===", date.today())
+    log.info("Checking EG scores for yesterday: %s", yesterday_str)
+    log.info("Note: scores for today (%s) are always ignored", date.today())
+
+    # EG login
     try:
         session = eg_login()
     except Exception as exc:
@@ -173,7 +232,7 @@ def sync():
         sys.exit(1)
 
     db_players = load_players(conn)
-    tees = load_tees(conn)
+    tees       = load_tees(conn)
 
     if not db_players:
         log.error("No players in %sgolf_players. Check DB config.", config.DB_PREFIX)
@@ -185,11 +244,13 @@ def sync():
     log.info("DB players : %s", list(db_players.keys()))
     log.info("DB tees    : %s", list(tees.keys()))
 
-    results = []
+    # Collects all discrepancy blocks for the single summary email
+    discrepancy_lines = []
+    results           = []
 
     for player_cfg in config.PLAYERS:
         name    = player_cfg["name"]
-        eg_id   = player_cfg["eg_passport_id"]   # CDH, or None for Phil D
+        eg_id   = player_cfg["eg_passport_id"]   # CDH number, or None for Phil D
         def_tee = player_cfg["default_tee"]
 
         log.info("--- %s (eg_id=%s) ---", name, eg_id)
@@ -197,103 +258,217 @@ def sync():
         db_row = db_players.get(name)
         if not db_row:
             log.warning("'%s' not found in wp_golf_players -- skipping", name)
-            results.append({"name": name, "status": "NOT IN DB", "inserted": 0})
+            results.append({"name": name, "status": "NOT IN DB", "issues": 0,
+                            "eg_hi": None, "local_hi": None})
             continue
 
         player_id = db_row["player_id"]
 
-        # Fetch EG scores
+        # Fetch EG score history
         try:
             raw_scores = eg_fetch_scores(session, passport_id=eg_id, page_size=40)
             log.info("  EG returned %d records", len(raw_scores))
         except Exception as exc:
             log.error("  EG fetch failed: %s", exc)
-            results.append({"name": name, "status": "EG ERROR", "inserted": 0})
+            results.append({"name": name, "status": "EG ERROR", "issues": 0,
+                            "eg_hi": None, "local_hi": None})
             continue
 
-        inserted = 0
-        for raw in raw_scores:
-            date_played = parse_play_date(raw)
-            if not date_played:
-                continue
-            if date_played < cutoff.isoformat():
-                continue
+        # Rule 2: filter strictly to yesterday only -- today is always ignored
+        yesterday_records = [
+            r for r in raw_scores
+            if parse_play_date(r) == yesterday_str
+        ]
 
-            gross = parse_gross(raw)
-            if not gross:
-                continue
-
-            pcc = parse_pcc(raw)
-
-            tee_row = resolve_tee(raw, def_tee, tees)
-            if not tee_row:
-                log.warning(
-                    "  Cannot resolve tee for %s on %s (Marker=%s) -- skipping",
-                    name, date_played, raw.get("Marker"),
-                )
-                continue
-
-            if score_exists(conn, player_id, date_played, gross):
-                log.info(
-                    "  SKIP duplicate: %s %s gross=%s", name, date_played, gross
-                )
-                continue
-
-            try:
-                insert_score(
-                    conn, player_id, tee_row["tee_id"], date_played, gross, pcc
-                )
-                log.info(
-                    "  INSERTED %s  %s  gross=%s  tee=%s",
-                    name, date_played, gross, tee_row["tee_colour"],
-                )
-                inserted += 1
-            except Exception as exc:
-                log.error("  INSERT failed for %s on %s: %s", name, date_played, exc)
-                conn.rollback()
-
-        # Read back local HI (after trigger has fired for any new inserts)
+        # Read HI values regardless of whether a yesterday score was found
+        eg_hi    = parse_hi(raw_scores[0]) if raw_scores else None
         local_hi = read_local_hi(conn, name)
-        eg_hi = parse_hi(raw_scores[0]) if raw_scores else None
 
-        if eg_hi and local_hi and abs(eg_hi - local_hi) > 0.5:
-            log.warning(
-                "  HI mismatch: EG=%.1f  Local=%.1f  diff=%.1f",
-                eg_hi, local_hi, abs(eg_hi - local_hi),
+        if not yesterday_records:
+            log.info(
+                "  No EG score found for %s on %s -- nothing to check",
+                name, yesterday_str,
             )
+            log.info(
+                "  EG HI=%s  Local HI=%s",
+                "{:.1f}".format(eg_hi)    if eg_hi    is not None else "n/a",
+                "{:.1f}".format(local_hi) if local_hi is not None else "n/a",
+            )
+            results.append({"name": name, "status": "NO EG SCORE YESTERDAY",
+                            "issues": 0, "eg_hi": eg_hi, "local_hi": local_hi})
+            continue
+
+        # Use the first record returned for yesterday
+        raw = yesterday_records[0]
+
+        eg_gross   = parse_gross(raw)
+        eg_pcc     = parse_pcc(raw)
+        eg_tee_row = resolve_tee(raw, def_tee, tees)
+        eg_tee_id  = eg_tee_row["tee_id"]     if eg_tee_row else None
+        eg_tee_col = eg_tee_row["tee_colour"]  if eg_tee_row else "UNKNOWN"
 
         log.info(
-            "  Inserted=%d  EG HI=%s  Local HI=%s",
-            inserted,
-            "{:.1f}".format(eg_hi) if eg_hi is not None else "n/a",
+            "  EG: gross=%s  tee=%s (tee_id=%s)  pcc=%s",
+            eg_gross, eg_tee_col, eg_tee_id, eg_pcc,
+        )
+        log.info(
+            "  EG HI=%s  Local HI=%s",
+            "{:.1f}".format(eg_hi)    if eg_hi    is not None else "n/a",
             "{:.1f}".format(local_hi) if local_hi is not None else "n/a",
         )
 
+        # Look for an existing DB record for this player on yesterday's date
+        db_score = get_db_score(conn, player_id, yesterday_str)
+
+        if db_score is None:
+            # Rule 1: no record exists and we never insert -- log and move on
+            log.info(
+                "  No DB record for %s on %s -- "
+                "no action taken (Rule 1: inserts are forbidden)",
+                name, yesterday_str,
+            )
+            results.append({"name": name, "status": "NO DB RECORD FOR DATE",
+                            "issues": 0, "eg_hi": eg_hi, "local_hi": local_hi})
+            continue
+
+        score_id  = db_score["score_id"]
+        db_gross  = db_score["gross_score"]
+        db_tee_id = db_score["tee_id"]
+        db_pcc    = db_score["pcc_adjustment"]
+
+        log.info(
+            "  DB:  gross=%s  tee_id=%s  pcc=%s",
+            db_gross, db_tee_id, db_pcc,
+        )
+
+        player_issues = []
+
+        # -------------------------------------------------------------------
+        # Rule 4: if EG PCC is non-zero, update DB silently -- no email
+        # -------------------------------------------------------------------
+        if eg_pcc != 0:
+            if int(eg_pcc) != int(db_pcc):
+                log.info(
+                    "  PCC UPDATED %s %s: DB had %s --> EG says %s "
+                    "(no email per Rule 6)",
+                    name, yesterday_str, db_pcc, eg_pcc,
+                )
+                try:
+                    update_pcc(conn, score_id, eg_pcc)
+                except Exception as exc:
+                    log.error(
+                        "  PCC update failed for %s on %s: %s",
+                        name, yesterday_str, exc,
+                    )
+            else:
+                log.info(
+                    "  PCC already matches EG: %s -- no update needed", eg_pcc
+                )
+        else:
+            log.info("  PCC is 0 on EG -- no PCC update required")
+
+        # -------------------------------------------------------------------
+        # Rule 5: check gross score -- add to email if different
+        # -------------------------------------------------------------------
+        if eg_gross is not None and db_gross is not None:
+            if int(eg_gross) != int(db_gross):
+                player_issues.append(
+                    "  Gross score mismatch:  EG={}  DB={}".format(
+                        eg_gross, db_gross
+                    )
+                )
+
+        # -------------------------------------------------------------------
+        # Rule 5: check tee -- add to email if different
+        # -------------------------------------------------------------------
+        if eg_tee_id is not None and db_tee_id is not None:
+            if int(eg_tee_id) != int(db_tee_id):
+                player_issues.append(
+                    "  Tee mismatch:  EG tee_id={} ({})  DB tee_id={}".format(
+                        eg_tee_id, eg_tee_col, db_tee_id
+                    )
+                )
+
+        # -------------------------------------------------------------------
+        # Rule 7: check HI -- add to email unless this player is in
+        # HI_IGNORE_PLAYERS (Jay is always excluded from HI alerts)
+        # -------------------------------------------------------------------
+        if name not in HI_IGNORE_PLAYERS:
+            if eg_hi is not None and local_hi is not None:
+                if abs(eg_hi - local_hi) > 0.5:
+                    player_issues.append(
+                        "  HI mismatch:  EG={:.1f}  Local={:.1f}  diff={:.1f}".format(
+                            eg_hi, local_hi, abs(eg_hi - local_hi)
+                        )
+                    )
+        else:
+            if eg_hi is not None and local_hi is not None and abs(eg_hi - local_hi) > 0.5:
+                log.info(
+                    "  HI mismatch noted for Jay (ignored per Rule 7): "
+                    "EG=%.1f  Local=%.1f",
+                    eg_hi, local_hi,
+                )
+
+        if player_issues:
+            block = "Player: {}  |  Date: {}
+{}".format(
+                name, yesterday_str, "\n".join(player_issues)
+            )
+            discrepancy_lines.append(block)
+            log.warning("  Discrepancies found for %s:", name)
+            for issue in player_issues:
+                log.warning(issue)
+        else:
+            log.info("  All data matches for %s on %s", name, yesterday_str)
+
         results.append({
             "name":     name,
-            "status":   "OK",
-            "inserted": inserted,
+            "status":   "CHECKED",
+            "issues":   len(player_issues),
             "eg_hi":    eg_hi,
             "local_hi": local_hi,
         })
 
     conn.close()
 
+    # -----------------------------------------------------------------------
+    # Send one summary email covering all non-PCC discrepancies (Rules 5 & 7)
+    # -----------------------------------------------------------------------
+    if discrepancy_lines:
+        subject = "828ers EG Score Discrepancy Alert - {}".format(yesterday_str)
+        body = (
+            "The following discrepancies were found between EG and the "
+            "828ers DB for scores dated {}:\n\n".format(yesterday_str)
+        )
+        body += "\n\n".join(discrepancy_lines)
+        body += (
+            "\n\n---\n"
+            "Note: any PCC corrections have been applied to the DB automatically "
+            "and are not included in this alert (Rule 6).\n"
+            "Jay's HI discrepancy is always suppressed (Rule 7).\n"
+            "No scores were inserted or deleted. The DB is read-only except "
+            "for PCC corrections (Rule 1)."
+        )
+        send_email(subject, body)
+    else:
+        log.info("No discrepancies found -- no alert email sent")
+
+    # Summary log
     log.info("")
-    log.info("=== SYNC COMPLETE ===")
-    log.info("%-10s  %-10s  %-8s  %-8s  %s",
-             "Player", "Status", "Inserted", "EG HI", "Local HI")
-    log.info("-" * 52)
+    log.info("=== CHECK COMPLETE ===")
+    log.info("%-14s  %-26s  %-6s  %-8s  %s",
+             "Player", "Status", "Issues", "EG HI", "Local HI")
+    log.info("-" * 68)
     for r in results:
         log.info(
-            "%-10s  %-10s  %-8d  %-8s  %s",
+            "%-14s  %-26s  %-6s  %-8s  %s",
             r["name"],
             r["status"],
-            r.get("inserted", 0),
+            str(r.get("issues", "-")),
             "{:.1f}".format(r["eg_hi"])    if r.get("eg_hi")    is not None else "n/a",
             "{:.1f}".format(r["local_hi"]) if r.get("local_hi") is not None else "n/a",
         )
 
 
 if __name__ == "__main__":
-    sync()
+    check()
