@@ -17,6 +17,10 @@ Rules (confirmed April 2026):
   7. HI mismatch triggers an alert email for all players EXCEPT Jay,
      whose HI is known to diverge from EG and is always ignored.
 
+Usage:
+  python golf_checker.py           # normal run -- checks yesterday
+  python golf_checker.py --test    # test run -- checks today's scores
+
 EG field notes (confirmed April 2026):
   - otherPassportId in GetMyScores = CDH number (NOT passport number)
   - Phil D uses None (he is the logged-in account)
@@ -26,6 +30,7 @@ EG field notes (confirmed April 2026):
 
 import sys
 import os
+import argparse
 import logging
 import smtplib
 from email.mime.text import MIMEText
@@ -207,13 +212,19 @@ def send_email(subject, body):
 # Main checker
 # ---------------------------------------------------------------------------
 
-def check():
-    yesterday     = date.today() - timedelta(days=1)
-    yesterday_str = yesterday.isoformat()
-
-    log.info("=== 828ers EG Daily Check - %s ===", date.today())
-    log.info("Checking EG scores for yesterday: %s", yesterday_str)
-    log.info("Note: scores for today (%s) are always ignored", date.today())
+def check(test_mode=False):
+    if test_mode:
+        check_date     = date.today()
+        check_date_str = check_date.isoformat()
+        log.info("=== 828ers EG Daily Check - %s [TEST MODE] ===", date.today())
+        log.info("TEST MODE: checking today's scores (%s) instead of yesterday", check_date_str)
+        log.info("TEST MODE: PCC corrections and emails behave exactly as in production")
+    else:
+        check_date     = date.today() - timedelta(days=1)
+        check_date_str = check_date.isoformat()
+        log.info("=== 828ers EG Daily Check - %s ===", date.today())
+        log.info("Checking EG scores for yesterday: %s", check_date_str)
+        log.info("Note: scores for today (%s) are always ignored in normal mode", date.today())
 
     try:
         session = eg_login()
@@ -268,37 +279,37 @@ def check():
                             "eg_hi": None, "local_hi": None})
             continue
 
-        # Rule 2: yesterday only -- today is always ignored
-        yesterday_records = [
+        # Filter to the target date (yesterday in normal mode, today in test mode)
+        target_records = [
             r for r in raw_scores
-            if parse_play_date(r) == yesterday_str
+            if parse_play_date(r) == check_date_str
         ]
 
-        # HI is read regardless of whether a yesterday score was found
+        # HI is read regardless of whether a target-date score was found
         eg_hi    = parse_hi(raw_scores[0]) if raw_scores else None
         local_hi = read_local_hi(conn, name)
 
-        if not yesterday_records:
+        if not target_records:
             log.info(
                 "  No EG score found for %s on %s -- nothing to check",
-                name, yesterday_str,
+                name, check_date_str,
             )
             log.info(
                 "  EG HI=%s  Local HI=%s",
                 "{:.1f}".format(eg_hi)    if eg_hi    is not None else "n/a",
                 "{:.1f}".format(local_hi) if local_hi is not None else "n/a",
             )
-            results.append({"name": name, "status": "NO EG SCORE YESTERDAY",
+            results.append({"name": name, "status": "NO EG SCORE FOR DATE",
                             "issues": 0, "eg_hi": eg_hi, "local_hi": local_hi})
             continue
 
-        raw = yesterday_records[0]
+        raw = target_records[0]
 
         eg_gross   = parse_gross(raw)
         eg_pcc     = parse_pcc(raw)
         eg_tee_row = resolve_tee(raw, def_tee, tees)
         eg_tee_id  = eg_tee_row["tee_id"]     if eg_tee_row else None
-        eg_tee_col = eg_tee_row["tee_colour"] if eg_tee_row else "UNKNOWN"
+        eg_tee_col = eg_tee_row["tee_colour"]  if eg_tee_row else "UNKNOWN"
 
         log.info(
             "  EG: gross=%s  tee=%s (tee_id=%s)  pcc=%s",
@@ -310,13 +321,13 @@ def check():
             "{:.1f}".format(local_hi) if local_hi is not None else "n/a",
         )
 
-        db_score = get_db_score(conn, player_id, yesterday_str)
+        db_score = get_db_score(conn, player_id, check_date_str)
 
         if db_score is None:
             log.info(
                 "  No DB record for %s on %s -- "
                 "no action taken (Rule 1: inserts are forbidden)",
-                name, yesterday_str,
+                name, check_date_str,
             )
             results.append({"name": name, "status": "NO DB RECORD FOR DATE",
                             "issues": 0, "eg_hi": eg_hi, "local_hi": local_hi})
@@ -340,14 +351,14 @@ def check():
                 log.info(
                     "  PCC UPDATED %s %s: DB had %s --> EG says %s "
                     "(no email per Rule 6)",
-                    name, yesterday_str, db_pcc, eg_pcc,
+                    name, check_date_str, db_pcc, eg_pcc,
                 )
                 try:
                     update_pcc(conn, score_id, eg_pcc)
                 except Exception as exc:
                     log.error(
                         "  PCC update failed for %s on %s: %s",
-                        name, yesterday_str, exc,
+                        name, check_date_str, exc,
                     )
             else:
                 log.info("  PCC already matches EG: %s -- no update needed", eg_pcc)
@@ -386,15 +397,17 @@ def check():
                 )
 
         if player_issues:
-            block = "Player: {}  |  Date: {}\n{}".format(
-                name, yesterday_str, "\n".join(player_issues)
+            block = "Player: {}  |  Date: {}{}{}".format(
+                name, check_date_str,
+                " [TEST MODE]" if test_mode else "",
+                "\n" + "\n".join(player_issues)
             )
             discrepancy_lines.append(block)
             log.warning("  Discrepancies found for %s:", name)
             for issue in player_issues:
                 log.warning(issue)
         else:
-            log.info("  All data matches for %s on %s", name, yesterday_str)
+            log.info("  All data matches for %s on %s", name, check_date_str)
 
         results.append({
             "name":     name,
@@ -408,10 +421,14 @@ def check():
 
     # Send one summary email for all non-PCC discrepancies (Rules 5 & 7)
     if discrepancy_lines:
-        subject = "828ers EG Score Discrepancy Alert - {}".format(yesterday_str)
+        subject = "{}828ers EG Score Discrepancy Alert - {}".format(
+            "[TEST] " if test_mode else "", check_date_str
+        )
         body = (
-            "The following discrepancies were found between EG and the "
-            "828ers DB for scores dated {}:\n\n".format(yesterday_str)
+            "{}The following discrepancies were found between EG and the "
+            "828ers DB for scores dated {}:\n\n".format(
+            "*** TEST MODE -- checking today's scores ***\n\n" if test_mode else "",
+            check_date_str)
         )
         body += "\n\n".join(discrepancy_lines)
         body += (
@@ -426,8 +443,9 @@ def check():
     else:
         log.info("No discrepancies found -- no alert email sent")
 
+    mode_label = " [TEST MODE]" if test_mode else ""
     log.info("")
-    log.info("=== CHECK COMPLETE ===")
+    log.info("=== CHECK COMPLETE%s ===", mode_label)
     log.info("%-14s  %-26s  %-6s  %-8s  %s",
              "Player", "Status", "Issues", "EG HI", "Local HI")
     log.info("-" * 68)
@@ -443,4 +461,11 @@ def check():
 
 
 if __name__ == "__main__":
-    check()
+    parser = argparse.ArgumentParser(description="828ers EG daily score checker")
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Test mode: check today's scores instead of yesterday's",
+    )
+    args = parser.parse_args()
+    check(test_mode=args.test)
