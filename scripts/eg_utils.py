@@ -34,20 +34,17 @@ HEADERS = {
     "Accept-Language": "en-GB,en;q=0.9",
 }
 
-
 class EGLoginError(Exception):
     pass
 
-
 # ── Session management ──────────────────────────────────────────────────────
 
-def _make_session() -> requests.Session:
+def _make_session():
     s = requests.Session()
     s.headers.update(HEADERS)
     return s
 
-
-def _do_fresh_login() -> requests.Session:
+def _do_fresh_login():
     session = _make_session()
 
     log.info("EG: GET %s", LOGIN_URL)
@@ -111,8 +108,7 @@ def _do_fresh_login() -> requests.Session:
     log.info("EG: Login OK — cookies: %s", list(session.cookies.keys()))
     return session
 
-
-def _load_saved_session() -> requests.Session | None:
+def _load_saved_session():
     if not os.path.exists(SESSION_FILE):
         return None
     try:
@@ -135,14 +131,12 @@ def _load_saved_session() -> requests.Session | None:
             pass
         return None
 
-
-def _save_session(session: requests.Session):
+def _save_session(session):
     with open(SESSION_FILE, "wb") as f:
         pickle.dump(session, f)
     log.info("EG: session saved to %s", SESSION_FILE)
 
-
-def eg_login() -> requests.Session:
+def eg_login():
     """Return an authenticated EG session, reusing saved session if valid."""
     session = _load_saved_session()
     if session:
@@ -151,12 +145,9 @@ def eg_login() -> requests.Session:
     _save_session(session)
     return session
 
-
 # ── API helpers ─────────────────────────────────────────────────────────────
 
-def eg_fetch_scores(session: requests.Session,
-                    passport_id=None,
-                    page_size: int = 40) -> list[dict]:
+def eg_fetch_scores(session, passport_id=None, page_size=40):
     """
     Fetch scores for a player.
     passport_id=None  → Phil D (the logged-in account)
@@ -189,8 +180,7 @@ def eg_fetch_scores(session: requests.Session,
     log.warning("Unexpected scores API shape: %s", str(data)[:200])
     return []
 
-
-def eg_fetch_hi(session: requests.Session, passport_id=None) -> float | None:
+def eg_fetch_hi(session, passport_id=None):
     """Fetch current Handicap Index. Returns float or None."""
     try:
         r = session.post(
@@ -211,8 +201,7 @@ def eg_fetch_hi(session: requests.Session, passport_id=None) -> float | None:
         log.warning("EG HI fetch failed (passport=%s): %s", passport_id, exc)
     return None
 
-
-def eg_fetch_friends(session: requests.Session) -> list[dict]:
+def eg_fetch_friends(session):
     """
     Load /my-friends and extract linked friend profile links.
     Returns list of dicts: {name, passportid, code, url}
@@ -249,10 +238,9 @@ def eg_fetch_friends(session: requests.Session) -> list[dict]:
 
     return friends
 
-
 # ── Score field mapping ──────────────────────────────────────────────────────
 
-def parse_play_date(raw: dict) -> str | None:
+def parse_play_date(raw):
     """
     EG returns PlayDate as 'DD/MM/YYYY'. Convert to 'YYYY-MM-DD' for MySQL.
     """
@@ -268,8 +256,7 @@ def parse_play_date(raw: dict) -> str | None:
         return raw_date[:10]
     return None
 
-
-def parse_gross(raw: dict) -> int | None:
+def parse_gross(raw):
     val = (
         raw.get("AdjustedGross") or raw.get("adjustedGross") or
         raw.get("GrossScore") or raw.get("grossScore") or
@@ -281,16 +268,14 @@ def parse_gross(raw: dict) -> int | None:
     except (TypeError, ValueError):
         return None
 
-
-def parse_pcc(raw: dict) -> int:
+def parse_pcc(raw):
     val = raw.get("Pcc") or raw.get("pcc") or raw.get("PCCAdjustment") or 0
     try:
         return int(float(val))
     except (TypeError, ValueError):
         return 0
 
-
-def parse_hi(raw: dict) -> float | None:
+def parse_hi(raw):
     val = raw.get("HandicapIndex") or raw.get("handicapIndex")
     try:
         return float(val)

@@ -20,12 +20,6 @@ Rules (confirmed April 2026):
 Usage:
   python golf_checker.py           # normal run -- checks yesterday
   python golf_checker.py --test    # test run -- checks today's scores
-
-EG field notes (confirmed April 2026):
-  - otherPassportId in GetMyScores = CDH number (NOT passport number)
-  - Phil D uses None (he is the logged-in account)
-  - Score fields: PlayDate (DD/MM/YYYY), AdjustedGross, Marker,
-                  Slope, CourseRating, HCDiff, HandicapIndex, Pcc
 """
 
 import sys
@@ -37,9 +31,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 
-import pymysql
-
+# --- CRITICAL FIX FOR HOSTINGER CRON ---
+# Force Python 3.6 to look in your local site-packages BEFORE importing 3rd party libs
+sys.path.insert(0, os.path.expanduser('~/.local/lib/python3.6/site-packages'))
+# Add local scripts folder for config.py and eg_utils.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import pymysql
 import config
 from eg_utils import (
     eg_login,
@@ -66,7 +64,6 @@ log = logging.getLogger(__name__)
 # Rule 7: HI mismatch is ignored for this player
 HI_IGNORE_PLAYERS = {"Jay"}
 
-
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -83,7 +80,6 @@ def get_conn():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
-
 def load_players(conn):
     with conn.cursor() as cur:
         cur.execute(
@@ -92,7 +88,6 @@ def load_players(conn):
         )
         return {r["name"]: r for r in cur.fetchall()}
 
-
 def load_tees(conn):
     with conn.cursor() as cur:
         cur.execute(
@@ -100,7 +95,6 @@ def load_tees(conn):
             "FROM {}golf_tees".format(config.DB_PREFIX)
         )
         return {r["tee_colour"].lower(): r for r in cur.fetchall()}
-
 
 def get_db_score(conn, player_id, date_played):
     """
@@ -116,7 +110,6 @@ def get_db_score(conn, player_id, date_played):
         )
         return cur.fetchone()
 
-
 def update_pcc(conn, score_id, new_pcc):
     """
     Silently correct pcc_adjustment on an existing score row.
@@ -129,7 +122,6 @@ def update_pcc(conn, score_id, new_pcc):
             (int(new_pcc), score_id),
         )
     conn.commit()
-
 
 def read_local_hi(conn, player_name):
     """
@@ -148,7 +140,6 @@ def read_local_hi(conn, player_name):
     except Exception as exc:
         log.warning("Could not read local HI for %s: %s", player_name, exc)
         return None
-
 
 # ---------------------------------------------------------------------------
 # Tee resolution
@@ -176,7 +167,6 @@ def resolve_tee(raw, default_tee, tees):
                 continue
 
     return tees.get(default_tee.lower())
-
 
 # ---------------------------------------------------------------------------
 # Email
@@ -206,7 +196,6 @@ def send_email(subject, body):
 
     except Exception as exc:
         log.error("Failed to send email '%s': %s", subject, exc)
-
 
 # ---------------------------------------------------------------------------
 # Main checker
@@ -458,7 +447,6 @@ def check(test_mode=False):
             "{:.1f}".format(r["eg_hi"])    if r.get("eg_hi")    is not None else "n/a",
             "{:.1f}".format(r["local_hi"]) if r.get("local_hi") is not None else "n/a",
         )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="828ers EG daily score checker")
