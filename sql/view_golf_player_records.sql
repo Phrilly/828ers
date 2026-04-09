@@ -107,7 +107,7 @@ from
 LowestScoreRank as (
 select
     `p`.`name` AS `player_name`,
-    `p`.`inititals` AS `player_initials`,
+    `p`.`initials` AS `player_initials`,
     `s`.`gross_score` AS `gross_score`,
     `s`.`date_played` AS `date_played`,
     row_number() over ( partition by `p`.`player_id`
