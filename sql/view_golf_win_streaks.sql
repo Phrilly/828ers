@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_win_streaks`;
 -- END_QUERY
 
--- WATERMARK 1.0.33
+-- WATERMARK 1.0.82
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_win_streaks` AS with rounds as (
 select
     `e`.`player` AS `player`,
