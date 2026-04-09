@@ -1,14 +1,14 @@
-CREATE OR REPLACE VIEW `view_last_20_rounds` AS
-SELECT
-    h.player_id      AS player_id,
-    h.score_id       AS score_id,
-    h.date_played    AS date_played,
-    h.differential   AS differential   -- ESR-adjusted value
-FROM wp_golf_handicap_history h
-WHERE h.score_id IN (
-    SELECT score_id
-    FROM wp_golf_handicap_history
-    WHERE player_id = h.player_id
-    ORDER BY date_played DESC, score_id DESC
-    LIMIT 20
-);
+DROP VIEW IF EXISTS `view_last_20_rounds`;
+-- END_QUERY
+
+-- WATERMARK 1.0.95
+CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_last_20_rounds` AS
+select
+    `view_round_differentials`.`player_id` AS `player_id`,
+    `view_round_differentials`.`score_id` AS `score_id`,
+    `view_round_differentials`.`differential` AS `differential`
+from
+    `view_round_differentials`
+where
+    `view_round_differentials`.`recency_rank` <= 20;
+-- END_QUERY
