@@ -1,7 +1,7 @@
 DROP VIEW IF EXISTS `view_golf_player_records`;
 -- END_QUERY
 
--- WATERMARK 1.0.40
+-- WATERMARK 1.0.92
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_player_records` AS with rk1 as (
 select
     `v`.`score_id` AS `score_id`,
