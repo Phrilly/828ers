@@ -45,10 +45,10 @@ import config
 from eg_utils import (
     eg_login,
     eg_fetch_scores,
-    eg_fetch_hi,
     parse_play_date,
     parse_gross,
     parse_pcc,
+    parse_hi,
 )
 
 # Setup log capture for the daily email
@@ -199,7 +199,7 @@ def send_email(subject, body):
             smtp.login(config.SMTP_USER, config.SMTP_PASSWORD)
             smtp.sendmail(config.EMAIL_FROM, config.EMAIL_TO, msg.as_string())
 
-        log.info("Alert email sent: %s", subject)
+        log.info("Email sent: %s", subject)
 
     except Exception as exc:
         log.error("Failed to send email '%s': %s", subject, exc)
@@ -226,22 +226,23 @@ def check(test_mode=False):
         session = eg_login()
     except Exception as exc:
         log.error("EG login failed: %s", exc)
+        log_stream_contents = log_stream.getvalue()
+        send_email("828ers EG Score Check - LOGIN FAILED", f"Could not log into EG API.\n\n=== RUN LOG ===\n{log_stream_contents}")
         sys.exit(1)
 
     try:
         conn = get_conn()
     except Exception as exc:
         log.error("DB connection failed: %s", exc)
+        log_stream_contents = log_stream.getvalue()
+        send_email("828ers EG Score Check - DB FAILED", f"Could not connect to DB.\n\n=== RUN LOG ===\n{log_stream_contents}")
         sys.exit(1)
 
     db_players = load_players(conn)
     tees       = load_tees(conn)
 
-    if not db_players:
-        log.error("No players in %sgolf_players. Check DB config.", config.DB_PREFIX)
-        sys.exit(1)
-    if not tees:
-        log.error("No tees in %sgolf_tees. Check DB config.", config.DB_PREFIX)
+    if not db_players or not tees:
+        log.error("Missing players or tees in DB config.")
         sys.exit(1)
 
     log.info("DB players : %s", list(db_players.keys()))
@@ -260,15 +261,22 @@ def check(test_mode=False):
         db_row = db_players.get(name)
         if not db_row:
             log.warning("'%s' not found in wp_golf_players -- skipping", name)
-            results.append({"name": name, "status": "NOT IN DB", "issues": 0,
-                            "eg_hi": None, "local_hi": None})
+            results.append({"name": name, "status": "NOT IN DB", "issues": 0, "eg_hi": None, "local_hi": None})
             continue
 
         player_id = db_row["player_id"]
         player_issues = []
 
-        # Always check HI using the live API
-        eg_hi    = eg_fetch_hi(session, passport_id=eg_id)
+        try:
+            raw_scores = eg_fetch_scores(session, passport_id=eg_id, page_size=40)
+            log.info("  EG returned %d records", len(raw_scores))
+        except Exception as exc:
+            log.error("  EG fetch failed: %s", exc)
+            results.append({"name": name, "status": "EG ERROR", "issues": len(player_issues), "eg_hi": None, "local_hi": None})
+            continue
+
+        # Extract HI from the most recent score (reverting to your original logic)
+        eg_hi = parse_hi(raw_scores[0]) if raw_scores else None
         local_hi = read_local_hi(conn, name)
 
         log.info(
@@ -287,19 +295,9 @@ def check(test_mode=False):
         else:
             if eg_hi is not None and local_hi is not None and abs(eg_hi - local_hi) > 0.05:
                 log.info(
-                    "  HI mismatch noted for %s (ignored per Rule 7): "
-                    "EG=%.1f  Local=%.1f",
+                    "  HI mismatch noted for %s (ignored per Rule 7): EG=%.1f  Local=%.1f",
                     name, eg_hi, local_hi,
                 )
-
-        try:
-            raw_scores = eg_fetch_scores(session, passport_id=eg_id, page_size=40)
-            log.info("  EG returned %d records", len(raw_scores))
-        except Exception as exc:
-            log.error("  EG fetch failed: %s", exc)
-            results.append({"name": name, "status": "EG ERROR", "issues": len(player_issues),
-                            "eg_hi": eg_hi, "local_hi": local_hi})
-            continue
 
         target_records = [
             r for r in raw_scores
@@ -326,11 +324,7 @@ def check(test_mode=False):
             db_score = get_db_score(conn, player_id, check_date_str)
 
             if db_score is None:
-                log.info(
-                    "  No DB record for %s on %s -- "
-                    "no action taken (Rule 1: inserts are forbidden)",
-                    name, check_date_str,
-                )
+                log.info("  No DB record for %s on %s -- no action taken (Rule 1)", name, check_date_str)
                 status_msg = "NO DB RECORD FOR DATE"
             else:
                 score_id  = db_score["score_id"]
@@ -346,17 +340,13 @@ def check(test_mode=False):
                 if eg_pcc != 0:
                     if int(eg_pcc) != int(db_pcc):
                         log.info(
-                            "  PCC UPDATED %s %s: DB had %s --> EG says %s "
-                            "(no email per Rule 6)",
+                            "  PCC UPDATED %s %s: DB had %s --> EG says %s (no email per Rule 6)",
                             name, check_date_str, db_pcc, eg_pcc,
                         )
                         try:
                             update_pcc(conn, score_id, eg_pcc)
                         except Exception as exc:
-                            log.error(
-                                "  PCC update failed for %s on %s: %s",
-                                name, check_date_str, exc,
-                            )
+                            log.error("  PCC update failed for %s on %s: %s", name, check_date_str, exc)
                     else:
                         log.info("  PCC already matches EG: %s -- no update needed", eg_pcc)
                 else:
@@ -364,16 +354,11 @@ def check(test_mode=False):
 
                 if eg_gross is not None and db_gross is not None:
                     if int(eg_gross) != int(db_gross):
-                        player_issues.append(
-                            "  Gross score mismatch:  EG={}  DB={}".format(eg_gross, db_gross)
-                        )
+                        player_issues.append("  Gross score mismatch:  EG={}  DB={}".format(eg_gross, db_gross))
 
                 if eg_tee_id is not None and db_tee_id is not None:
                     if int(eg_tee_id) != int(db_tee_id):
-                        player_issues.append(
-                            "  Tee mismatch:  EG tee_id={} ({})  DB tee_id={}".format(
-                                eg_tee_id, eg_tee_col, db_tee_id)
-                        )
+                        player_issues.append("  Tee mismatch:  EG tee_id={} ({})  DB tee_id={}".format(eg_tee_id, eg_tee_col, db_tee_id))
 
                 status_msg = "CHECKED"
 
@@ -404,8 +389,7 @@ def check(test_mode=False):
     mode_label = " [TEST MODE]" if test_mode else ""
     log.info("")
     log.info("=== CHECK COMPLETE%s ===", mode_label)
-    log.info("%-14s  %-26s  %-6s  %-8s  %s",
-             "Player", "Status", "Issues", "EG HI", "Local HI")
+    log.info("%-14s  %-26s  %-6s  %-8s  %s", "Player", "Status", "Issues", "EG HI", "Local HI")
     log.info("-" * 68)
     for r in results:
         log.info(
@@ -420,7 +404,6 @@ def check(test_mode=False):
     # --- Capture Logs & Send Daily Email ---
     log.info("Preparing daily confirmation email...")
     
-    # Flush memory handler to ensure all contents are loaded into the stream
     capture_handler.flush()
     full_log_contents = log_stream.getvalue()
 
@@ -457,10 +440,6 @@ def check(test_mode=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="828ers EG daily score checker")
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="Test mode: check today's scores instead of yesterday's",
-    )
+    parser.add_argument("--test", action="store_true", help="Test mode: check today's scores instead of yesterday's")
     args = parser.parse_args()
     check(test_mode=args.test)
