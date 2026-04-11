@@ -74,8 +74,9 @@ add_shortcode('golf_round_history', function () {
                     app.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             })
-            .catch(() => {
-                table.innerHTML = '<p>Failed to load.</p>';
+            .catch((err) => {
+                console.error('History Load Error:', err);
+                table.innerHTML = '<p>Failed to load history table.</p>';
                 table.style.opacity = '1';
             });
         }
@@ -94,24 +95,27 @@ add_shortcode('golf_round_history', function () {
         // Hole-by-Hole Accordion Listener
         table.addEventListener('click', (e) => {
             const row = e.target.closest('.clickable-row');
-            if (!row) return;
+            if (!row) return; // Ignore clicks that aren't on a scorecard row
 
             const scoreId = row.dataset.scoreId;
-            const nextRow = row.nextElementSibling;
+            const isAlreadyExpanded = row.classList.contains('is-expanded');
 
-            // If it's already open, close it
-            if (nextRow && nextRow.classList.contains('hbh-dropdown')) {
-                nextRow.remove();
+            // 1. Close any currently open dropdowns & remove expanded class from all rows
+            document.querySelectorAll('.hbh-dropdown').forEach(el => el.remove());
+            document.querySelectorAll('.clickable-row.is-expanded').forEach(el => el.classList.remove('is-expanded'));
+
+            // 2. If it was already open, we just closed it, so stop here
+            if (isAlreadyExpanded) {
                 return;
             }
 
-            // Close any other open dropdowns
-            document.querySelectorAll('.hbh-dropdown').forEach(el => el.remove());
+            // 3. Otherwise, mark this row as expanded and build the dropdown
+            row.classList.add('is-expanded');
 
-            // Create the drop out row
+            // Create the drop out row (colspan 12 covers the whole table)
             const dropRow = document.createElement('tr');
             dropRow.className = 'hbh-dropdown';
-            dropRow.innerHTML = `<td colspan="12" style="padding:0; background:#fafafa; border-bottom: 2px solid #ddd;"><div style="padding:30px; text-align:center; color:#666;">Loading Scorecard...</div></td>`;
+            dropRow.innerHTML = `<td colspan="12" style="padding:0; background:#fafafa; border-bottom: 2px solid #ddd;"><div style="padding:30px; text-align:center; color:#666; font-weight:bold;">Loading Scorecard Data...</div></td>`;
             row.after(dropRow);
 
             // Fetch the scorecard data
@@ -124,17 +128,24 @@ add_shortcode('golf_round_history', function () {
                 method: 'POST',
                 body: formData
             })
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error("Network response was not ok");
+                return r.json();
+            })
             .then(d => {
                 if(d.success) {
                     dropRow.querySelector('td').innerHTML = d.data;
                 } else {
-                    dropRow.querySelector('td').innerHTML = `<div style="padding:20px; color:#d63638; text-align:center;">${d.data || 'Scorecard data not yet synced from England Golf.'}</div>`;
+                    dropRow.querySelector('td').innerHTML = `<div style="padding:20px; color:#d63638; text-align:center;"><strong>Notice:</strong> ${d.data || 'Scorecard data not yet synced from England Golf.'}</div>`;
                 }
             })
-            .catch(() => dropRow.remove());
+            .catch((err) => {
+                console.error("Scorecard Fetch Error:", err);
+                dropRow.querySelector('td').innerHTML = `<div style="padding:20px; color:#d63638; text-align:center;"><strong>System Error:</strong> Could not load scorecard. Check the browser console.</div>`;
+            });
         });
 
+        // Initialize table
         load();
     })();
     </script>
