@@ -7,7 +7,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_shortcode('golf_hole_by_hole', function ($atts) {
+add_shortcode('Golf_Hole_by_Hole', function ($atts) {
     global $wpdb;
 
     $players = $wpdb->get_results("SELECT player_id, name FROM {$wpdb->prefix}golf_players ORDER BY name ASC");
