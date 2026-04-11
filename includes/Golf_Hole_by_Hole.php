@@ -117,7 +117,7 @@ add_shortcode('Golf_Hole_by_Hole', function ($atts) {
             fetchAnalysis();
         }
 
-        // Client-side table sorting listener (Bulletproof Arrow Injection)
+        // Client-side table sorting listener
         document.addEventListener('click', function(e) {
             const th = e.target.closest('th.sortable');
             if (!th) return;
@@ -224,16 +224,16 @@ function gh_load_hbh_analysis() {
         <table class="history-table hbh-analysis-table">
             <thead>
                 <tr>
-                    <th class="tc sortable asc" style="cursor:pointer; user-select:none; white-space:nowrap;">Hole <span class="sort-icon" style="color:#137a3d; font-size:10px; margin-left:4px;">▲</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">Par <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;" title="Official Stroke Index">Card S.I. <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;" title="True rank based on strokes over par">True Rank <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">Avg Score <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">To Par <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">Avg Pts <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none; white-space:nowrap;" title="Standard Deviation (Variance)">Var (σ) <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">Best <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
-                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none; white-space:nowrap;">Worst <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:4px;">↕</span></th>
+                    <th class="tc sortable asc" style="cursor:pointer; user-select:none;">Hole <span class="sort-icon" style="color:#137a3d; font-size:10px; margin-left:2px;">▲</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;">Par <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;" title="Official Stroke Index">S.I. <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;" title="True rank based on strokes over par">Rank <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;">Avg <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;">To Par <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc sortable" style="cursor:pointer; user-select:none;">Pts <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none;" title="Standard Deviation (Variance)">Var <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none;">Best <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
+                    <th class="tc hbh-hide-mobile sortable" style="cursor:pointer; user-select:none;">Worst <span class="sort-icon" style="color:#ccc; font-size:10px; margin-left:2px;">↕</span></th>
                 </tr>
             </thead>
             <tbody>
