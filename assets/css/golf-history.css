@@ -1,488 +1,292 @@
-<?php
-/**
- * Golf Round History
- * Shortcode: [golf_round_history]
- * AJAX action: gh_load_history
- */
+/* ======================================================
+   GOLF SYSTEM — HISTORY TABLE
+   ====================================================== */
 
-add_shortcode('golf_round_history', function () {
-    global $wpdb;
-
-    $players_table = $wpdb->prefix . 'golf_players';
-
-    $player_list = $wpdb->get_results("SELECT player_id, name FROM {$players_table} ORDER BY name ASC");
-
-    $nonce = wp_create_nonce('gh_ajax_nonce');
-
-    ob_start();
-    ?>
-    <div id="golf-history-app" data-page="1" data-player="0">
-        <div class="history-filter-bar">
-            <label>Filter Player:</label>
-            <select id="gh-filter">
-                <option value="0">-- All Players --</option>
-                <?php if ($player_list): ?>
-                    <?php foreach ($player_list as $p): ?>
-                        <option value="<?php echo (int) $p->player_id; ?>">
-                            <?php echo esc_html($p->name); ?>
-                        </option>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </select>
-        </div>
-
-        <div id="gh-range" class="history-range" style="margin: 10px 0; font-style: italic;"></div>
-
-        <div class="history-scroll" id="gh-table-wrap" style="min-height: 200px; position: relative;">
-            <p id="gh-loading">Loading stats...</p>
-        </div>
-
-        <div class="history-pagination" id="gh-pagination"></div>
-    </div>
-
-    <script>
-    (function () {
-        const app    = document.getElementById('golf-history-app');
-        const table  = document.getElementById('gh-table-wrap');
-        const pager  = document.getElementById('gh-pagination');
-        const range  = document.getElementById('gh-range');
-        const filter = document.getElementById('gh-filter');
-
-        function load(page = 1, player = 0) {
-            table.style.opacity = '0.5';
-            app.dataset.page = page;
-            app.dataset.player = player;
-
-            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    action: 'gh_load_history',
-                    page: page,
-                    player: player,
-                    gh_nonce: '<?php echo esc_js($nonce); ?>'
-                })
-            })
-            .then(r => r.json())
-            .then(d => {
-                table.innerHTML = d.table || '';
-                pager.innerHTML = d.pagination || '';
-                range.innerHTML = d.range || '';
-                table.style.opacity = '1';
-
-                if (page > 1) {
-                    app.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            })
-            .catch((err) => {
-                console.error('History Load Error:', err);
-                table.innerHTML = '<p>Failed to load history table.</p>';
-                table.style.opacity = '1';
-            });
-        }
-
-        pager.addEventListener('click', (e) => {
-            const target = e.target.closest('[data-page]');
-            if (!target) return;
-            e.preventDefault();
-            load(parseInt(target.dataset.page, 10), filter.value);
-        });
-
-        filter.addEventListener('change', () => {
-            load(1, filter.value);
-        });
-
-        // Hole-by-Hole Accordion Listener
-        table.addEventListener('click', (e) => {
-            const row = e.target.closest('.clickable-row');
-            if (!row) return; // Ignore clicks that aren't on a scorecard row
-
-            const scoreId = row.dataset.scoreId;
-            const isAlreadyExpanded = row.classList.contains('is-expanded');
-
-            // 1. Close any currently open dropdowns & remove expanded class from all rows
-            document.querySelectorAll('.hbh-dropdown').forEach(el => el.remove());
-            document.querySelectorAll('.clickable-row.is-expanded').forEach(el => el.classList.remove('is-expanded'));
-
-            // 2. If it was already open, we just closed it, so stop here
-            if (isAlreadyExpanded) {
-                return;
-            }
-
-            // 3. Otherwise, mark this row as expanded and build the dropdown
-            row.classList.add('is-expanded');
-
-            // Create the drop out row (colspan 12 covers the whole table)
-            const dropRow = document.createElement('tr');
-            dropRow.className = 'hbh-dropdown';
-            dropRow.innerHTML = `<td colspan="12" style="padding:0; background:#fafafa; border-bottom: 2px solid #ddd;"><div style="padding:30px; text-align:center; color:#666; font-weight:bold;">Loading Scorecard Data...</div></td>`;
-            row.after(dropRow);
-
-            // Fetch the scorecard data
-            const formData = new URLSearchParams();
-            formData.append('action', 'gh_load_scorecard');
-            formData.append('score_id', scoreId);
-            formData.append('gh_nonce', '<?php echo esc_js($nonce); ?>');
-
-            fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', {
-                method: 'POST',
-                body: formData
-            })
-            .then(r => {
-                if (!r.ok) throw new Error("Network response was not ok");
-                return r.json();
-            })
-            .then(d => {
-                if(d.success) {
-                    dropRow.querySelector('td').innerHTML = d.data;
-                } else {
-                    dropRow.querySelector('td').innerHTML = `<div style="padding:20px; color:#d63638; text-align:center;"><strong>Notice:</strong> ${d.data || 'Scorecard data not yet synced from England Golf.'}</div>`;
-                }
-            })
-            .catch((err) => {
-                console.error("Scorecard Fetch Error:", err);
-                dropRow.querySelector('td').innerHTML = `<div style="padding:20px; color:#d63638; text-align:center;"><strong>System Error:</strong> Could not load scorecard. Check the browser console.</div>`;
-            });
-        });
-
-        // Initialize table
-        load();
-    })();
-    </script>
-    <?php
-    return ob_get_clean();
-});
-
-add_action('wp_ajax_gh_load_history', 'gh_load_history');
-add_action('wp_ajax_nopriv_gh_load_history', 'gh_load_history');
-
-function gh_load_history() {
-    check_ajax_referer('gh_ajax_nonce', 'gh_nonce');
-    global $wpdb;
-
-    $limit  = 25;
-    $page   = max(1, (int) ($_POST['page'] ?? 1));
-    $player = (int) ($_POST['player'] ?? 0);
-    $offset = ($page - 1) * $limit;
-
-    $history_view = 'view_golf_dashboard_history';
-
-    $where_sql  = '';
-    $where_args = [];
-    if ($player) {
-        $where_sql = 'WHERE player_id = %d';
-        $where_args[] = $player;
-    }
-
-    if ($where_sql) {
-        $total = (int) $wpdb->get_var(
-            $wpdb->prepare("SELECT COUNT(*) FROM {$history_view} {$where_sql}", ...$where_args)
-        );
-    } else {
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$history_view}");
-    }
-
-    if ($where_sql) {
-        $sql = $wpdb->prepare(
-            "SELECT * FROM {$history_view} {$where_sql} ORDER BY date_played DESC, score_id DESC LIMIT %d OFFSET %d",
-            ...array_merge($where_args, [$limit, $offset])
-        );
-    } else {
-        $sql = $wpdb->prepare(
-            "SELECT * FROM {$history_view} ORDER BY date_played DESC, score_id DESC LIMIT %d OFFSET %d",
-            $limit,
-            $offset
-        );
-    }
-
-    $rows = $wpdb->get_results($sql, ARRAY_A);
-
-    $total_pages = max(1, (int) ceil($total / $limit));
-    $start_row   = $total ? ($offset + 1) : 0;
-    $end_row     = min($offset + $limit, $total);
-
-    $show_cutoff_line = ($player > 0 && $page === 1);
-    $window_size      = 20;
-    $window_seen      = 0;
-    $cutoff_drawn     = false;
-    $below_cutoff     = false;
-
-    ob_start();
-    ?>
-    <table class="history-table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Player</th>
-                <th>Tee</th>
-                <th class="tc">Gross</th>
-                <th class="tc">HI</th>
-                <th class="tc">Nett</th>
-                <th class="tc">Diff</th>
-                <th class="tc">PCC</th>
-                <th class="tc">Low HI</th>
-                <th class="tc">Putts</th>
-                <th class="tc">GIR</th>
-                <th class="tc">Adj</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php if ($rows): ?>
-            <?php foreach ($rows as $idx => $r): ?>
-                <?php
-                $cap = !empty($r['cap_applied']);
-                $esr = !empty($r['esr_applied']);
-
-                $row_class = '';
-                if ($cap) $row_class .= ' is-cap';
-                if ($esr) $row_class .= ' is-esr';
-                if (!empty($r['is_excluded'])) $row_class .= ' is-excluded';
-                if ($below_cutoff) $row_class .= ' dropped-out';
-
-                $adj = '';
-                if ($esr) $adj .= 'E';
-                if ($cap) $adj .= 'C';
-
-                $hi = (isset($r['starting_index']) && $r['starting_index'] !== null && $r['starting_index'] !== '')
-                    ? number_format((float) $r['starting_index'], 1)
-                    : '-';
-
-                $low_hi = (isset($r['low_hi_365']) && $r['low_hi_365'] !== null && $r['low_hi_365'] !== '')
-                    ? number_format((float) $r['low_hi_365'], 1)
-                    : '-';
-
-                $pcc = (isset($r['pcc']) && $r['pcc'] != 0)
-                    ? '<strong style="color: #d9534f;">'.(int)$r['pcc'].'</strong>'
-                    : '0';
-
-                $qualifies_for_window =
-                    empty($r['is_excluded']) &&
-                    isset($r['starting_index']) &&
-                    $r['starting_index'] !== null &&
-                    $r['starting_index'] !== '';
-
-                $gross_class = !empty($r['is_counting']) ? 'gross-value is-counting' : 'gross-value';
-                $gross_title = !empty($r['is_counting']) ? ' title="Counts toward Handicap Index"' : '';
-
-                $player_name    = (string) ($r['player_name'] ?? '');
-                $player_initial = trim((string) ($r['player_initials'] ?? ''));
-                if ($player_initial === '') {
-                    $player_initial = $player_name;
-                }
-                ?>
-                <tr class="<?php echo esc_attr(trim($row_class)); ?> clickable-row" data-score-id="<?php echo (int)($r['score_id'] ?? 0); ?>" style="cursor: pointer;" title="Click to view scorecard">
-                    <td><?php echo esc_html(date('d/m/y', strtotime($r['date_played']))); ?></td>
-                    <td>
-                        <strong class="player-full"><?php echo esc_html($player_name); ?></strong>
-                        <strong class="player-initials"><?php echo esc_html($player_initial); ?></strong>
-                    </td>
-                    <td>
-                        <span class="tee-badge tee-<?php echo esc_attr(strtolower($r['tee_colour'] ?? '')); ?>">
-                            <?php echo esc_html($r['tee_colour'] ?? ''); ?>
-                        </span>
-                    </td>
-
-                    <td class="gross-cell">
-                        <span class="<?php echo esc_attr($gross_class); ?>"<?php echo $gross_title; ?>>
-                            <?php echo (int) ($r['gross_score'] ?? 0); ?>
-                        </span>
-                    </td>
-
-                    <td class="tc"><?php echo esc_html($hi); ?></td>
-
-                    <td class="tc"><?php echo (int) ($r['net_score'] ?? 0); ?></td>
-                    <td class="tc"><?php echo esc_html(number_format((float) ($r['differential'] ?? 0), 1)); ?></td>
-                    <td class="tc"><?php echo wp_kses($pcc, ['strong' => ['style' => true]]); ?></td>
-                    <td class="tc" style="color: #666; font-style: italic;"><?php echo esc_html($low_hi); ?></td>
-
-                    <td class="tc"><?php echo (int) ($r['putts'] ?? 0); ?></td>
-                    <td class="tc"><?php echo (int) ($r['gir'] ?? 0); ?></td>
-
-                    <td class="tc">
-                        <?php if ($adj !== ''): ?>
-                            <span class="adj-badge"><?php echo esc_html($adj); ?></span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-
-                <?php
-                if (
-                    $show_cutoff_line &&
-                    !$cutoff_drawn &&
-                    $qualifies_for_window
-                ) {
-                    $window_seen++;
-
-                    if ($window_seen === $window_size && $idx < count($rows) - 1) {
-                        $cutoff_drawn = true;
-                        $below_cutoff = true;
-                        ?>
-                        <tr class="history-cutoff">
-                            <td colspan="12"></td>
-                        </tr>
-                        <?php
-                    }
-                }
-                ?>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <tr><td colspan="12">No rounds found.</td></tr>
-        <?php endif; ?>
-        </tbody>
-    </table>
-    <?php
-    $table_html = ob_get_clean();
-
-    ob_start();
-
-    $window = 2;
-    $start  = max(1, $page - $window);
-    $end    = min($total_pages, $page + $window);
-
-    if ($page > 1) {
-        echo "<a class='page-numbers prev' href='#' data-page='" . ($page - 1) . "'>« Prev</a>";
-    }
-
-    if ($start > 1) {
-        echo "<a class='page-numbers' href='#' data-page='1'>1</a>";
-        if ($start > 2) echo "<span class='page-numbers dots'>…</span>";
-    }
-
-    for ($i = $start; $i <= $end; $i++) {
-        if ($i === $page) {
-            echo "<span class='page-numbers current'>{$i}</span>";
-        } else {
-            echo "<a class='page-numbers' href='#' data-page='{$i}'>{$i}</a>";
-        }
-    }
-
-    if ($end < $total_pages) {
-        if ($end < $total_pages - 1) echo "<span class='page-numbers dots'>…</span>";
-        echo "<a class='page-numbers' href='#' data-page='{$total_pages}'>{$total_pages}</a>";
-    }
-
-    if ($page < $total_pages) {
-        echo "<a class='page-numbers next' href='#' data-page='" . ($page + 1) . "'>Next »</a>";
-    }
-
-    $pagination_html = ob_get_clean();
-
-    wp_send_json([
-        'table'      => $table_html,
-        'pagination' => $pagination_html,
-        'range'      => "Showing {$start_row}–{$end_row} of {$total}",
-    ]);
+.history-scroll {
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
 }
 
-// ==========================================
-// AJAX HANDLER: Load Hole-by-Hole Scorecard
-// ==========================================
-add_action('wp_ajax_gh_load_scorecard', 'gh_load_scorecard');
-add_action('wp_ajax_nopriv_gh_load_scorecard', 'gh_load_scorecard');
-function gh_load_scorecard() {
-    check_ajax_referer('gh_ajax_nonce', 'gh_nonce');
-    global $wpdb;
-    $score_id = (int) $_POST['score_id'];
-
-    $holes = $wpdb->get_results($wpdb->prepare("SELECT * FROM view_golf_hole_by_hole WHERE score_id = %d ORDER BY hole_number ASC", $score_id), ARRAY_A);
-
-    if (!$holes || count($holes) === 0) {
-        wp_send_json_error('Hole-by-hole data has not been synced from England Golf for this round yet.');
-    }
-
-    $h_data = [];
-    $out = ['par'=>0, 'gross'=>0, 'nett'=>0, 'pts'=>0];
-    $in  = ['par'=>0, 'gross'=>0, 'nett'=>0, 'pts'=>0];
-    $tot = ['par'=>0, 'gross'=>0, 'nett'=>0, 'pts'=>0];
-
-    foreach($holes as $h) {
-        $hn = (int)$h['hole_number'];
-        $h_data[$hn] = $h;
-        if($hn <= 9) {
-            $out['par'] += $h['par']; $out['gross'] += $h['gross_score']; $out['nett'] += $h['nett_score']; $out['pts'] += $h['stableford_score'];
-        } else {
-            $in['par'] += $h['par']; $in['gross'] += $h['gross_score']; $in['nett'] += $h['nett_score']; $in['pts'] += $h['stableford_score'];
-        }
-        $tot['par'] += $h['par']; $tot['gross'] += $h['gross_score']; $tot['nett'] += $h['nett_score']; $tot['pts'] += $h['stableford_score'];
-    }
-
-    $get_circle = function($gross, $par) {
-        if (!$gross) return '-';
-        $diff = $gross - $par;
-        if ($diff <= -2) $class = 'eg-eagle';
-        elseif ($diff == -1) $class = 'eg-birdie';
-        elseif ($diff == 0)  $class = 'eg-par';
-        elseif ($diff == 1)  $class = 'eg-bogey';
-        else                 $class = 'eg-double';
-        return "<span class='eg-circle {$class}'>{$gross}</span>";
-    };
-
-    ob_start();
-    ?>
-    <div class="eg-scorecard-wrap">
-        <table class="eg-scorecard">
-            <thead>
-                <tr>
-                    <th>Hole</th>
-                    <?php for($i=1;$i<=9;$i++) echo "<th>$i</th>"; ?>
-                    <th class="eg-split">OUT</th>
-                    <?php for($i=10;$i<=18;$i++) echo "<th>$i</th>"; ?>
-                    <th class="eg-split">IN</th>
-                    <th class="eg-tot">TOT</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td class="eg-label">Par</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td>{$h_data[$i]['par']}</td>"; ?>
-                    <td class="eg-split"><?php echo $out['par']; ?></td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td>{$h_data[$i]['par']}</td>"; ?>
-                    <td class="eg-split"><?php echo $in['par']; ?></td>
-                    <td class="eg-tot"><?php echo $tot['par']; ?></td>
-                </tr>
-                <tr>
-                    <td class="eg-label">S.I.</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td>{$h_data[$i]['si']}</td>"; ?>
-                    <td class="eg-split">-</td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td>{$h_data[$i]['si']}</td>"; ?>
-                    <td class="eg-split">-</td>
-                    <td class="eg-tot">-</td>
-                </tr>
-                <tr>
-                    <td class="eg-label" style="color:#137a3d;">Shots</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td style='color:#137a3d;'>{$h_data[$i]['shots']}</td>"; ?>
-                    <td class="eg-split">-</td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td style='color:#137a3d;'>{$h_data[$i]['shots']}</td>"; ?>
-                    <td class="eg-split">-</td>
-                    <td class="eg-tot">-</td>
-                </tr>
-                <tr>
-                    <td class="eg-label" style="font-weight:bold;">Gross</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td>" . $get_circle($h_data[$i]['gross_score'], $h_data[$i]['par']) . "</td>"; ?>
-                    <td class="eg-split" style="font-weight:bold;"><?php echo $out['gross']; ?></td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td>" . $get_circle($h_data[$i]['gross_score'], $h_data[$i]['par']) . "</td>"; ?>
-                    <td class="eg-split" style="font-weight:bold;"><?php echo $in['gross']; ?></td>
-                    <td class="eg-tot" style="font-weight:bold;"><?php echo $tot['gross']; ?></td>
-                </tr>
-                <tr>
-                    <td class="eg-label">Nett</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td>{$h_data[$i]['nett_score']}</td>"; ?>
-                    <td class="eg-split"><?php echo $out['nett']; ?></td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td>{$h_data[$i]['nett_score']}</td>"; ?>
-                    <td class="eg-split"><?php echo $in['nett']; ?></td>
-                    <td class="eg-tot"><?php echo $tot['nett']; ?></td>
-                </tr>
-                <tr>
-                    <td class="eg-label">Points</td>
-                    <?php for($i=1;$i<=9;$i++) echo "<td>{$h_data[$i]['stableford_score']}</td>"; ?>
-                    <td class="eg-split" style="font-weight:bold;"><?php echo $out['pts']; ?></td>
-                    <?php for($i=10;$i<=18;$i++) echo "<td>{$h_data[$i]['stableford_score']}</td>"; ?>
-                    <td class="eg-split" style="font-weight:bold;"><?php echo $in['pts']; ?></td>
-                    <td class="eg-tot" style="font-weight:bold;"><?php echo $tot['pts']; ?></td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    <?php
-    wp_send_json_success(ob_get_clean());
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
 }
+
+.history-table th {
+  background: #f4f4f4;
+  color: #333;
+  text-align: left;
+  padding: 8px 5px;
+  border-bottom: 2px solid #ddd;
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 6px 4px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+.history-table tr:nth-child(even) {
+  background-color: #fcfcfc;
+}
+
+/* Hover state for clickable rows */
+.history-table tbody tr.clickable-row:hover {
+  background-color: #f9f9f9;
+}
+
+/* Filter bar */
+.history-filter-bar {
+  background: #f1f1f1;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  border: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-filter-bar label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Tee badges */
+.tee-badge {
+  padding: 2px 8px;
+  border-radius: 15px;
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  display: inline-block;
+}
+
+.tee-white {
+  background: #fff;
+  color: #333;
+  border: 1px solid #ccc;
+}
+
+.tee-yellow {
+  background: #ffeb3b;
+  color: #333;
+}
+
+.tee-black {
+  background: #000;
+  color: #fff;
+}
+
+.count-dot,
+.counting-dot {
+  height: 8px;
+  width: 8px;
+  background-color: #137a3d;
+  border-radius: 50%;
+  display: inline-block;
+  margin: 0 auto;
+}
+
+/* Subtle row tinting for ESR/Cap */
+.history-table tbody tr.is-esr {
+  background: #eef6ff;
+}
+
+.history-table tbody tr.is-cap {
+  background: #fff7e8;
+}
+
+.history-table tbody tr.is-esr.is-cap {
+  background: #f3efff;
+}
+
+/* EC badge */
+.history-table .adj-badge {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 10px;
+  font-size: 10px;
+  line-height: 1.2;
+  border: 1px solid rgba(0,0,0,.12);
+  background: #fff;
+  color: #333;
+}
+
+/* Excluded rows in history table: dimmed and italic */
+.history-table tbody tr.is-excluded td {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* Excl badge */
+.excl-badge {
+  display: inline-block;
+  background: #dc3545;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Green separator line after the current 20-round window */
+.history-table tr.history-cutoff td {
+  padding: 0;
+  height: 0;
+  line-height: 0;
+  border-top: 2px solid #1f8f4a;
+  border-bottom: 0;
+  background: transparent !important;
+}
+
+/* Older rounds shown below the cutoff */
+.history-table tbody tr.dropped-out td {
+  background: #eefaf2 !important;
+}
+
+.history-table tbody tr.dropped-out.is-esr td {
+  background: #e6f6ec !important;
+}
+
+.history-table tbody tr.dropped-out.is-cap td {
+  background: #edf8ee !important;
+}
+
+.history-table tbody tr.dropped-out.is-esr.is-cap td {
+  background: #e8f4ea !important;
+}
+
+/* ==========================================================
+   Column Formatting
+   ========================================================== */
+
+.history-table .tc {
+  text-align: center;
+}
+
+/* Gross score cell */
+.history-table .gross-cell {
+  text-align: center;
+}
+
+.history-table .gross-value {
+  display: inline-block;
+}
+
+/* Green circle when the round counts toward the Handicap Index */
+.history-table .gross-value.is-counting {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #d4edda;
+  color: #137a3d;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Highlight the PCC in red when it applies */
+.history-table .pcc-value {
+  color: #d9534f;
+  font-weight: bold;
+}
+
+/* Fade the Low HI slightly so it doesn't compete with the main Index */
+.history-table .low-hi-value {
+  color: #888;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.player-full {
+  display: inline;
+}
+
+.player-initials {
+  display: none;
+}
+
+
+/* ======================================================
+   HOLE BY HOLE ACCORDION (EG STYLING)
+   ====================================================== */
+.hbh-dropdown td {
+  padding: 0;
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.04);
+}
+
+.eg-scorecard-wrap {
+  overflow-x: auto;
+  padding: 10px 5px; /* Tightened from 20px 15px */
+  background: #fdfdfd;
+}
+
+.eg-scorecard {
+  width: 100%;
+  table-layout: fixed; /* Forces columns to distribute evenly */
+  border-collapse: collapse;
+  font-size: 11px; /* Scaled down from 13px */
+  text-align: center;
+}
+
+.eg-scorecard th {
+  padding: 4px 1px; /* Tightened padding */
+  color: #888;
+  font-weight: normal;
+  border-bottom: 1px solid #ddd;
+  background: transparent;
+}
+
+.eg-scorecard td {
+  padding: 4px 1px; /* Tightened padding */
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.eg-scorecard .eg-label {
+  text-align: left;
+  padding-left: 4px;
+  color: #444;
+  width: 35px; /* Restrict width of the label column */
+}
+
+.eg-scorecard .eg-split {
+  background: #f4f4f4;
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+}
+
+.eg-scorecard .eg-tot {
+  background: #eaeaea;
+  border-left: 1px solid #ccc;
+}
+
+/* The England Golf Scoring Circles */
+.eg-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; /* Scaled down from 26px */
+  height: 18px; /* Scaled down from 26px */
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 10px; /* Ensure numbers fit inside smaller circles */
+}
+
+.eg-eagle  { background: #2ecc71; color: #fff; }
+.eg-birdie { background: #e74c3c; color: #fff; }
+.eg-par    { border: 1px solid #bbb; color: #333; }
+.eg-bogey  { background: #3498db; color: #fff; }
+.eg-double { background: #12202b; color: #fff; }
+
+/* ==========================================================
+   Mobile column hiding is handled entirely in golf-mobile.css
+   (must load after this file) — do not add column-hiding rules here.
+   ========================================================== */
