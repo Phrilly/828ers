@@ -1,0 +1,111 @@
+/* ======================================================
+   HOLE BY HOLE ANALYSIS PAGE
+   ====================================================== */
+
+.hbh-summary-cards {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.hbh-card {
+  flex: 1;
+  min-width: 120px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.hbh-card h4 {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.hbh-card .hbh-val {
+  font-size: 24px;
+  font-weight: 700;
+  color: #137a3d;
+}
+
+.hbh-analysis-table th, 
+.hbh-analysis-table td {
+  padding: 10px 6px;
+  vertical-align: middle;
+}
+
+/* Ringer Scores (Best/Worst) */
+.hbh-ringer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.hbh-ringer.best { background: #d4edda; color: #155724; }
+.hbh-ringer.worst { background: #f8d7da; color: #721c24; }
+
+/* True Rank Formatting */
+.hbh-rank-harder {
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #fdf2f2;
+  color: #c0392b;
+  font-weight: bold;
+  border-radius: 4px;
+  border: 1px solid #f5b7b1;
+}
+
+.hbh-rank-easier {
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #f4fdf4;
+  color: #27ae60;
+  font-weight: bold;
+  border-radius: 4px;
+  border: 1px solid #a9dfbf;
+}
+
+/* Horizontal Distribution Bar */
+.hbh-dist-bar-wrap {
+  width: 100%;
+  height: 18px;
+  background: #f4f4f4;
+  border-radius: 4px;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #ddd;
+}
+
+.hbh-dist-bar-wrap div {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.hbh-dist-bar-wrap div:hover {
+  opacity: 0.8;
+  cursor: help;
+}
+
+/* England Golf Score Colors */
+.dist-e  { background-color: #2ecc71; } /* Eagle (Green) */
+.dist-bi { background-color: #e74c3c; } /* Birdie (Red) */
+.dist-p  { background-color: #ccc; }    /* Par (Grey) */
+.dist-bo { background-color: #3498db; } /* Bogey (Blue) */
+.dist-d  { background-color: #12202b; } /* Double+ (Dark Navy) */
+
+/* ==========================================================
+   MOBILE RESPONSIVENESS
+   ========================================================== */
+@media (max-width: 768px) {
+    .hbh-hide-mobile {
+        display: none !important;
+    }
+}

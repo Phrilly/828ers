@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.0.96
+ * Version:     1.0.98
  * Author:      Philip Dunne
  */
 
@@ -29,6 +29,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/Show admin bar.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Golf What If.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Hero Image Updater.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Rebuild_All_Players.php';
+require_once plugin_dir_path(__FILE__) . 'includes/Hole By Hole Analysis.php';
 
 // ==========================================
 // 2. FRONTEND: Enqueue CSS & JS
@@ -38,14 +39,15 @@ add_action('wp_enqueue_scripts', function () {
     $base_path = plugin_dir_path(__FILE__);
 
     $css_files = [
-        '828ers-globals'    => 'assets/css/golf-globals.css',
-        '828ers-dashboard'  => 'assets/css/golf-dashboard.css',
-        '828ers-history'    => 'assets/css/golf-history.css',
-        '828ers-pagination' => 'assets/css/golf-pagination.css',
-        '828ers-pivot'      => 'assets/css/golf-pivot.css',
-        '828ers-forms'      => 'assets/css/golf-forms.css',
-        '828ers-whatif'     => 'assets/css/golf-whatif.css',
-        '828ers-mobile'     => 'assets/css/golf-mobile.css',
+        '828ers-globals'       => 'assets/css/golf-globals.css',
+        '828ers-dashboard'     => 'assets/css/golf-dashboard.css',
+        '828ers-history'       => 'assets/css/golf-history.css',
+        '828ers-pagination'    => 'assets/css/golf-pagination.css',
+        '828ers-pivot'         => 'assets/css/golf-pivot.css',
+        '828ers-forms'         => 'assets/css/golf-forms.css',
+        '828ers-whatif'        => 'assets/css/golf-whatif.css',
+        '828ers-mobile'        => 'assets/css/golf-mobile.css',
+        '828ers-hole-analysis' => 'assets/css/golf-hole-analysis.css',
     ];
 
     $prev_handle = array();
