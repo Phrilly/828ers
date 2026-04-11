@@ -7,10 +7,19 @@ Confirmed facts from this debugging session (April 2026):
   - Scores API:  POST https://www.englandgolf.org/api/Score/GetMyScores
   - Score fields: PlayDate (DD/MM/YYYY), AdjustedGross, Marker,
                   Slope, CourseRating, HCDiff, HandicapIndex, Pcc,
-                  StablefordPoints, ScoreId
+                  StablefordPoints, ScoreId, ScoreCode
+  - HI API:      POST https://www.englandgolf.org/api/Score/GetMemberHandicapIndex  [FIX #1]
+  - Scorecard:   POST https://www.englandgolf.org/api/Score/GetMyScoreDetails
+                 Payload: { ScoreId, ScoreCode }  -- NOTE: ScoreCode != ScoreId
 """
 
-import os, time, pickle, re, json, logging
+import os
+import time
+import pickle
+import re
+import logging
+from urllib.parse import urlparse, parse_qs   # FIX #5 -- replace manual URL parsing
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -18,12 +27,13 @@ import config
 
 log = logging.getLogger(__name__)
 
-BASE          = "https://www.englandgolf.org"
-LOGIN_URL     = f"{BASE}/igolf-login"
-SCORES_URL    = f"{BASE}/api/Score/GetMyScores"
-HI_URL        = f"{BASE}/api/Handicap/GetMemberHandicapIndex"
-FRIENDS_URL   = f"{BASE}/my-friends"
-SESSION_FILE  = os.path.join(os.path.dirname(__file__), "eg_session.pkl")
+BASE              = "https://www.englandgolf.org"
+LOGIN_URL         = f"{BASE}/igolf-login"
+SCORES_URL        = f"{BASE}/api/Score/GetMyScores"
+HI_URL            = f"{BASE}/api/Score/GetMemberHandicapIndex"    # FIX #1 -- correct endpoint
+SCORE_DETAILS_URL = f"{BASE}/api/Score/GetMyScoreDetails"
+FRIENDS_URL       = f"{BASE}/my-friends"
+SESSION_FILE      = os.path.join(os.path.dirname(__file__), "eg_session.pkl")
 
 HEADERS = {
     "User-Agent": (
@@ -34,15 +44,19 @@ HEADERS = {
     "Accept-Language": "en-GB,en;q=0.9",
 }
 
+
 class EGLoginError(Exception):
     pass
 
+
 # ── Session management ──────────────────────────────────────────────────────
+
 
 def _make_session():
     s = requests.Session()
     s.headers.update(HEADERS)
     return s
+
 
 def _do_fresh_login():
     session = _make_session()
@@ -63,7 +77,7 @@ def _do_fresh_login():
     elif action.startswith("/"):
         post_url = BASE + action
     else:
-        post_url = LOGIN_URL   # fallback: post back to same page
+        post_url = LOGIN_URL  # fallback: post back to same page
 
     # Collect all hidden fields (__VIEWSTATE etc.)
     hidden = {
@@ -108,6 +122,7 @@ def _do_fresh_login():
     log.info("EG: Login OK — cookies: %s", list(session.cookies.keys()))
     return session
 
+
 def _load_saved_session():
     if not os.path.exists(SESSION_FILE):
         return None
@@ -122,6 +137,8 @@ def _load_saved_session():
                 else:
                     log.info("EG: CWApiToken expired — will re-login")
                     return None
+        # FIX #4 -- log the fallthrough case so we know why a re-login was triggered
+        log.info("EG: CWApiToken not found in saved session cookies — will re-login")
         return None
     except Exception as exc:
         log.warning("EG: could not load saved session: %s", exc)
@@ -131,10 +148,12 @@ def _load_saved_session():
             pass
         return None
 
+
 def _save_session(session):
     with open(SESSION_FILE, "wb") as f:
         pickle.dump(session, f)
     log.info("EG: session saved to %s", SESSION_FILE)
+
 
 def eg_login():
     """Return an authenticated EG session, reusing saved session if valid."""
@@ -145,7 +164,9 @@ def eg_login():
     _save_session(session)
     return session
 
+
 # ── API helpers ─────────────────────────────────────────────────────────────
+
 
 def eg_fetch_scores(session, passport_id=None, page_size=40):
     """
@@ -180,8 +201,12 @@ def eg_fetch_scores(session, passport_id=None, page_size=40):
     log.warning("Unexpected scores API shape: %s", str(data)[:200])
     return []
 
+
 def eg_fetch_hi(session, passport_id=None):
-    """Fetch current Handicap Index. Returns float or None."""
+    """
+    Fetch current Handicap Index from the live EG API.
+    Returns float or None.
+    """
     try:
         r = session.post(
             HI_URL,
@@ -192,14 +217,60 @@ def eg_fetch_hi(session, passport_id=None):
         r.raise_for_status()
         data = r.json()
         for key in ("handicapIndex", "HandicapIndex", "hi", "HI",
-                    "currentHandicapIndex", "CurrentHandicapIndex", "value"):
+                    "currentHandicapIndex", "CurrentHandicapIndex", "value", "HandicapIndexText"):
             if key in data:
-                return float(data[key])
+                try:
+                    return float(str(data[key]).replace('c', '').strip())
+                except ValueError:
+                    pass
+        # FIX #2 -- log exactly what came back so future key changes are diagnosable
+        log.warning(
+            "EG HI fetch (passport=%s): no recognised key in response. "
+            "Keys present: %s  |  Raw: %s",
+            passport_id,
+            list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+            str(data)[:200],
+        )
         if isinstance(data, (int, float)):
             return float(data)
     except Exception as exc:
         log.warning("EG HI fetch failed (passport=%s): %s", passport_id, exc)
     return None
+
+
+def eg_fetch_scorecard(session, score_id, score_code=None):
+    """
+    Fetch hole-by-hole scorecard for a specific round.
+
+    IMPORTANT: score_code is NOT the same as score_id.
+    From your EG Network logs:
+      ScoreId   = 67490092   (the round's DB id)
+      ScoreCode = 212726633  (a separate reference code)
+    Both must come from the raw score object returned by GetMyScores.
+    Passing score_id as a fallback for score_code will likely cause the
+    API to reject the request or return unexpected data.
+    """
+    # FIX #3 -- warn loudly if ScoreCode is missing rather than silently substituting
+    if score_code is None:
+        log.warning(
+            "eg_fetch_scorecard called without ScoreCode for ScoreId=%s. "
+            "The EG API requires both fields. Scorecard fetch may fail.",
+            score_id,
+        )
+    payload = {"ScoreId": score_id, "ScoreCode": score_code}
+    try:
+        r = session.post(
+            SCORE_DETAILS_URL,
+            json=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:
+        log.warning("Failed to fetch scorecard (ScoreId=%s, ScoreCode=%s): %s", score_id, score_code, exc)
+        return None
+
 
 def eg_fetch_friends(session):
     """
@@ -221,13 +292,10 @@ def eg_fetch_friends(session):
             continue
         seen.add(full_url)
 
-        # Parse passportid and code from URL
-        qs = {}
-        if "?" in href:
-            for part in href.split("?", 1)[1].split("&"):
-                if "=" in part:
-                    k, v = part.split("=", 1)
-                    qs[k.lower()] = v
+        # FIX #5 -- use urllib.parse instead of manual string splitting,
+        # which breaks on encoded characters or complex query strings
+        parsed = urlparse(full_url)
+        qs = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
         friends.append({
             "name":       " ".join(a.get_text(" ", strip=True).split()) or "Unknown",
@@ -238,7 +306,9 @@ def eg_fetch_friends(session):
 
     return friends
 
+
 # ── Score field mapping ──────────────────────────────────────────────────────
+
 
 def parse_play_date(raw):
     """
@@ -256,17 +326,31 @@ def parse_play_date(raw):
         return raw_date[:10]
     return None
 
+
 def parse_gross(raw):
+    """
+    Extract gross score from a raw EG score dict.
+    FIX #6: Log a warning (rather than silently returning None) when the value
+    is outside the expected 50-150 range so we can investigate unusual data.
+    """
     val = (
         raw.get("AdjustedGross") or raw.get("adjustedGross") or
-        raw.get("GrossScore") or raw.get("grossScore") or
-        raw.get("Score") or raw.get("score")
+        raw.get("GrossScore")    or raw.get("grossScore") or
+        raw.get("Score")         or raw.get("score")
     )
     try:
         v = int(val)
-        return v if 50 <= v <= 150 else None
+        if 50 <= v <= 150:
+            return v
+        log.warning(
+            "parse_gross: value %s is outside the expected range 50-150 "
+            "-- treating as None. Raw score keys: %s",
+            v, list(raw.keys()),
+        )
+        return None
     except (TypeError, ValueError):
         return None
+
 
 def parse_pcc(raw):
     val = raw.get("Pcc") or raw.get("pcc") or raw.get("PCCAdjustment") or 0
@@ -274,6 +358,7 @@ def parse_pcc(raw):
         return int(float(val))
     except (TypeError, ValueError):
         return 0
+
 
 def parse_hi(raw):
     val = raw.get("HandicapIndex") or raw.get("handicapIndex")
