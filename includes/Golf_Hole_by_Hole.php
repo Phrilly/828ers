@@ -1,13 +1,13 @@
 <?php
 /**
  * Hole By Hole Analysis Dashboard
- * Shortcode: [golf_hole_by_hole]
+ * Shortcode: [Golf_Hole_by_Hole]
  * AJAX action: gh_load_hbh_analysis
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_shortcode('golf_hole_by_hole', function ($atts) {
+add_shortcode('Golf_Hole_by_Hole', function ($atts) {
     global $wpdb;
 
     // Get players
