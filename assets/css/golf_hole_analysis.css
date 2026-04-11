@@ -38,6 +38,44 @@
   vertical-align: middle;
 }
 
+/* Sortable Headers */
+.hbh-analysis-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 18px; 
+}
+
+.hbh-analysis-table th.sortable:hover {
+  background-color: #e9e9e9;
+}
+
+/* Default state: both arrows faint */
+.hbh-analysis-table th.sortable::after {
+  content: '\2195'; /* Up/Down Arrow */
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ccc;
+  font-size: 12px;
+}
+
+/* Ascending state */
+.hbh-analysis-table th.sortable.asc::after {
+  content: '\25B2'; /* Solid Up Arrow */
+  color: #137a3d;
+  font-size: 10px;
+}
+
+/* Descending state */
+.hbh-analysis-table th.sortable.desc::after {
+  content: '\25BC'; /* Solid Down Arrow */
+  color: #137a3d;
+  font-size: 10px;
+}
+
+
 /* Ringer Scores (Best/Worst) */
 .hbh-ringer {
   display: inline-flex;
@@ -72,34 +110,6 @@
   border-radius: 4px;
   border: 1px solid #a9dfbf;
 }
-
-/* Horizontal Distribution Bar */
-.hbh-dist-bar-wrap {
-  width: 100%;
-  height: 18px;
-  background: #f4f4f4;
-  border-radius: 4px;
-  display: flex;
-  overflow: hidden;
-  border: 1px solid #ddd;
-}
-
-.hbh-dist-bar-wrap div {
-  height: 100%;
-  transition: width 0.3s ease;
-}
-
-.hbh-dist-bar-wrap div:hover {
-  opacity: 0.8;
-  cursor: help;
-}
-
-/* England Golf Score Colors */
-.dist-e  { background-color: #2ecc71; } /* Eagle (Green) */
-.dist-bi { background-color: #e74c3c; } /* Birdie (Red) */
-.dist-p  { background-color: #ccc; }    /* Par (Grey) */
-.dist-bo { background-color: #3498db; } /* Bogey (Blue) */
-.dist-d  { background-color: #12202b; } /* Double+ (Dark Navy) */
 
 /* ==========================================================
    MOBILE RESPONSIVENESS

@@ -13,7 +13,7 @@ add_shortcode('Golf_Hole_by_Hole', function ($atts) {
     // Get players
     $players = $wpdb->get_results("SELECT player_id, name FROM {$wpdb->prefix}golf_players ORDER BY name ASC");
     
-    // Get ALL courses (removed the strict JOINs so courses like Peel will always show up)
+    // Get ALL courses
     $courses = $wpdb->get_results("
         SELECT course_id, course_name 
         FROM {$wpdb->prefix}golf_courses 
@@ -112,10 +112,43 @@ add_shortcode('Golf_Hole_by_Hole', function ($atts) {
         playerSelect.addEventListener('change', fetchAnalysis);
         courseSelect.addEventListener('change', fetchAnalysis);
 
-        // Auto-load the dashboard immediately if a course (like Ramsey) is selected by default
+        // Auto-load the dashboard immediately if a course is selected by default
         if (courseSelect.value && courseSelect.value !== "0") {
             fetchAnalysis();
         }
+
+        // Client-side table sorting listener
+        document.addEventListener('click', function(e) {
+            const th = e.target.closest('th.sortable');
+            if (!th) return;
+
+            const table = th.closest('table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const index = Array.from(th.parentNode.children).indexOf(th);
+            
+            // Determine sort direction
+            let asc = !th.classList.contains('asc');
+            
+            // Reset all headers
+            table.querySelectorAll('th').forEach(h => h.classList.remove('asc', 'desc'));
+            th.classList.add(asc ? 'asc' : 'desc');
+
+            rows.sort((a, b) => {
+                // Strip everything except numbers, decimals, and minus signs
+                let valA = parseFloat(a.children[index].innerText.replace(/[^0-9.-]+/g, ''));
+                let valB = parseFloat(b.children[index].innerText.replace(/[^0-9.-]+/g, ''));
+                
+                // Push N/A or blanks to the bottom
+                if (isNaN(valA)) valA = asc ? 9999 : -9999;
+                if (isNaN(valB)) valB = asc ? 9999 : -9999;
+
+                return asc ? valA - valB : valB - valA;
+            });
+
+            // Re-append sorted rows
+            tbody.append(...rows);
+        });
     });
     </script>
     <?php
@@ -177,16 +210,16 @@ function gh_load_hbh_analysis() {
         <table class="history-table hbh-analysis-table">
             <thead>
                 <tr>
-                    <th class="tc">Hole</th>
-                    <th class="tc">Par</th>
-                    <th class="tc" title="Official Stroke Index">Card S.I.</th>
-                    <th class="tc" title="True rank based on strokes over par">True Rank</th>
-                    <th class="tc">Avg Score</th>
-                    <th class="tc">To Par</th>
-                    <th class="tc">Avg Pts</th>
-                    <th class="tc hbh-hide-mobile" title="Standard Deviation (Variance)">Var (σ)</th>
-                    <th class="tc hbh-hide-mobile">Best</th>
-                    <th class="tc hbh-hide-mobile">Worst</th>
+                    <th class="tc sortable asc">Hole</th>
+                    <th class="tc sortable">Par</th>
+                    <th class="tc sortable" title="Official Stroke Index">Card S.I.</th>
+                    <th class="tc sortable" title="True rank based on strokes over par">True Rank</th>
+                    <th class="tc sortable">Avg Score</th>
+                    <th class="tc sortable">To Par</th>
+                    <th class="tc sortable">Avg Pts</th>
+                    <th class="tc hbh-hide-mobile sortable" title="Standard Deviation (Variance)">Var (σ)</th>
+                    <th class="tc hbh-hide-mobile sortable">Best</th>
+                    <th class="tc hbh-hide-mobile sortable">Worst</th>
                 </tr>
             </thead>
             <tbody>
@@ -201,16 +234,14 @@ function gh_load_hbh_analysis() {
                     $si_official = $r['official_si'] ? (int)$r['official_si'] : 0;
                     $si_actual = (int)$r['actual_difficulty_rank'];
                     
-                    // Highlight if a hole plays much harder or easier than the card says
                     $rank_class = '';
                     if ($si_official > 0) {
-                        if ($si_actual <= $si_official - 4) $rank_class = 'hbh-rank-harder'; // Plays harder than card
-                        if ($si_actual >= $si_official + 4) $rank_class = 'hbh-rank-easier'; // Plays easier than card
+                        if ($si_actual <= $si_official - 4) $rank_class = 'hbh-rank-harder'; 
+                        if ($si_actual >= $si_official + 4) $rank_class = 'hbh-rank-easier'; 
                     }
 
                     $t = (int)$r['times_played'];
                     
-                    // Safe Variance formatting (N/A if played < 2 times)
                     $std_dev_display = $t >= 2 ? number_format((float)$r['std_dev'], 2) : 'N/A';
                 ?>
                 <tr>
