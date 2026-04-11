@@ -1,24 +1,23 @@
 <?php
 /**
  * Hole By Hole Analysis Dashboard
- * Shortcode: [Golf_Hole_by_Hole]
+ * Shortcode: [golf_hole_by_hole]
  * AJAX action: gh_load_hbh_analysis
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-add_shortcode('Golf_Hole_by_Hole', function ($atts) {
+add_shortcode('golf_hole_by_hole', function ($atts) {
     global $wpdb;
 
+    // Get players
     $players = $wpdb->get_results("SELECT player_id, name FROM {$wpdb->prefix}golf_players ORDER BY name ASC");
     
+    // Get ALL courses (removed the strict JOINs so courses like Peel will always show up)
     $courses = $wpdb->get_results("
-        SELECT DISTINCT c.course_id, c.course_name 
-        FROM {$wpdb->prefix}golf_courses c
-        JOIN {$wpdb->prefix}golf_tees t ON c.course_id = t.course_id
-        JOIN {$wpdb->prefix}golf_holes h ON t.tee_id = h.tee_id
-        JOIN {$wpdb->prefix}golf_hole_scores hs ON h.hole_id = hs.hole_id
-        ORDER BY c.course_name ASC
+        SELECT course_id, course_name 
+        FROM {$wpdb->prefix}golf_courses 
+        ORDER BY course_name ASC
     ");
 
     $nonce = wp_create_nonce('gh_hbh_nonce');
@@ -42,7 +41,14 @@ add_shortcode('Golf_Hole_by_Hole', function ($atts) {
                     <select id="hbh-course" class="gh-select">
                         <option value="0">-- Select a Course --</option>
                         <?php foreach ($courses as $c): ?>
-                            <option value="<?php echo (int)$c->course_id; ?>"><?php echo esc_html($c->course_name); ?></option>
+                            <?php 
+                                // Auto-select Ramsey if it exists in the list
+                                $is_ramsey = (stripos($c->course_name, 'Ramsey') !== false); 
+                                $selected_attr = $is_ramsey ? 'selected="selected"' : '';
+                            ?>
+                            <option value="<?php echo (int)$c->course_id; ?>" <?php echo $selected_attr; ?>>
+                                <?php echo esc_html($c->course_name); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -105,6 +111,11 @@ add_shortcode('Golf_Hole_by_Hole', function ($atts) {
 
         playerSelect.addEventListener('change', fetchAnalysis);
         courseSelect.addEventListener('change', fetchAnalysis);
+
+        // Auto-load the dashboard immediately if a course (like Ramsey) is selected by default
+        if (courseSelect.value && courseSelect.value !== "0") {
+            fetchAnalysis();
+        }
     });
     </script>
     <?php
