@@ -4,7 +4,7 @@ import os
 output_file = 'golf_codebase_context.txt'
 
 # The file types you want me to read
-allowed_extensions = ['.php', '.css', '.js', '.py']
+allowed_extensions = ['.php', '.css', '.js', '.py', '.sql']
 
 # Folders to ignore (like vendor files, virtual environments, or node_modules)
 ignore_dirs = ['node_modules', 'vendor', '.git', '__pycache__', 'venv']
