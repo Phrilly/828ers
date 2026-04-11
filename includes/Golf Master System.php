@@ -119,10 +119,10 @@ add_shortcode('golf_scorecard_entry', function () {
 
                 <input type="date" class="golf-input in-date" value="<?php echo esc_attr($default_date); ?>">
 
-                <div class="field field-tee">
+                <div class="field field-tee" style="width: 100%;">
                     <div class="lbl">Course / Tee</div>
-                    <div style="display:flex; gap:6px;">
-                        <select class="golf-input in-course" onchange="golfUpdateRowTees(this)" style="width: 140px; text-overflow: ellipsis;">
+                    <div style="display:flex; gap:6px; width: 100%;">
+                        <select class="golf-input in-course" onchange="golfUpdateRowTees(this)" style="flex: 1; min-width: 0; text-overflow: ellipsis; padding: 4px;">
                             <?php foreach ($all_courses as $c): ?>
                                 <option value="<?php echo esc_attr($c->course_id); ?>" <?php selected($default_course_id, (int)$c->course_id); ?>>
                                     <?php echo esc_html($c->course_name); ?>
@@ -130,7 +130,7 @@ add_shortcode('golf_scorecard_entry', function () {
                             <?php endforeach; ?>
                         </select>
                         
-                        <select class="golf-input in-tee" style="width: 80px;">
+                        <select class="golf-input in-tee" style="width: 85px; flex-shrink: 0; padding: 4px;">
                             <?php 
                             $default_tees = $tee_map[$default_course_id] ?? [];
                             foreach ($default_tees as $t): ?>
@@ -176,7 +176,6 @@ add_shortcode('golf_scorecard_entry', function () {
     function golfUpdateRowTees(courseSelect) {
         const courseId = courseSelect.value;
         const row = courseSelect.closest('.golf-grid-row');
-        // Find the adjacent tee dropdown
         const teeSelect = row.querySelector('.in-tee') || row.querySelector('.ed-tee');
         
         if (!teeSelect) return;
@@ -306,6 +305,7 @@ add_shortcode('golf_edit_grid', function () {
 
     ob_start();
     ?>
+
     <div class="golf-management-root golf-edit-box">
         <form method="get" class="edit-grid-filter" style="margin:0 10px 12px; display:flex; align-items:end; gap:10px; flex-wrap:wrap;">
             <?php foreach ($_GET as $key => $value): ?>
@@ -363,8 +363,8 @@ add_shortcode('golf_edit_grid', function () {
                 <input type="date" class="golf-input ed-date"
                        value="<?php echo esc_attr($r->date_played); ?>">
 
-                <div style="display:flex; gap:6px;">
-                    <select class="golf-input ed-course" onchange="golfUpdateRowTees(this)" style="width: 140px; text-overflow: ellipsis;">
+                <div style="display:flex; gap:6px; width: 100%;">
+                    <select class="golf-input ed-course" onchange="golfUpdateRowTees(this)" style="flex: 1; min-width: 0; text-overflow: ellipsis; padding: 4px;">
                         <?php foreach ($all_courses as $c): ?>
                             <option value="<?php echo esc_attr($c->course_id); ?>" <?php selected((int)$r->course_id, (int)$c->course_id); ?>>
                                 <?php echo esc_html($c->course_name); ?>
@@ -372,7 +372,7 @@ add_shortcode('golf_edit_grid', function () {
                         <?php endforeach; ?>
                     </select>
                     
-                    <select class="golf-input ed-tee" style="width: 80px;">
+                    <select class="golf-input ed-tee" style="width: 85px; flex-shrink: 0; padding: 4px;">
                         <?php 
                         $row_tees = $tee_map[$r->course_id] ?? [];
                         foreach ($row_tees as $t): ?>

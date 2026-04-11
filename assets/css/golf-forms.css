@@ -58,28 +58,37 @@
   text-transform: uppercase;
 }
 
-/* Entry grid: 8 columns (unchanged — no Excl in entry form) */
+/* Entry grid: 7 columns (Player, Date, Course/Tee, Gross, Putts, GIR, Status) */
 .golf-entry-box .entry-header,
 .golf-entry-box .entry-row {
   display: grid;
-  grid-template-columns: 1.3fr 1.1fr 0.9fr 0.7fr 0.5fr 0.6fr 0.6fr 0.6fr;
+  grid-template-columns: 1fr 130px 2.5fr 0.8fr 0.8fr 0.8fr 0.8fr;
   gap: 10px;
   padding: 10px;
   align-items: center;
   border-bottom: 1px solid #eee;
 }
 
-/* Edit grid: 10 columns — Count and Diff removed, Nett uses green circle */
+/* Edit grid: 10 columns (Player, Date, Course/Tee, Gross, PCC, Putts, GIR, Excl, Nett, Action) */
 .golf-edit-box .edit-header,
 .golf-edit-box .edit-row {
   display: grid;
-  /* Player | Date | Tee | Gross | PCC | Putts | GIR | Excl | Nett | Action */
-  grid-template-columns: minmax(70px, 1fr) 105px 65px 45px 50px 45px 45px 40px 45px 90px;
+  grid-template-columns: 1.2fr 130px 2.5fr 0.7fr 0.7fr 0.7fr 0.7fr 0.5fr 0.7fr 110px;
   gap: 6px;
   padding: 8px 10px;
   align-items: center;
   border-bottom: 1px solid #eee;
-  min-width: 630px; 
+}
+
+/* Ensure wide tables scroll cleanly on mobile */
+@media (max-width: 768px) {
+  .golf-entry-box .entry-header,
+  .golf-entry-box .entry-row { min-width: 800px; }
+  
+  .golf-edit-box .edit-header,
+  .golf-edit-box .edit-row { min-width: 900px; }
+  
+  .golf-management-root { overflow-x: auto; }
 }
 
 /* Action buttons never wrap */
