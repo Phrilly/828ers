@@ -187,7 +187,6 @@ function gh_load_hbh_analysis() {
                     <th class="tc hbh-hide-mobile" title="Standard Deviation (Variance)">Var (σ)</th>
                     <th class="tc hbh-hide-mobile">Best</th>
                     <th class="tc hbh-hide-mobile">Worst</th>
-                    <th>Score Distribution (Eagle ➔ Double+)</th>
                 </tr>
             </thead>
             <tbody>
@@ -213,12 +212,6 @@ function gh_load_hbh_analysis() {
                     
                     // Safe Variance formatting (N/A if played < 2 times)
                     $std_dev_display = $t >= 2 ? number_format((float)$r['std_dev'], 2) : 'N/A';
-
-                    $pct_e = $t > 0 ? ($r['eagles'] / $t) * 100 : 0;
-                    $pct_bi = $t > 0 ? ($r['birdies'] / $t) * 100 : 0;
-                    $pct_p = $t > 0 ? ($r['pars'] / $t) * 100 : 0;
-                    $pct_bo = $t > 0 ? ($r['bogeys'] / $t) * 100 : 0;
-                    $pct_d = $t > 0 ? ($r['doubles_plus'] / $t) * 100 : 0;
                 ?>
                 <tr>
                     <td class="tc"><strong><?php echo (int)$r['hole_number']; ?></strong></td>
@@ -231,15 +224,6 @@ function gh_load_hbh_analysis() {
                     <td class="tc hbh-hide-mobile" style="color:#666; font-style:italic;"><?php echo $std_dev_display; ?></td>
                     <td class="tc hbh-hide-mobile"><span class="hbh-ringer best"><?php echo (int)$r['best_score']; ?></span></td>
                     <td class="tc hbh-hide-mobile"><span class="hbh-ringer worst"><?php echo (int)$r['worst_score']; ?></span></td>
-                    <td style="width: 30%; min-width: 120px;">
-                        <div class="hbh-dist-bar-wrap">
-                            <?php if($pct_e > 0): ?><div class="dist-e" style="width:<?php echo $pct_e; ?>%;" title="Eagles: <?php echo $r['eagles']; ?>"></div><?php endif; ?>
-                            <?php if($pct_bi > 0): ?><div class="dist-bi" style="width:<?php echo $pct_bi; ?>%;" title="Birdies: <?php echo $r['birdies']; ?>"></div><?php endif; ?>
-                            <?php if($pct_p > 0): ?><div class="dist-p" style="width:<?php echo $pct_p; ?>%;" title="Pars: <?php echo $r['pars']; ?>"></div><?php endif; ?>
-                            <?php if($pct_bo > 0): ?><div class="dist-bo" style="width:<?php echo $pct_bo; ?>%;" title="Bogeys: <?php echo $r['bogeys']; ?>"></div><?php endif; ?>
-                            <?php if($pct_d > 0): ?><div class="dist-d" style="width:<?php echo $pct_d; ?>%;" title="Doubles+: <?php echo $r['doubles_plus']; ?>"></div><?php endif; ?>
-                        </div>
-                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
