@@ -8,17 +8,17 @@ Confirmed facts from this debugging session (April 2026):
   - Score fields: PlayDate (DD/MM/YYYY), AdjustedGross, Marker,
                   Slope, CourseRating, HCDiff, HandicapIndex, Pcc,
                   StablefordPoints, ScoreId, ScoreCode
-  - HI API:      POST https://www.englandgolf.org/api/Score/GetMemberHandicapIndex  [FIX #1]
+  - HI API:      POST https://www.englandgolf.org/api/Score/GetMemberHandicapIndex
   - Scorecard:   POST https://www.englandgolf.org/api/Score/GetMyScoreDetails
-                 Payload: { ScoreId, ScoreCode }  -- NOTE: ScoreCode != ScoreId
+                  Payload: { ScoreId, ScoreCode }  -- NOTE: ScoreCode != ScoreId
 """
 
 import os
 import time
-import pickle
+import json
 import re
 import logging
-from urllib.parse import urlparse, parse_qs   # FIX #5 -- replace manual URL parsing
+from urllib.parse import urlparse, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,10 +30,9 @@ log = logging.getLogger(__name__)
 BASE              = "https://www.englandgolf.org"
 LOGIN_URL         = f"{BASE}/igolf-login"
 SCORES_URL        = f"{BASE}/api/Score/GetMyScores"
-HI_URL            = f"{BASE}/api/Score/GetMemberHandicapIndex"    # FIX #1 -- correct endpoint
+HI_URL            = f"{BASE}/api/Score/GetMemberHandicapIndex"
 SCORE_DETAILS_URL = f"{BASE}/api/Score/GetMyScoreDetails"
-FRIENDS_URL       = f"{BASE}/my-friends"
-SESSION_FILE      = os.path.join(os.path.dirname(__file__), "eg_session.pkl")
+SESSION_FILE      = os.path.join(os.path.dirname(__file__), "eg_session.json")
 
 HEADERS = {
     "User-Agent": (
@@ -51,7 +50,6 @@ class EGLoginError(Exception):
 
 # ── Session management ──────────────────────────────────────────────────────
 
-
 def _make_session():
     s = requests.Session()
     s.headers.update(HEADERS)
@@ -67,7 +65,6 @@ def _do_fresh_login():
 
     soup = BeautifulSoup(r.text, "html.parser")
 
-    # Resolve the real POST target from the form action
     form = soup.find("form", {"method": re.compile("post", re.I)})
     if not form:
         raise EGLoginError("No POST form found on login page — page structure may have changed.")
@@ -77,9 +74,8 @@ def _do_fresh_login():
     elif action.startswith("/"):
         post_url = BASE + action
     else:
-        post_url = LOGIN_URL  # fallback: post back to same page
+        post_url = LOGIN_URL
 
-    # Collect all hidden fields (__VIEWSTATE etc.)
     hidden = {
         inp["name"]: inp.get("value", "")
         for inp in soup.find_all("input", {"type": "hidden"})
@@ -127,19 +123,18 @@ def _load_saved_session():
     if not os.path.exists(SESSION_FILE):
         return None
     try:
-        with open(SESSION_FILE, "rb") as f:
-            session = pickle.load(f)
-        for c in session.cookies:
-            if c.name == "CWApiToken":
-                if c.expires and c.expires > time.time() + 300:
-                    log.info("EG: reusing saved session (CWApiToken valid)")
-                    return session
-                else:
-                    log.info("EG: CWApiToken expired — will re-login")
-                    return None
-        # FIX #4 -- log the fallthrough case so we know why a re-login was triggered
-        log.info("EG: CWApiToken not found in saved session cookies — will re-login")
-        return None
+        with open(SESSION_FILE, "r") as f:
+            data = json.load(f)
+        
+        # EG CWApiToken is typically valid for 24 hours. We expire local cache after ~22h (80000s)
+        if time.time() - data.get("timestamp", 0) > 80000:
+            log.info("EG: Saved session expired — will re-login")
+            return None
+            
+        session = _make_session()
+        requests.utils.cookiejar_from_dict(data.get("cookies", {}), cookiejar=session.cookies)
+        log.info("EG: reusing saved session (JSON)")
+        return session
     except Exception as exc:
         log.warning("EG: could not load saved session: %s", exc)
         try:
@@ -150,9 +145,16 @@ def _load_saved_session():
 
 
 def _save_session(session):
-    with open(SESSION_FILE, "wb") as f:
-        pickle.dump(session, f)
-    log.info("EG: session saved to %s", SESSION_FILE)
+    try:
+        data = {
+            "cookies": requests.utils.dict_from_cookiejar(session.cookies),
+            "timestamp": time.time()
+        }
+        with open(SESSION_FILE, "w") as f:
+            json.dump(data, f)
+        log.info("EG: session saved to %s", SESSION_FILE)
+    except Exception as exc:
+        log.warning("EG: Failed to save session to JSON: %s", exc)
 
 
 def eg_login():
@@ -167,16 +169,12 @@ def eg_login():
 
 # ── API helpers ─────────────────────────────────────────────────────────────
 
-
-def eg_fetch_scores(session, passport_id=None, page_size=40):
+def eg_fetch_scores(session, passport_id=None, page_size=40, page_number=1):
     """
-    Fetch scores for a player.
-    passport_id=None  → Phil D (the logged-in account)
-    passport_id=int   → another player (requires them to be linked as a friend)
-    Returns list of raw score dicts from the EG API.
+    Fetch scores for a player with pagination support.
     """
     payload = {
-        "pageNumber":          1,
+        "pageNumber":          page_number,
         "pageSize":            page_size,
         "otherPassportId":     passport_id,
         "includeCasualScores": False,
@@ -223,7 +221,6 @@ def eg_fetch_hi(session, passport_id=None):
                     return float(str(data[key]).replace('c', '').strip())
                 except ValueError:
                     pass
-        # FIX #2 -- log exactly what came back so future key changes are diagnosable
         log.warning(
             "EG HI fetch (passport=%s): no recognised key in response. "
             "Keys present: %s  |  Raw: %s",
@@ -241,16 +238,7 @@ def eg_fetch_hi(session, passport_id=None):
 def eg_fetch_scorecard(session, score_id, score_code=None):
     """
     Fetch hole-by-hole scorecard for a specific round.
-
-    IMPORTANT: score_code is NOT the same as score_id.
-    From your EG Network logs:
-      ScoreId   = 67490092   (the round's DB id)
-      ScoreCode = 212726633  (a separate reference code)
-    Both must come from the raw score object returned by GetMyScores.
-    Passing score_id as a fallback for score_code will likely cause the
-    API to reject the request or return unexpected data.
     """
-    # FIX #3 -- warn loudly if ScoreCode is missing rather than silently substituting
     if score_code is None:
         log.warning(
             "eg_fetch_scorecard called without ScoreCode for ScoreId=%s. "
@@ -272,43 +260,7 @@ def eg_fetch_scorecard(session, score_id, score_code=None):
         return None
 
 
-def eg_fetch_friends(session):
-    """
-    Load /my-friends and extract linked friend profile links.
-    Returns list of dicts: {name, passportid, code, url}
-    """
-    r = session.get(FRIENDS_URL, timeout=30)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    friends = []
-    seen = set()
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "golf-profile" not in href and "passportid=" not in href.lower():
-            continue
-        full_url = href if href.startswith("http") else BASE + href
-        if full_url in seen:
-            continue
-        seen.add(full_url)
-
-        # FIX #5 -- use urllib.parse instead of manual string splitting,
-        # which breaks on encoded characters or complex query strings
-        parsed = urlparse(full_url)
-        qs = {k: v[0] for k, v in parse_qs(parsed.query).items()}
-
-        friends.append({
-            "name":       " ".join(a.get_text(" ", strip=True).split()) or "Unknown",
-            "passportid": qs.get("passportid"),
-            "code":       qs.get("code"),
-            "url":        full_url,
-        })
-
-    return friends
-
-
 # ── Score field mapping ──────────────────────────────────────────────────────
-
 
 def parse_play_date(raw):
     """
@@ -317,7 +269,6 @@ def parse_play_date(raw):
     raw_date = raw.get("PlayDate") or raw.get("playDate") or raw.get("DatePlayed") or ""
     if not raw_date:
         return None
-    # Handle both DD/MM/YYYY and ISO formats
     if "/" in raw_date:
         parts = raw_date[:10].split("/")
         if len(parts) == 3:
@@ -329,9 +280,7 @@ def parse_play_date(raw):
 
 def parse_gross(raw):
     """
-    Extract gross score from a raw EG score dict.
-    FIX #6: Log a warning (rather than silently returning None) when the value
-    is outside the expected 50-150 range so we can investigate unusual data.
+    Extract gross score from a raw EG score dict. Logs a warning if outside expected range.
     """
     val = (
         raw.get("AdjustedGross") or raw.get("adjustedGross") or
@@ -339,25 +288,25 @@ def parse_gross(raw):
         raw.get("Score")         or raw.get("score")
     )
     try:
-        v = int(val)
-        if 50 <= v <= 150:
-            return v
-        log.warning(
-            "parse_gross: value %s is outside the expected range 50-150 "
-            "-- treating as None. Raw score keys: %s",
-            v, list(raw.keys()),
-        )
-        return None
+        v = int(float(val))
+        if not (50 <= v <= 150):
+            log.warning("parse_gross: value %s is unusually high or low. Continuing anyway.", v)
+        return v
     except (TypeError, ValueError):
         return None
 
 
 def parse_pcc(raw):
-    val = raw.get("Pcc") or raw.get("pcc") or raw.get("PCCAdjustment") or 0
-    try:
-        return int(float(val))
-    except (TypeError, ValueError):
-        return 0
+    """
+    Extract PCC adjustment. Explicitly checks for None to allow valid integer 0.
+    """
+    for key in ("Pcc", "pcc", "PCCAdjustment"):
+        if key in raw and raw[key] is not None:
+            try:
+                return int(float(raw[key]))
+            except (TypeError, ValueError):
+                pass
+    return 0
 
 
 def parse_hi(raw):
