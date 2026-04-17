@@ -21,6 +21,33 @@ PASSPORT  = "https://passport.howdidido.com"
 HDID_BASE = "https://www.howdidido.com"
 
 
+def _follow_redirects_verbose(session, url, method="GET", data=None, headers=None, max_hops=10):
+    """Follow redirects one at a time, printing each hop. Returns final response."""
+    extra_headers = headers or {}
+    for hop in range(max_hops):
+        if method == "POST" and hop == 0:
+            r = session.post(url, data=data, allow_redirects=False,
+                             headers=extra_headers, timeout=15)
+        else:
+            r = session.get(url, allow_redirects=False,
+                            headers=extra_headers, timeout=15)
+        print(f"    [{hop}] {method if hop == 0 else 'GET'} {url}")
+        print(f"         -> HTTP {r.status_code}  cookies now: {[c.name for c in session.cookies]}")
+        if r.status_code in (301, 302, 303, 307, 308):
+            location = r.headers.get("Location", "")
+            if location.startswith("/"):
+                # Resolve relative redirect against current domain
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                location = f"{parsed.scheme}://{parsed.netloc}{location}"
+            print(f"         -> Redirect to: {location}")
+            url = location
+            method = "GET"
+        else:
+            return r
+    return r
+
+
 def hdid_login():
     session = requests.Session()
     session.headers.update({
@@ -30,7 +57,7 @@ def hdid_login():
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
 
-    # Step 1: Passport login
+    # ── Step 1: GET passport login page ─────────────────────────────────────
     LOGIN_URL = f"{PASSPORT}/Account/Login"
     print("[*] Fetching login page for anti-forgery token...")
     r = session.get(LOGIN_URL, timeout=15)
@@ -50,52 +77,86 @@ def hdid_login():
         "RememberMe":   "true"
     }
 
-    print("[*] Submitting login credentials...")
-    r2 = session.post(LOGIN_URL, data=post_data, allow_redirects=True, timeout=15)
-    r2.raise_for_status()
+    # ── Step 2: POST credentials, following every redirect manually ──────────
+    print("[*] Submitting credentials — tracing full redirect chain:")
+    r2 = _follow_redirects_verbose(
+        session, LOGIN_URL, method="POST", data=post_data,
+        headers={"Referer": LOGIN_URL}
+    )
 
-    if "Sign Out" not in r2.text and "HowDidiDo" not in r2.text:
-        raise Exception("Login Failed. Check credentials in config.py.")
-    print(" -> Login Successful!")
+    print(f"\n    Final landing page: {r2.url}")
+    print(f"    All cookies after login:")
+    for c in session.cookies:
+        print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
 
-    # Step 2: Hit howdidido.com/Booking — this generates the SSO token and
-    # redirects to clubv1.com/HDIDBooking/HDIDLogin?token=XXXX
-    print("[*] Fetching SSO token from howdidido.com...")
-    r3 = session.get(f"{HDID_BASE}/Booking", timeout=15, allow_redirects=True)
-    print(f"    howdidido /Booking: HTTP {r3.status_code} -> {r3.url}")
+    # Check for authenticated cookie on www.howdidido.com
+    # Typical auth cookies: .AspNet.ApplicationCookie, .HDID_Auth, __hdid_auth, etc.
+    hdid_auth = None
+    for c in session.cookies:
+        if "howdidido.com" in c.domain and c.name not in (
+            ".ASPXANONYMOUS", "ASP.NET_SessionId", "__RequestVerificationToken"
+        ):
+            hdid_auth = c.name
+            break
 
-    # Step 3: If we didn't land on clubv1.com, find the redirect manually
-    if "clubv1.com" not in r3.url:
-        soup3 = BeautifulSoup(r3.text, "html.parser")
-        redirect_url = None
-
-        # Check meta refresh
-        meta = soup3.find("meta", attrs={"http-equiv": lambda v: v and v.lower() == "refresh"})
-        if meta:
-            content = meta.get("content", "")
-            if "url=" in content.lower():
-                redirect_url = content.split("url=", 1)[-1].strip().strip("'\"")
-
-        # Check for a clubv1.com anchor
-        if not redirect_url:
-            for a in soup3.find_all("a", href=True):
-                if "clubv1.com" in a["href"]:
-                    redirect_url = a["href"]
-                    break
-
-        if redirect_url:
-            print(f"    Following manual SSO redirect: {redirect_url}")
-            r4 = session.get(redirect_url, timeout=15, allow_redirects=True)
-            print(f"    clubv1.com SSO: HTTP {r4.status_code} -> {r4.url}")
+    if not hdid_auth:
+        # Check the final page text for sign-out link
+        if "Sign Out" in r2.text or "sign-out" in r2.text.lower():
+            print(" -> Login Successful (confirmed via page text)!")
         else:
-            # Fallback: try the partner club URL
-            PARTNER_URL = f"{HDID_BASE}/Booking/Club/{COURSE_ID}"
-            print(f"    No redirect found. Trying partner URL: {PARTNER_URL}")
-            r4 = session.get(PARTNER_URL, timeout=15, allow_redirects=True)
-            print(f"    Partner URL: HTTP {r4.status_code} -> {r4.url}")
+            # Not logged into www.howdidido.com yet — need to check if
+            # passport issued a redirect_uri back to howdidido.com
+            print("    [!] No auth cookie on howdidido.com yet.")
+            print("    Page title:", BeautifulSoup(r2.text, "html.parser").title)
+            # Look for a return URL or OpenID connect callback in the response
+            soup2 = BeautifulSoup(r2.text, "html.parser")
+            for a in soup2.find_all("a", href=True):
+                if "howdidido.com" in a["href"]:
+                    print(f"    Found link to howdidido.com: {a['href']}")
+    else:
+        print(f" -> Login Successful! Auth cookie: {hdid_auth}")
 
-    # Step 4: Verify the clubv1.com session is active
-    print("[*] Verifying clubv1.com session...")
+    # ── Step 3: Ensure www.howdidido.com has an authenticated session ────────
+    # If we landed on passport.howdidido.com (not www), follow the return URL
+    if "passport.howdidido.com" in r2.url or "Account/Login" in r2.url:
+        print("\n[*] Still on passport — looking for return URL...")
+        soup_p = BeautifulSoup(r2.text, "html.parser")
+
+        # Look for hidden ReturnUrl or a form action pointing back to howdidido.com
+        return_url = None
+        for inp in soup_p.find_all("input"):
+            if inp.get("name", "").lower() in ("returnurl", "return_url", "redirecturl"):
+                return_url = inp.get("value", "")
+                break
+
+        # Check URL params
+        if not return_url and "returnUrl" in r2.url:
+            from urllib.parse import urlparse, parse_qs, unquote
+            qs = parse_qs(urlparse(r2.url).query)
+            return_url = unquote(qs.get("returnUrl", [""])[0])
+
+        if return_url:
+            if return_url.startswith("/"):
+                return_url = f"{PASSPORT}{return_url}"
+            print(f"    Following return URL: {return_url}")
+            r3 = _follow_redirects_verbose(session, return_url)
+            print(f"\n    Post-return cookies:")
+            for c in session.cookies:
+                print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
+
+    # ── Step 4: Prime www.howdidido.com with the /Booking path ──────────────
+    print("\n[*] Hitting www.howdidido.com/Booking (tracing redirects):")
+    r_booking = _follow_redirects_verbose(
+        session, f"{HDID_BASE}/Booking",
+        headers={"Referer": HDID_BASE}
+    )
+    print(f"\n    Final URL: {r_booking.url}")
+    print(f"    Cookies after /Booking:")
+    for c in session.cookies:
+        print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
+
+    # ── Step 5: Verify clubv1.com session ────────────────────────────────────
+    print("\n[*] Verifying clubv1.com session...")
     r5 = session.get(
         f"{CLUB_BASE}/HDIDBooking/BookingList",
         params={"courseId": COURSE_ID},
@@ -106,13 +167,9 @@ def hdid_login():
     print(f"    BookingList: HTTP {r5.status_code} -> {r5.url}")
 
     if r5.status_code == 500:
-        print("    [!] HTTP 500 — dumping cookies for diagnosis:")
-        for c in session.cookies:
-            print(f"        {c.domain}: {c.name}={str(c.value)[:40]}")
-        raise Exception(
-            "clubv1.com returned HTTP 500 on BookingList. "
-            "SSO token exchange likely failed — check cookie dump above."
-        )
+        soup5 = BeautifulSoup(r5.text, "html.parser")
+        print(f"    Page title: {soup5.title.string.strip() if soup5.title else '(none)'}")
+        raise Exception("clubv1.com returned HTTP 500 — see redirect trace above for diagnosis.")
 
     print(" -> clubv1.com session confirmed!")
     time.sleep(0.5)
@@ -198,68 +255,4 @@ def book_tee_time(session, target_date, target_time):
         timeout=10
     )
 
-    if "Booking Confirmed" in r_confirm.text or "Thank You" in r_confirm.text:
-        print(" -> SUCCESS! Tee time officially booked.")
-        return True
-    else:
-        print(" -> FAILED during final confirmation step.")
-        conf_soup = BeautifulSoup(r_confirm.text, "html.parser")
-        print(f"    HTTP Status : {r_confirm.status_code}")
-        print(f"    Page title  : {conf_soup.title.string.strip() if conf_soup.title else '(no title)'}")
-        print(f"    Body snippet:\n{r_confirm.text[:500]}")
-        return False
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="828ers HDID Auto Booker")
-    parser.add_argument("--tuesday", action="store_true", help="Book the Tuesday 08:32 slot")
-    parser.add_argument("--friday",  action="store_true", help="Book the Friday 08:00 slot")
-    parser.add_argument("--test",    action="store_true", help="Test mode: target 17:52 in 14 days")
-    args = parser.parse_args()
-
-    if not any([args.tuesday, args.friday, args.test]):
-        print("Error: Use --tuesday, --friday, or --test")
-        sys.exit(1)
-
-    if args.test:
-        target_date_obj = datetime.today() + timedelta(days=14)
-        target_date     = target_date_obj.strftime("%Y-%m-%d")
-        target_time     = "17:52"
-        is_test         = True
-    else:
-        target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
-        target_date     = target_date_obj.strftime("%Y-%m-%d")
-        is_test         = False
-        if args.tuesday:
-            target_time, expected_weekday = "08:32", 1
-        else:
-            target_time, expected_weekday = "08:00", 4
-
-        if target_date_obj.weekday() != expected_weekday:
-            print(f"CRITICAL: Target date {target_date} is not the correct weekday. Aborting.")
-            sys.exit(1)
-
-    print(f"=== 828ers Auto-Booker {'[TEST MODE]' if is_test else ''} ===")
-    print(f"Targeting: {target_date} @ {target_time}\n")
-
-    try:
-        my_session = hdid_login()
-    except Exception as e:
-        print(f"CRITICAL: {e}")
-        sys.exit(1)
-
-    MAX_ATTEMPTS = 1 if is_test else 30
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        if not is_test:
-            print(f"--- Attempt {attempt} of {MAX_ATTEMPTS} ---")
-
-        try:
-            if book_tee_time(my_session, target_date, target_time):
-                sys.exit(0)
-        except Exception as e:
-            print(f" -> Error during attempt: {e}")
-
-        if attempt < MAX_ATTEMPTS:
-            time.sleep(10)
-
-    print("\n[!] Finished all attempts.")
+    if "Booking Confirmed" in r_confirm.t
