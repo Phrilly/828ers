@@ -53,7 +53,6 @@ def hdid_login():
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
 
-    # 1. GET Passport
     print("[*] Fetching login page for anti-forgery token...")
     r = session.get(f"{PASSPORT}/Account/Login", timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
@@ -67,15 +66,12 @@ def hdid_login():
         "RememberMe":   "true"
     }
 
-    # 2. POST Credentials
     print("[*] Submitting credentials...")
     r2 = _follow_redirects_verbose(session, r.url, method="POST", data=post_data, headers={"Referer": r.url})
 
-    # 3. Hit /Booking to get Handover Link
     print("\n[*] Hitting www.howdidido.com/Booking to locate handover link...")
     r_booking = _follow_redirects_verbose(session, f"{HDID_BASE}/Booking", headers={"Referer": HDID_BASE})
 
-    # 4. Extract and Activate the Handover Token
     print("\n[*] Extracting ClubV1 Handover Token...")
     match = re.search(r'(https://howdidido-whs\.clubv1\.com/[^"]+)', r_booking.text)
     
@@ -86,7 +82,6 @@ def hdid_login():
     print(f"    -> FOUND: {handover_url}")
     print("    -> Activating session bridge...")
     
-    # We capture the final URL of the bridge to use as our secure Referer
     r_bridge = _follow_redirects_verbose(session, handover_url)
     
     if r_bridge.status_code != 200:
@@ -95,7 +90,6 @@ def hdid_login():
     print(f" -> clubv1.com session confirmed! Secured Referer: {r_bridge.url}")
     time.sleep(0.5)
     
-    # Return both the session AND the secure bridge URL
     return session, r_bridge.url
 
 def book_tee_time(session, bridge_url, target_date, target_time):
@@ -113,10 +107,8 @@ def book_tee_time(session, bridge_url, target_date, target_time):
 
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Attempting to LOCK {target_date} at {target_time}...")
     
-    # Use the actual bridge URL as the Referer to bypass security blocks
     r_lock = session.get(LOCK_URL, params=params, headers={"Referer": bridge_url}, timeout=10)
 
-    # Forensic Dump if the server panics on the actual Lock page
     if r_lock.status_code == 500:
         print("\n[!] CRITICAL: BookingAdd returned HTTP 500. Saving evidence to 'booking_500_dump.html'")
         with open("booking_500_dump.html", "w", encoding="utf-8") as f:
@@ -124,10 +116,16 @@ def book_tee_time(session, bridge_url, target_date, target_time):
         return False
 
     soup = BeautifulSoup(r_lock.text, "html.parser")
-    form = soup.find("form")
+    
+    # THE FIX: Find the specific booking form, ignoring search bars
+    form = None
+    for f in soup.find_all("form"):
+        if f.find("input", {"name": "BookingLockId"}):
+            form = f
+            break
 
     if not form:
-        print(" -> FAILED: Could not find confirmation form.")
+        print(" -> FAILED: Could not find actual booking confirmation form.")
         text_lower = r_lock.text.lower()
         if "already been booked" in text_lower:
             print("    Reason: That slot is already taken.")
