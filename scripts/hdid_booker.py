@@ -4,6 +4,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+import re
 
 try:
     import config
@@ -69,7 +70,7 @@ def hdid_login():
         if inp.get("name")
     }
 
-    # THE CRITICAL FIX: "Username" instead of "EmailAddress"
+    # CRITICAL: Username instead of EmailAddress
     post_data = {
         **hidden_fields,
         "Username":     EMAIL,
@@ -85,61 +86,43 @@ def hdid_login():
     )
 
     print(f"\n    Final landing page: {r2.url}")
-    print(f"    All cookies after login:")
-    for c in session.cookies:
-        print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
 
     hdid_auth = None
     for c in session.cookies:
-        if "howdidido.com" in c.domain and c.name not in (
-            ".ASPXANONYMOUS", "ASP.NET_SessionId", "__RequestVerificationToken"
-        ):
+        if ".ASPXAUTH" in c.name:
             hdid_auth = c.name
             break
 
     if not hdid_auth:
-        if "Sign Out" in r2.text or "sign-out" in r2.text.lower():
-            print(" -> Login Successful (confirmed via page text)!")
-        else:
-            print("    [!] No auth cookie on howdidido.com yet.")
-            soup2 = BeautifulSoup(r2.text, "html.parser")
-            for a in soup2.find_all("a", href=True):
-                if "howdidido.com" in a["href"]:
-                    print(f"    Found link to howdidido.com: {a['href']}")
-    else:
-        print(f" -> Login Successful! Auth cookie: {hdid_auth}")
+        raise Exception("Login Failed: .ASPXAUTH cookie was not issued.")
+    
+    print(f" -> Login Successful! Auth cookie: {hdid_auth}")
 
-    # ── Step 3: Ensure www.howdidido.com has an authenticated session ────────
-    if "passport.howdidido.com" in r2.url or "Account/Login" in r2.url:
-        print("\n[*] Still on passport — looking for return URL...")
-        soup_p = BeautifulSoup(r2.text, "html.parser")
-
-        return_url = None
-        for inp in soup_p.find_all("input"):
-            if inp.get("name", "").lower() in ("returnurl", "return_url", "redirecturl"):
-                return_url = inp.get("value", "")
-                break
-
-        if not return_url and "returnUrl" in r2.url:
-            from urllib.parse import urlparse, parse_qs, unquote
-            qs = parse_qs(urlparse(r2.url).query)
-            return_url = unquote(qs.get("returnUrl", [""])[0])
-
-        if return_url:
-            if return_url.startswith("/"):
-                return_url = f"{PASSPORT}{return_url}"
-            print(f"    Following return URL: {return_url}")
-            r3 = _follow_redirects_verbose(session, return_url)
-            print(f"\n    Post-return cookies:")
-            for c in session.cookies:
-                print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
-
-    # ── Step 4: Prime www.howdidido.com with the /Booking path ──────────────
-    print("\n[*] Hitting www.howdidido.com/Booking (tracing redirects):")
+    # ── Step 3: Prime www.howdidido.com with the /Booking path ──────────────
+    print("\n[*] Hitting www.howdidido.com/Booking to locate the handover link...")
     r_booking = _follow_redirects_verbose(
         session, f"{HDID_BASE}/Booking",
         headers={"Referer": HDID_BASE}
     )
+
+    # ── Step 4: THE MISSING LINK (Extract and activate the Handover Token) ──
+    print("\n[*] Extracting ClubV1 Handover Token...")
+    # We search the HTML of the Booking page for the link to clubv1
+    match = re.search(r'(https://howdidido-whs\.clubv1\.com/[^"]+)', r_booking.text)
+    
+    if match:
+        handover_url = match.group(1).replace("&amp;", "&")
+        print(f"    -> FOUND: {handover_url}")
+        print("    -> Activating session bridge...")
+        # Visiting this URL is what tells ClubV1 who we are
+        r_bridge = _follow_redirects_verbose(session, handover_url)
+    else:
+        print("    -> CRITICAL: No handover link found on the /Booking page.")
+        # Diagnostic dump to see WHY it's missing
+        with open("booking_page_dump.html", "w", encoding="utf-8") as f:
+            f.write(r_booking.text)
+        print("    -> HTML of /Booking saved to 'booking_page_dump.html' for analysis.")
+        raise Exception("Cannot bridge to ClubV1 without the handover token.")
 
     # ── Step 5: Verify clubv1.com session ────────────────────────────────────
     print("\n[*] Verifying clubv1.com session...")
@@ -153,9 +136,7 @@ def hdid_login():
     print(f"    BookingList: HTTP {r5.status_code} -> {r5.url}")
 
     if r5.status_code == 500:
-        soup5 = BeautifulSoup(r5.text, "html.parser")
-        print(f"    Page title: {soup5.title.string.strip() if soup5.title else '(none)'}")
-        raise Exception("clubv1.com returned HTTP 500 — see redirect trace above for diagnosis.")
+        raise Exception("clubv1.com returned HTTP 500 — The bridge failed to authenticate the session.")
 
     print(" -> clubv1.com session confirmed!")
     time.sleep(0.5)
@@ -247,9 +228,9 @@ def book_tee_time(session, target_date, target_time):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="828ers HDID Auto Booker")
-    parser.add_argument("--tuesday", action="store_true", help="Book the Tuesday 08:32 slot")
-    parser.add_argument("--friday",  action="store_true", help="Book the Friday 08:00 slot")
-    parser.add_argument("--test",    action="store_true", help="Test mode: target 17:52 in 14 days")
+    parser.add_argument("--tuesday", action="store_true")
+    parser.add_argument("--friday",  action="store_true")
+    parser.add_argument("--test",    action="store_true")
     args = parser.parse_args()
 
     if not any([args.tuesday, args.friday, args.test]):
