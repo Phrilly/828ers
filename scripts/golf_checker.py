@@ -17,7 +17,6 @@ from datetime import date, timedelta
 # --- CRITICAL FIX FOR HOSTINGER CRON ---
 python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
 sys.path.insert(0, os.path.expanduser(f'~/.local/lib/{python_version}/site-packages'))
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import pymysql
@@ -52,7 +51,6 @@ log = logging.getLogger(__name__)
 
 HI_IGNORE_PLAYERS = {"Jay"}
 
-
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -69,7 +67,6 @@ def get_conn():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
-
 def load_players(conn):
     with conn.cursor() as cur:
         cur.execute(
@@ -78,19 +75,17 @@ def load_players(conn):
         )
         return {r["name"]: r for r in cur.fetchall()}
 
-
 def load_tees(conn):
     with conn.cursor() as cur:
         cur.execute(
             "SELECT t.tee_id, t.tee_colour, t.course_rating, t.slope_rating, "
-            "t.par, t.course_id, c.eg_club_id "
+            "t.par, t.course_id, c.eg_club_id, c.course_name "
             "FROM {p}golf_tees t "
             "JOIN {p}golf_courses c ON t.course_id = c.course_id".format(
                 p=config.DB_PREFIX
             )
         )
         return cur.fetchall()
-
 
 def get_db_score(conn, player_id, date_played):
     with conn.cursor() as cur:
@@ -103,7 +98,6 @@ def get_db_score(conn, player_id, date_played):
         )
         return cur.fetchone()
 
-
 def has_hole_scores(conn, score_id):
     with conn.cursor() as cur:
         cur.execute(
@@ -111,9 +105,7 @@ def has_hole_scores(conn, score_id):
             "WHERE score_id=%s".format(p=config.DB_PREFIX),
             (score_id,)
         )
-        # Reduced to >= 9 to safely accommodate 9-hole rounds without re-triggering backfills
         return cur.fetchone()["c"] >= 9
-
 
 def update_pcc(conn, score_id, new_pcc):
     with conn.cursor() as cur:
@@ -123,7 +115,6 @@ def update_pcc(conn, score_id, new_pcc):
             (int(new_pcc), score_id),
         )
     conn.commit()
-
 
 def read_local_hi(conn, player_name):
     try:
@@ -139,14 +130,23 @@ def read_local_hi(conn, player_name):
         log.warning("Could not read local HI for %s: %s", player_name, exc)
         return None
 
+def verify_trigger_effect(conn, score_id):
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT score_id FROM {p}golf_handicap_history WHERE score_id=%s".format(
+                p=config.DB_PREFIX
+            ),
+            (score_id,),
+        )
+        return cur.fetchone() is not None
 
 def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
     synced = 0
     try:
         with conn.cursor() as cur:
             for i in range(1, 19):
-                gross    = scorecard.get(f"Hole{i}Score")
-                par      = scorecard.get(f"Hole{i}Par")
+                gross = scorecard.get(f"Hole{i}Score")
+                par = scorecard.get(f"Hole{i}Par")
                 distance = scorecard.get(f"Hole{i}Distance")
 
                 if gross is None or str(gross).strip() == "":
@@ -188,7 +188,6 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                 hole_row = cur.fetchone()
                 if not hole_row:
                     continue
-                hole_id = hole_row["hole_id"]
 
                 cur.execute(
                     "INSERT INTO {p}golf_hole_scores (score_id, hole_id, gross_score) "
@@ -196,7 +195,7 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     "ON DUPLICATE KEY UPDATE gross_score=VALUES(gross_score)".format(
                         p=config.DB_PREFIX
                     ),
-                    (db_score_id, hole_id, int_gross),
+                    (db_score_id, hole_row["hole_id"], int_gross),
                 )
                 synced += 1
 
@@ -212,14 +211,13 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
         )
         return 0
 
-
 # ---------------------------------------------------------------------------
-# Tee resolution
+# Dynamic Insertion Helpers
 # ---------------------------------------------------------------------------
 
 def resolve_tee(raw, tees_list):
     eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
-    marker         = (raw.get("Marker") or "").strip().lower()
+    marker = (raw.get("Marker") or "").strip().lower()
 
     if eg_facility_id and marker:
         try:
@@ -241,8 +239,7 @@ def resolve_tee(raw, tees_list):
             eg_sl = int(sl)
             for t in tees_list:
                 try:
-                    if (abs(float(t["course_rating"]) - eg_cr) < 0.2 and
-                            int(t["slope_rating"]) == eg_sl):
+                    if abs(float(t["course_rating"]) - eg_cr) < 0.2 and int(t["slope_rating"]) == eg_sl:
                         return t
                 except (TypeError, ValueError):
                     continue
@@ -251,6 +248,170 @@ def resolve_tee(raw, tees_list):
 
     return None
 
+def get_par_from_sources(raw, scorecard=None):
+    for val in (raw.get("Par"), raw.get("CoursePar")):
+        if val is not None and str(val).strip() != "":
+            try:
+                return int(float(val)), False
+            except (TypeError, ValueError):
+                pass
+
+    if scorecard:
+        for val in (scorecard.get("TotalPar"),):
+            if val is not None and str(val).strip() != "":
+                try:
+                    return int(float(val)), False
+                except (TypeError, ValueError):
+                    pass
+
+    return 72, True
+
+def ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=None):
+    existing = resolve_tee(raw, tees_list)
+    if existing:
+        return existing
+
+    eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
+    facility_name = (raw.get("FacilityName") or raw.get("CourseName") or "").strip()
+    marker = (raw.get("Marker") or "").strip()
+    cr = raw.get("CourseRating")
+    sl = raw.get("Slope")
+
+    if not marker:
+        log.warning("  ensure_course_and_tee: no Marker in EG record — cannot insert tee")
+        return None
+
+    if not cr or not sl:
+        log.warning("  ensure_course_and_tee: missing CourseRating/Slope in EG record — cannot insert tee")
+        return None
+
+    try:
+        cr_float = float(cr)
+        sl_int = int(sl)
+    except (TypeError, ValueError) as exc:
+        log.warning("  ensure_course_and_tee: could not parse numeric fields: %s", exc)
+        return None
+
+    par_int, guessed_par = get_par_from_sources(raw, scorecard=scorecard)
+
+    try:
+        with conn.cursor() as cur:
+            course_id = None
+
+            if eg_facility_id:
+                try:
+                    cur.execute(
+                        "SELECT course_id FROM {p}golf_courses WHERE eg_club_id=%s".format(p=config.DB_PREFIX),
+                        (int(eg_facility_id),)
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        course_id = row["course_id"]
+                except (TypeError, ValueError):
+                    pass
+
+            if course_id is None and facility_name:
+                cur.execute(
+                    "SELECT course_id FROM {p}golf_courses WHERE course_name=%s".format(p=config.DB_PREFIX),
+                    (facility_name,)
+                )
+                row = cur.fetchone()
+                if row:
+                    course_id = row["course_id"]
+
+            if course_id is None:
+                insert_name = facility_name or f"EG Course {eg_facility_id or 'Unknown'}"
+                eg_club_id_value = None
+                if eg_facility_id:
+                    try:
+                        eg_club_id_value = int(eg_facility_id)
+                    except (TypeError, ValueError):
+                        eg_club_id_value = None
+
+                cur.execute(
+                    "INSERT INTO {p}golf_courses (course_name, eg_club_id) VALUES (%s, %s)".format(p=config.DB_PREFIX),
+                    (insert_name, eg_club_id_value)
+                )
+                course_id = cur.lastrowid
+                log.info(
+                    "  AUTO-ADDED course: '%s' (course_id=%s, eg_club_id=%s)",
+                    insert_name, course_id, eg_club_id_value
+                )
+
+            cur.execute(
+                "SELECT tee_id FROM {p}golf_tees WHERE course_id=%s AND tee_colour=%s".format(
+                    p=config.DB_PREFIX
+                ),
+                (course_id, marker)
+            )
+            tee_row = cur.fetchone()
+
+            if tee_row:
+                tee_id = tee_row["tee_id"]
+                log.info("  Tee '%s' already exists for course_id=%s (tee_id=%s)", marker, course_id, tee_id)
+            else:
+                cur.execute(
+                    "INSERT INTO {p}golf_tees (course_id, tee_colour, course_rating, slope_rating, par) "
+                    "VALUES (%s, %s, %s, %s, %s)".format(p=config.DB_PREFIX),
+                    (course_id, marker, cr_float, sl_int, par_int)
+                )
+                tee_id = cur.lastrowid
+                log.info(
+                    "  AUTO-ADDED tee: '%s' for course_id=%s (tee_id=%s, CR=%.1f, Slope=%d, Par=%d)",
+                    marker, course_id, tee_id, cr_float, sl_int, par_int
+                )
+
+        conn.commit()
+
+        tees_list.clear()
+        tees_list.extend(load_tees(conn))
+
+        if guessed_par and player_issues is not None:
+            player_issues.add(
+                "  Auto-added course/tee used guessed par 72 for '{}' / '{}' — please verify manually".format(
+                    facility_name or "Unknown course", marker
+                )
+            )
+
+        new_tee = resolve_tee(raw, tees_list)
+        if not new_tee:
+            new_tee = next((t for t in tees_list if t["tee_id"] == tee_id), None)
+
+        return new_tee
+
+    except Exception as exc:
+        conn.rollback()
+        log.error("  ensure_course_and_tee: DB error — rollback. %s", exc)
+        return None
+
+def insert_score(conn, player_id, date_played, tee_id, gross_score, pcc):
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT score_id FROM {p}golf_scores WHERE player_id=%s AND date_played=%s".format(
+                    p=config.DB_PREFIX
+                ),
+                (player_id, date_played),
+            )
+            existing = cur.fetchone()
+            if existing:
+                return existing["score_id"], False
+
+            cur.execute(
+                "INSERT INTO {p}golf_scores "
+                "(player_id, date_played, tee_id, gross_score, pcc_adjustment) "
+                "VALUES (%s, %s, %s, %s, %s)".format(p=config.DB_PREFIX),
+                (player_id, date_played, tee_id, gross_score, pcc)
+            )
+            new_id = cur.lastrowid
+
+        conn.commit()
+        return new_id, True
+
+    except Exception as exc:
+        conn.rollback()
+        log.error("  insert_score: DB error — rollback. %s", exc)
+        return None, False
 
 # ---------------------------------------------------------------------------
 # Email
@@ -259,8 +420,8 @@ def resolve_tee(raw, tees_list):
 def send_email(subject, body):
     try:
         msg = MIMEMultipart()
-        msg["From"]    = config.EMAIL_FROM
-        msg["To"]      = config.EMAIL_TO
+        msg["From"] = config.EMAIL_FROM
+        msg["To"] = config.EMAIL_TO
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
@@ -277,16 +438,15 @@ def send_email(subject, body):
     except Exception as exc:
         log.error("Failed to send email '%s': %s", subject, exc)
 
-
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
 
 def run_backfill(session, conn, db_players, tees_list):
     results = []
-    
+
     for player_cfg in config.PLAYERS:
-        name  = player_cfg["name"]
+        name = player_cfg["name"]
         eg_id = player_cfg["eg_passport_id"]
         log.info("--- BACKFILL: %s (eg_id=%s) ---", name, eg_id)
 
@@ -299,7 +459,7 @@ def run_backfill(session, conn, db_players, tees_list):
             continue
 
         player_id = db_row["player_id"]
-        backfill_count = 0
+        action_count = 0
         all_records = []
         page = 1
 
@@ -312,7 +472,7 @@ def run_backfill(session, conn, db_players, tees_list):
                 page += 1
             log.info("  Fetched %d historical records across %d pages", len(all_records), page - 1)
         except Exception as exc:
-            log.error("  EG fetch failed: %s", exc)
+            log.error("  EG fetch failed for %s: %s", name, exc)
             results.append({
                 "name": name, "status": "EG ERROR", "issues": 0, "eg_hi": "n/a", "local_hi": "n/a"
             })
@@ -323,58 +483,75 @@ def run_backfill(session, conn, db_players, tees_list):
             if not play_date_str:
                 continue
 
-            eg_score_id   = raw.get("ScoreId")
+            eg_gross = parse_gross(raw)
+            eg_pcc = parse_pcc(raw)
+            eg_score_id = raw.get("ScoreId")
             eg_score_code = raw.get("ScoreCode")
 
             db_score = get_db_score(conn, player_id, play_date_str)
-            if db_score is None:
-                continue
+            scorecard = None
 
-            score_id  = db_score["score_id"]
-            db_tee_id = db_score["tee_id"]
-
-            if has_hole_scores(conn, score_id):
-                continue
-
-            log.info("  [BACKFILL] Missing holes for %s on %s (ScoreID: %s)", name, play_date_str, score_id)
-            
-            if not eg_score_code:
-                log.warning("  Missing ScoreCode for EG ScoreID %s -- skipping hole sync.", eg_score_id)
-            elif eg_score_id and db_tee_id:
+            if eg_score_id and eg_score_code:
                 try:
                     scorecard = eg_fetch_scorecard(session, eg_score_id, score_code=eg_score_code)
-                    if scorecard:
-                        synced_count = sync_hole_data(conn, score_id, db_tee_id, scorecard)
-                        if synced_count > 0:
-                            log.info("    -> Synced %d holes successfully.", synced_count)
-                            backfill_count += 1
-                        else:
-                            log.warning("    -> Sync returned 0 rows.")
-                except Exception as e:
-                    log.error("    -> Error fetching scorecard: %s", e)
-            
-            time.sleep(1)
+                except Exception as exc:
+                    log.error("  BACKFILL scorecard fetch error for %s on %s: %s", name, play_date_str, exc)
 
-        status_msg = f"BACKFILLED {backfill_count} ROUNDS"
-        log.info("  %s completed: %s", name, status_msg)
+            if not db_score:
+                if eg_gross is None:
+                    continue
+
+                tee_row = ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=scorecard)
+                if tee_row is None:
+                    continue
+
+                score_id, inserted = insert_score(
+                    conn,
+                    player_id=player_id,
+                    date_played=play_date_str,
+                    tee_id=tee_row["tee_id"],
+                    gross_score=eg_gross,
+                    pcc=eg_pcc,
+                )
+
+                if score_id:
+                    db_score = get_db_score(conn, player_id, play_date_str)
+                    action_count += 1
+
+            if not db_score:
+                continue
+
+            score_id = db_score["score_id"]
+            db_tee_id = db_score["tee_id"]
+
+            if scorecard and not has_hole_scores(conn, score_id):
+                synced = sync_hole_data(conn, score_id, db_tee_id, scorecard)
+                if synced > 0:
+                    log.info("  BACKFILL hole sync OK: %d holes for score_id=%s (%s)", synced, score_id, play_date_str)
+                    action_count += 1
+
+            time.sleep(0.3)
+
+        log.info("  BACKFILL complete for %s: %d actions", name, action_count)
         results.append({
-            "name": name, "status": status_msg, "issues": 0, "eg_hi": "n/a", "local_hi": "n/a"
+            "name": name, "status": f"BACKFILLED {action_count}", "issues": 0, "eg_hi": "n/a", "local_hi": "n/a"
         })
+        time.sleep(0.5)
 
     return results, []
-
 
 def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_mode):
     results = []
     discrepancy_lines = []
 
     for player_cfg in config.PLAYERS:
-        name  = player_cfg["name"]
+        name = player_cfg["name"]
         eg_id = player_cfg["eg_passport_id"]
         log.info("--- %s (eg_id=%s) ---", name, eg_id)
 
         eg_hi_str = "n/a"
         local_hi_str = "n/a"
+        eg_hi = None
         player_issues = set()
 
         db_row = db_players.get(name)
@@ -389,29 +566,11 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
 
         try:
             eg_hi = eg_fetch_hi(session, passport_id=eg_id)
-            local_hi = read_local_hi(conn, name)
-
             if eg_hi is not None:
                 eg_hi_str = "{:.1f}".format(float(eg_hi))
-            if local_hi is not None:
-                local_hi_str = "{:.1f}".format(float(local_hi))
-
-            log.info("  EG HI=%s  Local HI=%s", eg_hi_str, local_hi_str)
-
-            if name not in HI_IGNORE_PLAYERS:
-                if eg_hi is not None and local_hi is not None:
-                    if abs(float(eg_hi) - float(local_hi)) > 0.05:
-                        player_issues.add(
-                            "  HI mismatch:  EG={}  Local={}".format(eg_hi_str, local_hi_str)
-                        )
-            else:
-                if eg_hi is not None and local_hi is not None and abs(float(eg_hi) - float(local_hi)) > 0.05:
-                    log.info(
-                        "  HI mismatch noted for %s (ignored per Rule 7): EG=%s  Local=%s",
-                        name, eg_hi_str, local_hi_str,
-                    )
+            log.info("  EG HI=%s  Local HI=<pending score check>", eg_hi_str)
         except Exception as e:
-            log.error("  Error fetching HI: %s", e)
+            log.error("  Error fetching EG HI: %s", e)
 
         try:
             raw_scores = eg_fetch_scores(session, passport_id=eg_id, page_size=40)
@@ -419,49 +578,40 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
         except Exception as exc:
             log.error("  EG fetch failed: %s", exc)
             results.append({
-                "name": name, "status": "EG ERROR", "issues": len(player_issues), "eg_hi": eg_hi_str, "local_hi": local_hi_str
+                "name": name, "status": "EG ERROR", "issues": len(player_issues),
+                "eg_hi": eg_hi_str, "local_hi": local_hi_str,
             })
             continue
 
-        target_records = []
-        for r in raw_scores:
-            pd = parse_play_date(r)
-            if pd == check_date_str:
-                target_records.append((pd, r))
+        target_records = [
+            (parse_play_date(r), r)
+            for r in raw_scores
+            if parse_play_date(r) == check_date_str
+        ]
 
         if not target_records:
             log.info("  No target EG scores found for %s -- nothing to check", name)
             status_msgs = {"NO TARGET EG SCORES"}
+
         else:
             status_msgs = set()
             processed_dates = set()
-            
+
             for play_date_str, raw in target_records:
                 if play_date_str in processed_dates:
-                    log.warning("  Duplicate EG record found for %s on %s - skipping to prevent hole corruption", name, play_date_str)
+                    log.warning(
+                        "  Duplicate EG record found for %s on %s - skipping to prevent hole corruption",
+                        name, play_date_str
+                    )
                     continue
                 processed_dates.add(play_date_str)
 
-                eg_gross      = parse_gross(raw)
-                eg_pcc        = parse_pcc(raw)
-                eg_score_id   = raw.get("ScoreId")
+                eg_gross = parse_gross(raw)
+                eg_pcc = parse_pcc(raw)
+                eg_score_id = raw.get("ScoreId")
                 eg_score_code = raw.get("ScoreCode")
-                eg_facility   = raw.get("FacilityId") or raw.get("ClubId")
-
-                db_score = get_db_score(conn, player_id, play_date_str)
-
-                if db_score is None:
-                    log.info("  No DB record for %s on %s -- no action taken (Rule 1)", name, play_date_str)
-                    status_msgs.add("NO DB RECORD FOR DATE")
-                    continue
-                
-                status_msgs.add("CHECKED")
-
-                score_id   = db_score["score_id"]
-                db_gross   = db_score["gross_score"]
-                db_tee_id  = db_score["tee_id"]
-                db_pcc     = db_score["pcc_adjustment"]
-                db_tee_col = db_score["tee_colour"] or "UNKNOWN"
+                eg_facility = raw.get("FacilityId") or raw.get("ClubId")
+                scorecard = None
 
                 log.info(
                     "  EG: gross=%s  facility=%s  marker=%s  pcc=%s  ScoreId=%s  ScoreCode=%s",
@@ -469,8 +619,111 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                     eg_score_id, eg_score_code,
                 )
 
+                if eg_gross is None:
+                    player_issues.add(
+                        "  EG returned an impossible or unreadable gross score for {} on {} — not processed".format(
+                            name, play_date_str
+                        )
+                    )
+                    status_msgs.add("BAD EG GROSS")
+                    continue
+
+                if eg_score_id and eg_score_code:
+                    try:
+                        scorecard = eg_fetch_scorecard(session, eg_score_id, score_code=eg_score_code)
+                    except Exception as e:
+                        log.error("  Error fetching scorecard before insert/check: %s", e)
+
+                db_score = get_db_score(conn, player_id, play_date_str)
+
+                if db_score is None:
+                    log.info(
+                        "  No DB record for %s on %s — attempting auto-insert from EG data",
+                        name, play_date_str
+                    )
+
+                    tee_row = ensure_course_and_tee(
+                        conn, raw, tees_list, player_issues=player_issues, scorecard=scorecard
+                    )
+
+                    if tee_row is None:
+                        log.warning(
+                            "  Cannot insert score for %s on %s: tee could not be resolved or created.",
+                            name, play_date_str
+                        )
+                        player_issues.add(
+                            "  Missing round NOT inserted: tee unresolvable for {} on {} "
+                            "(EG marker={}, facility={})".format(
+                                name, play_date_str,
+                                (raw.get("Marker") or "").strip(), eg_facility
+                            )
+                        )
+                        status_msgs.add("TEE UNRESOLVABLE — NOT INSERTED")
+                        continue
+
+                    score_id, inserted = insert_score(
+                        conn,
+                        player_id=player_id,
+                        date_played=play_date_str,
+                        tee_id=tee_row["tee_id"],
+                        gross_score=eg_gross,
+                        pcc=eg_pcc,
+                    )
+
+                    if score_id:
+                        if inserted:
+                            log.info(
+                                "  AUTO-INSERTED score for %s on %s: gross=%s, tee='%s' (id=%s), pcc=%s → score_id=%s",
+                                name, play_date_str, eg_gross,
+                                tee_row["tee_colour"], tee_row["tee_id"], eg_pcc, score_id
+                            )
+                            status_msgs.add("AUTO-INSERTED")
+                        else:
+                            log.warning(
+                                "  Duplicate guard prevented second insert for %s on %s — using existing score_id=%s",
+                                name, play_date_str, score_id
+                            )
+                            status_msgs.add("ALREADY EXISTS")
+
+                        if not verify_trigger_effect(conn, score_id):
+                            player_issues.add(
+                                "  Handicap history missing after insert for {} on {} — trigger may not have run".format(
+                                    name, play_date_str
+                                )
+                            )
+
+                        if scorecard:
+                            synced_count = sync_hole_data(conn, score_id, tee_row["tee_id"], scorecard)
+                            if synced_count > 0:
+                                log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
+                            else:
+                                log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
+
+                        db_score = get_db_score(conn, player_id, play_date_str)
+                        if db_score is None:
+                            log.error(
+                                "  Could not reload db_score after insert for %s on %s — skipping checks",
+                                name, play_date_str
+                            )
+                            continue
+                    else:
+                        log.error("  AUTO-INSERT failed for %s on %s", name, play_date_str)
+                        player_issues.add(
+                            "  Round NOT inserted (DB error): {} on {}".format(name, play_date_str)
+                        )
+                        status_msgs.add("INSERT FAILED")
+                        continue
+                else:
+                    status_msgs.add("CHECKED")
+
+                score_id = db_score["score_id"]
+                db_gross = db_score["gross_score"]
+                db_tee_id = db_score["tee_id"]
+                db_pcc = db_score["pcc_adjustment"]
+                db_tee_col = db_score["tee_colour"] or "UNKNOWN"
+
                 eg_tee_row = resolve_tee(raw, tees_list)
-                eg_tee_id  = eg_tee_row["tee_id"]    if eg_tee_row else None
+                eg_tee_id = eg_tee_row["tee_id"] if eg_tee_row else None
                 eg_tee_col = eg_tee_row["tee_colour"] if eg_tee_row else "UNKNOWN"
 
                 log.info("  DB:  gross=%s  tee=%s (id=%s)  pcc=%s", db_gross, db_tee_col, db_tee_id, db_pcc)
@@ -503,27 +756,43 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                 if eg_tee_id is not None and db_tee_id is not None:
                     if int(eg_tee_id) != int(db_tee_id):
                         player_issues.add(
-                            "  Tee/Course mismatch:  EG mapped to tee_id={} ({})  "
-                            "DB is tee_id={} ({})".format(eg_tee_id, eg_tee_col, db_tee_id, db_tee_col)
+                            "  Tee/Course mismatch:  EG mapped to tee_id={} ({})  DB is tee_id={} ({})".format(
+                                eg_tee_id, eg_tee_col, db_tee_id, db_tee_col
+                            )
                         )
 
-                if eg_score_id and eg_score_code and db_tee_id:
-                    try:
-                        scorecard = eg_fetch_scorecard(session, eg_score_id, score_code=eg_score_code)
-                        if scorecard:
-                            synced_count = sync_hole_data(conn, score_id, db_tee_id, scorecard)
-                            if synced_count > 0:
-                                log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
-                            else:
-                                log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
-                    except Exception as e:
-                        log.error("  Error fetching scorecard for sync: %s", e)
+                if scorecard and db_tee_id:
+                    synced_count = sync_hole_data(conn, score_id, db_tee_id, scorecard)
+                    if synced_count > 0:
+                        log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
+                    else:
+                        log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
                 elif eg_score_id and not eg_score_code:
                     log.warning(
-                        "  ScoreCode missing from EG record for ScoreId=%s -- "
-                        "hole sync skipped. Check GetMyScores response fields.",
+                        "  ScoreCode missing from EG record for ScoreId=%s -- hole sync skipped.",
                         eg_score_id,
                     )
+
+        try:
+            local_hi = read_local_hi(conn, name)
+            if local_hi is not None:
+                local_hi_str = "{:.1f}".format(float(local_hi))
+            log.info("  EG HI=%s  Local HI=%s", eg_hi_str, local_hi_str)
+
+            if name not in HI_IGNORE_PLAYERS:
+                if eg_hi is not None and local_hi is not None:
+                    if abs(float(eg_hi) - float(local_hi)) > 0.05:
+                        player_issues.add(
+                            "  HI mismatch:  EG={}  Local={}".format(eg_hi_str, local_hi_str)
+                        )
+            else:
+                if eg_hi is not None and local_hi is not None and abs(float(eg_hi) - float(local_hi)) > 0.05:
+                    log.info(
+                        "  HI mismatch noted for %s (ignored per Rule 7): EG=%s  Local=%s",
+                        name, eg_hi_str, local_hi_str,
+                    )
+        except Exception as e:
+            log.error("  Error reading local HI for %s: %s", name, e)
 
         final_status = " | ".join(sorted(status_msgs)) if status_msgs else "UNKNOWN"
 
@@ -541,14 +810,13 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
             log.info("  All data matches for %s (no alertable discrepancies)", name)
 
         results.append({
-            "name":     name,
-            "status":   final_status,
-            "issues":   len(player_issues),
-            "eg_hi":    eg_hi_str,
+            "name": name,
+            "status": final_status,
+            "issues": len(player_issues),
+            "eg_hi": eg_hi_str,
             "local_hi": local_hi_str,
         })
-        
-        # Inter-player rate limiting
+
         time.sleep(0.5)
 
     return results, discrepancy_lines
@@ -561,15 +829,15 @@ def check(test_mode=False, backfill_mode=False):
     if backfill_mode:
         check_date_str = "BACKFILL_MODE"
         log.info("=== 828ers EG Check - BACKFILL MODE ===")
-        log.info("Fetching all historical records to sync missing hole-by-hole data.")
+        log.info("Fetching all historical records to sync missing scores and hole-by-hole data.")
         log.info("Emails and general mismatch checks are suppressed during backfill.")
     elif test_mode:
-        check_date     = date.today()
+        check_date = date.today()
         check_date_str = check_date.isoformat()
         log.info("=== 828ers EG Daily Check - %s [TEST MODE] ===", date.today())
         log.info("TEST MODE: checking today's scores (%s) instead of yesterday", check_date_str)
     else:
-        check_date     = date.today() - timedelta(days=1)
+        check_date = date.today() - timedelta(days=1)
         check_date_str = check_date.isoformat()
         log.info("=== 828ers EG Daily Check - %s ===", date.today())
         log.info("Checking EG scores for yesterday: %s", check_date_str)
@@ -587,16 +855,16 @@ def check(test_mode=False, backfill_mode=False):
     conn = None
     try:
         conn = get_conn()
-        
+
         db_players = load_players(conn)
-        tees_list  = load_tees(conn)
+        tees_list = list(load_tees(conn))
 
         if not db_players or not tees_list:
             log.error("Missing players or tees in DB config.")
             sys.exit(1)
 
         log.info("DB players : %s", list(db_players.keys()))
-        
+
         config_player_names = {p["name"] for p in config.PLAYERS}
         for db_name in db_players.keys():
             if db_name not in config_player_names:
@@ -618,7 +886,6 @@ def check(test_mode=False, backfill_mode=False):
         if conn:
             conn.close()
 
-    # --- Print End Summary ---
     mode_label = " [TEST MODE]" if test_mode else (" [BACKFILL MODE]" if backfill_mode else "")
     log.info("")
     log.info("=== CHECK COMPLETE%s ===", mode_label)
@@ -634,7 +901,6 @@ def check(test_mode=False, backfill_mode=False):
             r["local_hi"],
         )
 
-    # --- Capture Logs & Send Daily Email (Skip for Backfill) ---
     if backfill_mode:
         log.info("Backfill complete. No email alerts are generated in backfill mode.")
         return
@@ -660,8 +926,7 @@ def check(test_mode=False, backfill_mode=False):
             "Note: any PCC corrections have been applied to the DB automatically "
             "and are not included in this alert (Rule 6).\n"
             "Jay's HI discrepancy is always suppressed (Rule 7).\n"
-            "No scores were inserted or deleted. The DB is read-only except "
-            "for PCC corrections (Rule 1).\n\n"
+            "Missing rounds may have been auto-inserted into the DB.\n\n"
         )
     else:
         subject = "{}828ers EG Score Check - OK ({})".format(
@@ -676,7 +941,6 @@ def check(test_mode=False, backfill_mode=False):
     body += full_log_contents
 
     send_email(subject, body)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="828ers EG daily score checker")
