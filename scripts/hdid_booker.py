@@ -186,7 +186,7 @@ if __name__ == "__main__":
     if args.test:
         target_date_obj = datetime.today() + timedelta(days=14)
         target_date     = target_date_obj.strftime("%Y-%m-%d")
-        target_time     = "17:52"
+        target_time     = "17:44"
         is_test         = True
     else:
         target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
