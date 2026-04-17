@@ -36,7 +36,6 @@ def _follow_redirects_verbose(session, url, method="GET", data=None, headers=Non
         if r.status_code in (301, 302, 303, 307, 308):
             location = r.headers.get("Location", "")
             if location.startswith("/"):
-                # Resolve relative redirect against current domain
                 from urllib.parse import urlparse
                 parsed = urlparse(url)
                 location = f"{parsed.scheme}://{parsed.netloc}{location}"
@@ -70,9 +69,10 @@ def hdid_login():
         if inp.get("name")
     }
 
+    # THE CRITICAL FIX: "Username" instead of "EmailAddress"
     post_data = {
         **hidden_fields,
-        "EmailAddress": EMAIL,
+        "Username":     EMAIL,
         "Password":     PASSWORD,
         "RememberMe":   "true"
     }
@@ -89,7 +89,6 @@ def hdid_login():
     for c in session.cookies:
         print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
 
-    # Check for authenticated cookie on www.howdidido.com
     hdid_auth = None
     for c in session.cookies:
         if "howdidido.com" in c.domain and c.name not in (
@@ -99,12 +98,10 @@ def hdid_login():
             break
 
     if not hdid_auth:
-        # Check the final page text for sign-out link
         if "Sign Out" in r2.text or "sign-out" in r2.text.lower():
             print(" -> Login Successful (confirmed via page text)!")
         else:
             print("    [!] No auth cookie on howdidido.com yet.")
-            print("    Page title:", BeautifulSoup(r2.text, "html.parser").title)
             soup2 = BeautifulSoup(r2.text, "html.parser")
             for a in soup2.find_all("a", href=True):
                 if "howdidido.com" in a["href"]:
@@ -143,10 +140,6 @@ def hdid_login():
         session, f"{HDID_BASE}/Booking",
         headers={"Referer": HDID_BASE}
     )
-    print(f"\n    Final URL: {r_booking.url}")
-    print(f"    Cookies after /Booking:")
-    for c in session.cookies:
-        print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
 
     # ── Step 5: Verify clubv1.com session ────────────────────────────────────
     print("\n[*] Verifying clubv1.com session...")
@@ -183,7 +176,7 @@ def book_tee_time(session, target_date, target_time):
         "releasedReservation": "False"
     }
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Attempting to LOCK {target_date} at {target_time}...")
+    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Attempting to LOCK {target_date} at {target_time}...")
     r_lock = session.get(
         LOCK_URL,
         params=params,
@@ -196,9 +189,6 @@ def book_tee_time(session, target_date, target_time):
 
     if not form:
         print(" -> FAILED: Could not find confirmation form.")
-        print(f"    HTTP Status : {r_lock.status_code}")
-        print(f"    Page title  : {soup.title.string.strip() if soup.title else '(no title)'}")
-        print(f"    Final URL   : {r_lock.url}")
         text_lower = r_lock.text.lower()
         if "already been booked" in text_lower:
             print("    Reason: That slot is already taken.")
@@ -207,7 +197,7 @@ def book_tee_time(session, target_date, target_time):
         elif "login" in text_lower or "sign in" in text_lower:
             print("    Reason: Session expired.")
         else:
-            print("    Reason: Unknown — check body snippet above.")
+            print("    Reason: Unknown server rejection.")
         return False
 
     payload = {
@@ -252,9 +242,6 @@ def book_tee_time(session, target_date, target_time):
         return True
     else:
         print(" -> FAILED during final confirmation step.")
-        conf_soup = BeautifulSoup(r_confirm.text, "html.parser")
-        print(f"    HTTP Status : {r_confirm.status_code}")
-        print(f"    Page title  : {conf_soup.title.string.strip() if conf_soup.title else '(no title)'}")
         return False
 
 
@@ -296,7 +283,6 @@ if __name__ == "__main__":
         print(f"CRITICAL: {e}")
         sys.exit(1)
 
-    # UPDATED FOR 7:00 AM RACE: 60 attempts, 2 seconds apart
     MAX_ATTEMPTS = 1 if is_test else 60
     for attempt in range(1, MAX_ATTEMPTS + 1):
         if not is_test:
@@ -309,7 +295,6 @@ if __name__ == "__main__":
             print(f" -> Error during attempt: {e}")
 
         if attempt < MAX_ATTEMPTS:
-            # High-speed polling for the release window
             time.sleep(2)
 
     print("\n[!] Finished all attempts.")
