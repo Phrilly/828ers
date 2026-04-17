@@ -45,7 +45,6 @@ def _follow_redirects_verbose(session, url, method="GET", data=None, headers=Non
             return r
     return r
 
-# THE FIX: Pass target_date into the function
 def hdid_login(target_date):
     session = requests.Session()
     session.headers.update({
@@ -85,7 +84,6 @@ def hdid_login(target_date):
     extracted_token = token_match.group(1)
     print(f"    -> Token Extracted: {extracted_token}")
     
-    # THE FIX: Append the date to the URL to satisfy the C# backend
     handover_url = f"{CLUB_BASE}/HDIDBooking/TeeSheet?courseId={COURSE_ID}&token={extracted_token}&dt={target_date}"
     print(f"    -> Activating session bridge: {handover_url}")
     
@@ -173,11 +171,17 @@ def book_tee_time(session, bridge_url, target_date, target_time):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Confirming booking at {CONFIRM_URL}...")
     r_confirm = session.post(CONFIRM_URL, data=payload, headers={"Referer": r_lock.url}, timeout=10)
 
-    if "Booking Confirmed" in r_confirm.text or "Thank You" in r_confirm.text:
+    # Broadened success checks just in case the server uses a different confirmation string
+    text_lower = r_confirm.text.lower()
+    if "booking confirmed" in text_lower or "thank you" in text_lower or "booking/confirm" in r_confirm.url.lower():
         print(" -> SUCCESS! Tee time officially booked.")
         return True
     else:
-        print(" -> FAILED during final confirmation step.")
+        print(f" -> FAILED during final confirmation step. HTTP Status: {r_confirm.status_code}")
+        print(f"    Final POST URL: {r_confirm.url}")
+        with open("confirm_error_dump.html", "w", encoding="utf-8") as f:
+            f.write(r_confirm.text)
+        print("    [!] Exact server rejection saved to 'confirm_error_dump.html'.")
         return False
 
 if __name__ == "__main__":
@@ -192,9 +196,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.test:
-        target_date_obj = datetime.today() + timedelta(days=14)
+        target_date_obj = datetime.today() + timedelta(days=13)
         target_date     = target_date_obj.strftime("%Y-%m-%d")
-        target_time     = "17:52"
+        target_time     = "17:44"
         is_test         = True
     else:
         target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
@@ -213,7 +217,7 @@ if __name__ == "__main__":
     print(f"Targeting: {target_date} @ {target_time}\n")
 
     try:
-        my_session, secure_referer = hdid_login(target_date) # Added target_date here
+        my_session, secure_referer = hdid_login(target_date)
     except Exception as e:
         print(f"CRITICAL: {e}")
         sys.exit(1)
