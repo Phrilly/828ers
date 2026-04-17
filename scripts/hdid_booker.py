@@ -141,7 +141,7 @@ if __name__ == "__main__":
     # Set Target Date and Time
     if args.test:
         target_date = datetime.today().strftime("%Y-%m-%d")
-        target_time = "18:00"
+        target_time = "18:08"
         is_test = True
     else:
         target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
