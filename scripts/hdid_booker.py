@@ -72,14 +72,36 @@ def hdid_login():
     print("\n[*] Hitting www.howdidido.com/Booking to locate handover link...")
     r_booking = _follow_redirects_verbose(session, f"{HDID_BASE}/Booking", headers={"Referer": HDID_BASE})
 
-    print("\n[*] Extracting ClubV1 Handover Token...")
-    match = re.search(r'(https://howdidido-whs\.clubv1\.com/[^"]+)', r_booking.text)
+    # THE FIX: Smart extraction of the specific Ramsey token link
+    print(f"\n[*] Extracting ClubV1 Handover Token for Ramsey (ID: {COURSE_ID})...")
+    soup_booking = BeautifulSoup(r_booking.text, "html.parser")
+    handover_url = None
     
-    if not match:
-        raise Exception("CRITICAL: No handover link found on the /Booking page.")
+    for a in soup_booking.find_all("a", href=True):
+        href = a["href"]
+        if "clubv1.com" in href:
+            # We absolutely DO NOT want Open Competition links
+            if "useOpensUI" in href:
+                continue
+            # Look for our specific Ramsey ID
+            if str(COURSE_ID) in href or "cid=" in href:
+                handover_url = href.replace("&amp;", "&")
+                if str(COURSE_ID) in href:
+                    break # Perfect match found!
+    
+    # Fallback to regex if standard anchor tags didn't catch it
+    if not handover_url:
+        matches = re.findall(r'(https://howdidido-whs\.clubv1\.com/[^"]+)', r_booking.text)
+        for m in matches:
+            if "useOpensUI" not in m:
+                handover_url = m.replace("&amp;", "&")
+                if str(COURSE_ID) in m:
+                    break
+
+    if not handover_url:
+        raise Exception("CRITICAL: Could not find a valid member booking link for the club.")
         
-    handover_url = match.group(1).replace("&amp;", "&")
-    print(f"    -> FOUND: {handover_url}")
+    print(f"    -> VALIDATED FOUND: {handover_url}")
     print("    -> Activating session bridge...")
     
     r_bridge = _follow_redirects_verbose(session, handover_url)
@@ -117,7 +139,6 @@ def book_tee_time(session, bridge_url, target_date, target_time):
 
     soup = BeautifulSoup(r_lock.text, "html.parser")
     
-    # THE FIX: Find the specific booking form, ignoring search bars
     form = None
     for f in soup.find_all("form"):
         if f.find("input", {"name": "BookingLockId"}):
@@ -127,7 +148,9 @@ def book_tee_time(session, bridge_url, target_date, target_time):
     if not form:
         print(" -> FAILED: Could not find actual booking confirmation form.")
         text_lower = r_lock.text.lower()
-        if "already been booked" in text_lower:
+        if "permission denied" in text_lower or "authorised" in text_lower:
+            print("    Reason: Permission Denied. The bridge token was valid, but not for this specific Tee Sheet.")
+        elif "already been booked" in text_lower:
             print("    Reason: That slot is already taken.")
         elif "locked" in text_lower or "available at 07:00" in text_lower:
             print("    Reason: Timesheet locked / not yet released.")
@@ -186,7 +209,7 @@ if __name__ == "__main__":
     if args.test:
         target_date_obj = datetime.today() + timedelta(days=14)
         target_date     = target_date_obj.strftime("%Y-%m-%d")
-        target_time     = "17:44"
+        target_time     = "17:52"
         is_test         = True
     else:
         target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
