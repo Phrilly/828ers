@@ -152,7 +152,7 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
         "pageNumber":          page_number,
         "pageSize":            page_size,
         "otherPassportId":     passport_id,
-        "includeCasualScores": False,
+        "includeCasualScores": True,  # <-- Set to True to catch General Play rounds
         "casualScoresOnly":    False,
         "getDefaultFacility":  True,
     }
