@@ -5,7 +5,7 @@ Confirmed facts from this debugging session (April 2026):
   - Field names: ctl73$tbMembershipNumber / ctl73$tbPassword
   - Auth cookies: CWApiToken (24h), CWAuthenticaionToken (1yr)
   - Scores API:  POST https://www.englandgolf.org/api/Score/GetMyScores
-  - HI API:      POST https://www.englandgolf.org/api/Handicap/GetHandicapIndex
+  - HI API:      POST https://www.englandgolf.org/api/Score/GetMemberHandicapIndex
   - Scorecard:   POST https://www.englandgolf.org/api/Score/GetMyScoreDetails
 """
 
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 BASE              = "https://www.englandgolf.org"
 LOGIN_URL         = f"{BASE}/igolf-login"
 SCORES_URL        = f"{BASE}/api/Score/GetMyScores"
-HI_URL            = f"{BASE}/api/Handicap/GetHandicapIndex"
+HI_URL            = f"{BASE}/api/Score/GetMemberHandicapIndex"
 SCORE_DETAILS_URL = f"{BASE}/api/Score/GetMyScoreDetails"
 SESSION_FILE      = os.path.join(os.path.dirname(__file__), "eg_session.json")
 
