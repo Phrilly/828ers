@@ -30,15 +30,12 @@ def _follow_redirects_verbose(session, url, method="GET", data=None, headers=Non
         else:
             r = session.get(url, allow_redirects=False,
                             headers=extra_headers, timeout=15)
-        print(f"    [{hop}] {method if hop == 0 else 'GET'} {url}")
-        print(f"         -> HTTP {r.status_code}  cookies: {[c.name for c in session.cookies]}")
         if r.status_code in (301, 302, 303, 307, 308):
             location = r.headers.get("Location", "")
             if location.startswith("/"):
                 from urllib.parse import urlparse
                 parsed = urlparse(url)
                 location = f"{parsed.scheme}://{parsed.netloc}{location}"
-            print(f"         -> Redirect to: {location}")
             url = location
             method = "GET"
         else:
@@ -53,7 +50,7 @@ def hdid_login(target_date):
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
 
-    print("[*] Fetching login page for anti-forgery token...")
+    print("[*] Accessing Passport Gate...")
     r = session.get(f"{PASSPORT}/Account/Login", timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
     
@@ -66,33 +63,28 @@ def hdid_login(target_date):
         "RememberMe":   "true"
     }
 
-    print("[*] Submitting credentials...")
+    print("[*] Authenticating...")
     r2 = _follow_redirects_verbose(session, r.url, method="POST", data=post_data, headers={"Referer": r.url})
 
-    print("\n[*] Hitting www.howdidido.com/Booking to locate handover link...")
+    print("[*] Securing Cross-Domain Handover Token...")
     r_booking = _follow_redirects_verbose(session, f"{HDID_BASE}/Booking", headers={"Referer": HDID_BASE})
-
-    print(f"\n[*] Extracting ClubV1 Handover Token for Ramsey (ID: {COURSE_ID})...")
     
     token_match = re.search(r'token=([A-Za-z0-9]+)', r_booking.text)
     
     if not token_match:
-        with open("booking_page_dump.html", "w", encoding="utf-8") as f:
-            f.write(r_booking.text)
-        raise Exception("CRITICAL: No handover token found. Saved HTML to booking_page_dump.html")
+        raise Exception("CRITICAL: No handover token found on the booking portal.")
         
     extracted_token = token_match.group(1)
-    print(f"    -> Token Extracted: {extracted_token}")
     
     handover_url = f"{CLUB_BASE}/HDIDBooking/TeeSheet?courseId={COURSE_ID}&token={extracted_token}&dt={target_date}"
-    print(f"    -> Activating session bridge: {handover_url}")
+    print(f"[*] Activating Bridge to ClubV1...")
     
     r_bridge = _follow_redirects_verbose(session, handover_url)
     
     if r_bridge.status_code != 200:
         raise Exception(f"Bridge failed with HTTP {r_bridge.status_code}")
         
-    print(f" -> clubv1.com session confirmed! Secured Referer: {r_bridge.url}")
+    print(f" -> Access Granted.")
     time.sleep(0.5)
     
     return session, r_bridge.url
@@ -115,9 +107,7 @@ def book_tee_time(session, bridge_url, target_date, target_time):
     r_lock = session.get(LOCK_URL, params=params, headers={"Referer": bridge_url}, timeout=10)
 
     if r_lock.status_code == 500:
-        print("\n[!] CRITICAL: BookingAdd returned HTTP 500. Saving evidence to 'booking_500_dump.html'")
-        with open("booking_500_dump.html", "w", encoding="utf-8") as f:
-            f.write(r_lock.text)
+        print(" -> FAILED: Server returned HTTP 500.")
         return False
 
     soup = BeautifulSoup(r_lock.text, "html.parser")
@@ -129,24 +119,19 @@ def book_tee_time(session, bridge_url, target_date, target_time):
             break
 
     if not form:
-        print(" -> FAILED: Could not find actual booking confirmation form.")
         text_lower = r_lock.text.lower()
-        if "permission denied" in text_lower or "authorised" in text_lower:
-            print("    Reason: Permission Denied. The bridge token was valid, but not for this specific Tee Sheet.")
-        elif "already been booked" in text_lower:
-            print("    Reason: That slot is already taken.")
+        if "already been booked" in text_lower:
+            print(" -> FAILED: That slot is already taken.")
         elif "locked" in text_lower or "available at 07:00" in text_lower:
-            print("    Reason: Timesheet locked / not yet released.")
+            print(" -> FAILED: Timesheet locked / not yet released.")
         else:
-            print("    Reason: Unknown response. Saving to 'no_form_dump.html'")
-            with open("no_form_dump.html", "w", encoding="utf-8") as f:
-                f.write(r_lock.text)
+            print(" -> FAILED: Form not found (Permission Denied or Unknown error).")
         return False
 
     payload = {inp.get("name"): inp.get("value", "") for inp in form.find_all("input") if inp.get("name")}
     print(f" -> Time LOCKED. BookingLockId: {payload.get('BookingLockId')}")
 
-    print(" -> Injecting Phil Bentham and Jason Corkill...")
+    print(" -> Injecting 828ers Roster...")
     payload["Players[0].PersonID"]         = "2512799"
     payload["Players[0].Forename"]         = "Phil"
     payload["Players[0].Surname"]          = "Bentham"
@@ -168,20 +153,16 @@ def book_tee_time(session, bridge_url, target_date, target_time):
         action_path = action_path[1:]
     CONFIRM_URL = f"{CLUB_BASE}/{action_path}"
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Confirming booking at {CONFIRM_URL}...")
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] Firing final confirmation...")
     r_confirm = session.post(CONFIRM_URL, data=payload, headers={"Referer": r_lock.url}, timeout=10)
 
-    # Broadened success checks just in case the server uses a different confirmation string
+    # RECOGNIZES THE JSON SUCCESS RESPONSE
     text_lower = r_confirm.text.lower()
-    if "booking confirmed" in text_lower or "thank you" in text_lower or "booking/confirm" in r_confirm.url.lower():
+    if '"response":"ok"' in text_lower or "bookingaddcomplete" in text_lower or "booking confirmed" in text_lower:
         print(" -> SUCCESS! Tee time officially booked.")
         return True
     else:
-        print(f" -> FAILED during final confirmation step. HTTP Status: {r_confirm.status_code}")
-        print(f"    Final POST URL: {r_confirm.url}")
-        with open("confirm_error_dump.html", "w", encoding="utf-8") as f:
-            f.write(r_confirm.text)
-        print("    [!] Exact server rejection saved to 'confirm_error_dump.html'.")
+        print(" -> FAILED during final confirmation step.")
         return False
 
 if __name__ == "__main__":
@@ -196,9 +177,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.test:
-        target_date_obj = datetime.today() + timedelta(days=13)
+        target_date_obj = datetime.today() + timedelta(days=14)
         target_date     = target_date_obj.strftime("%Y-%m-%d")
-        target_time     = "17:44"
+        target_time     = "17:52"
         is_test         = True
     else:
         target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
