@@ -90,7 +90,6 @@ def hdid_login():
         print(f"        {c.domain}: {c.name}={str(c.value)[:50]}")
 
     # Check for authenticated cookie on www.howdidido.com
-    # Typical auth cookies: .AspNet.ApplicationCookie, .HDID_Auth, __hdid_auth, etc.
     hdid_auth = None
     for c in session.cookies:
         if "howdidido.com" in c.domain and c.name not in (
@@ -104,11 +103,8 @@ def hdid_login():
         if "Sign Out" in r2.text or "sign-out" in r2.text.lower():
             print(" -> Login Successful (confirmed via page text)!")
         else:
-            # Not logged into www.howdidido.com yet — need to check if
-            # passport issued a redirect_uri back to howdidido.com
             print("    [!] No auth cookie on howdidido.com yet.")
             print("    Page title:", BeautifulSoup(r2.text, "html.parser").title)
-            # Look for a return URL or OpenID connect callback in the response
             soup2 = BeautifulSoup(r2.text, "html.parser")
             for a in soup2.find_all("a", href=True):
                 if "howdidido.com" in a["href"]:
@@ -117,19 +113,16 @@ def hdid_login():
         print(f" -> Login Successful! Auth cookie: {hdid_auth}")
 
     # ── Step 3: Ensure www.howdidido.com has an authenticated session ────────
-    # If we landed on passport.howdidido.com (not www), follow the return URL
     if "passport.howdidido.com" in r2.url or "Account/Login" in r2.url:
         print("\n[*] Still on passport — looking for return URL...")
         soup_p = BeautifulSoup(r2.text, "html.parser")
 
-        # Look for hidden ReturnUrl or a form action pointing back to howdidido.com
         return_url = None
         for inp in soup_p.find_all("input"):
             if inp.get("name", "").lower() in ("returnurl", "return_url", "redirecturl"):
                 return_url = inp.get("value", "")
                 break
 
-        # Check URL params
         if not return_url and "returnUrl" in r2.url:
             from urllib.parse import urlparse, parse_qs, unquote
             qs = parse_qs(urlparse(r2.url).query)
@@ -206,7 +199,6 @@ def book_tee_time(session, target_date, target_time):
         print(f"    HTTP Status : {r_lock.status_code}")
         print(f"    Page title  : {soup.title.string.strip() if soup.title else '(no title)'}")
         print(f"    Final URL   : {r_lock.url}")
-        print(f"    Body snippet:\n{r_lock.text[:600]}")
         text_lower = r_lock.text.lower()
         if "already been booked" in text_lower:
             print("    Reason: That slot is already taken.")
@@ -263,7 +255,6 @@ def book_tee_time(session, target_date, target_time):
         conf_soup = BeautifulSoup(r_confirm.text, "html.parser")
         print(f"    HTTP Status : {r_confirm.status_code}")
         print(f"    Page title  : {conf_soup.title.string.strip() if conf_soup.title else '(no title)'}")
-        print(f"    Body snippet:\n{r_confirm.text[:500]}")
         return False
 
 
@@ -305,7 +296,8 @@ if __name__ == "__main__":
         print(f"CRITICAL: {e}")
         sys.exit(1)
 
-    MAX_ATTEMPTS = 1 if is_test else 30
+    # UPDATED FOR 7:00 AM RACE: 60 attempts, 2 seconds apart
+    MAX_ATTEMPTS = 1 if is_test else 60
     for attempt in range(1, MAX_ATTEMPTS + 1):
         if not is_test:
             print(f"--- Attempt {attempt} of {MAX_ATTEMPTS} ---")
@@ -317,6 +309,7 @@ if __name__ == "__main__":
             print(f" -> Error during attempt: {e}")
 
         if attempt < MAX_ATTEMPTS:
-            time.sleep(10)
+            # High-speed polling for the release window
+            time.sleep(2)
 
     print("\n[!] Finished all attempts.")
