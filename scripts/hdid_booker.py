@@ -16,9 +16,9 @@ PASSWORD        = config.HDID_PASSWORD
 COURSE_ID       = config.HDID_COURSE_ID
 DAYS_IN_ADVANCE = 14
 
-CLUB_BASE   = "https://howdidido-whs.clubv1.com"
-PASSPORT    = "https://passport.howdidido.com"
-HDID_BASE   = "https://www.howdidido.com"
+CLUB_BASE = "https://howdidido-whs.clubv1.com"
+PASSPORT  = "https://passport.howdidido.com"
+HDID_BASE = "https://www.howdidido.com"
 
 
 def hdid_login():
@@ -30,7 +30,7 @@ def hdid_login():
         "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
 
-    # ── Step 1: Passport login ───────────────────────────────────────────────
+    # Step 1: Passport login
     LOGIN_URL = f"{PASSPORT}/Account/Login"
     print("[*] Fetching login page for anti-forgery token...")
     r = session.get(LOGIN_URL, timeout=15)
@@ -58,36 +58,25 @@ def hdid_login():
         raise Exception("Login Failed. Check credentials in config.py.")
     print(" -> Login Successful!")
 
-    # ── Step 2: Get the SSO token from howdidido.com ─────────────────────────
-    # After passport login, howdidido.com holds an SSO token it can pass to
-    # clubv1.com. We must visit the howdidido booking page FIRST so it generates
-    # the token, then follow the redirect chain to clubv1.com.
+    # Step 2: Hit howdidido.com/Booking — this generates the SSO token and
+    # redirects to clubv1.com/HDIDBooking/HDIDLogin?token=XXXX
     print("[*] Fetching SSO token from howdidido.com...")
     r3 = session.get(f"{HDID_BASE}/Booking", timeout=15, allow_redirects=True)
     print(f"    howdidido /Booking: HTTP {r3.status_code} -> {r3.url}")
 
-    # ── Step 3: Follow the club-specific SSO handoff ─────────────────────────
-    # howdidido.com redirects to a club-specific URL like:
-    #   https://howdidido-whs.clubv1.com/HDIDBooking/HDIDLogin?token=XXXX&...
-    # We must follow that redirect so clubv1.com can validate the token and
-    # set its own session cookie. Without this, clubv1.com returns HTTP 500.
-    if "clubv1.com" in r3.url:
-        # We're already there — the redirect was followed automatically
-        print(f"    SSO redirect followed automatically -> {r3.url}")
-    else:
-        # Look for a redirect link in the page (some setups use a meta refresh
-        # or a JS redirect instead of a 302)
+    # Step 3: If we didn't land on clubv1.com, find the redirect manually
+    if "clubv1.com" not in r3.url:
         soup3 = BeautifulSoup(r3.text, "html.parser")
         redirect_url = None
 
-        # Check for meta refresh
+        # Check meta refresh
         meta = soup3.find("meta", attrs={"http-equiv": lambda v: v and v.lower() == "refresh"})
         if meta:
             content = meta.get("content", "")
             if "url=" in content.lower():
-                redirect_url = content.split("url=", 1)[-1].strip().strip("'"")
+                redirect_url = content.split("url=", 1)[-1].strip().strip("'\"")
 
-        # Check for a link to clubv1.com in the page body
+        # Check for a clubv1.com anchor
         if not redirect_url:
             for a in soup3.find_all("a", href=True):
                 if "clubv1.com" in a["href"]:
@@ -99,16 +88,13 @@ def hdid_login():
             r4 = session.get(redirect_url, timeout=15, allow_redirects=True)
             print(f"    clubv1.com SSO: HTTP {r4.status_code} -> {r4.url}")
         else:
-            # Fallback: try to hit the club booking endpoint directly via the
-            # HDID partner booking URL, which includes an auto-SSO token in
-            # the redirect chain
+            # Fallback: try the partner club URL
             PARTNER_URL = f"{HDID_BASE}/Booking/Club/{COURSE_ID}"
             print(f"    No redirect found. Trying partner URL: {PARTNER_URL}")
             r4 = session.get(PARTNER_URL, timeout=15, allow_redirects=True)
             print(f"    Partner URL: HTTP {r4.status_code} -> {r4.url}")
 
-    # ── Step 4: Verify clubv1.com session is active ──────────────────────────
-    # Hit the BookingList directly to confirm the session works
+    # Step 4: Verify the clubv1.com session is active
     print("[*] Verifying clubv1.com session...")
     r5 = session.get(
         f"{CLUB_BASE}/HDIDBooking/BookingList",
@@ -120,15 +106,12 @@ def hdid_login():
     print(f"    BookingList: HTTP {r5.status_code} -> {r5.url}")
 
     if r5.status_code == 500:
-        # Dump cookies so we can diagnose
         print("    [!] HTTP 500 — dumping cookies for diagnosis:")
         for c in session.cookies:
-            print(f"        {c.domain}: {c.name}={c.value[:30]}...")
+            print(f"        {c.domain}: {c.name}={str(c.value)[:40]}")
         raise Exception(
             "clubv1.com returned HTTP 500 on BookingList. "
-            "The SSO token exchange likely failed. "
-            "Try logging in manually in a browser and checking the Network tab "
-            "for the exact redirect chain from howdidido.com to clubv1.com."
+            "SSO token exchange likely failed — check cookie dump above."
         )
 
     print(" -> clubv1.com session confirmed!")
@@ -250,4 +233,33 @@ if __name__ == "__main__":
         if args.tuesday:
             target_time, expected_weekday = "08:32", 1
         else:
-            target_time, expected_weekday =
+            target_time, expected_weekday = "08:00", 4
+
+        if target_date_obj.weekday() != expected_weekday:
+            print(f"CRITICAL: Target date {target_date} is not the correct weekday. Aborting.")
+            sys.exit(1)
+
+    print(f"=== 828ers Auto-Booker {'[TEST MODE]' if is_test else ''} ===")
+    print(f"Targeting: {target_date} @ {target_time}\n")
+
+    try:
+        my_session = hdid_login()
+    except Exception as e:
+        print(f"CRITICAL: {e}")
+        sys.exit(1)
+
+    MAX_ATTEMPTS = 1 if is_test else 30
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        if not is_test:
+            print(f"--- Attempt {attempt} of {MAX_ATTEMPTS} ---")
+
+        try:
+            if book_tee_time(my_session, target_date, target_time):
+                sys.exit(0)
+        except Exception as e:
+            print(f" -> Error during attempt: {e}")
+
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(10)
+
+    print("\n[!] Finished all attempts.")
