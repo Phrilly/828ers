@@ -72,37 +72,22 @@ def hdid_login():
     print("\n[*] Hitting www.howdidido.com/Booking to locate handover link...")
     r_booking = _follow_redirects_verbose(session, f"{HDID_BASE}/Booking", headers={"Referer": HDID_BASE})
 
-    # THE FIX: Smart extraction of the specific Ramsey token link
+    # THE FINAL FIX: Extract ONLY the token and build a perfect URL
     print(f"\n[*] Extracting ClubV1 Handover Token for Ramsey (ID: {COURSE_ID})...")
-    soup_booking = BeautifulSoup(r_booking.text, "html.parser")
-    handover_url = None
     
-    for a in soup_booking.find_all("a", href=True):
-        href = a["href"]
-        if "clubv1.com" in href:
-            # We absolutely DO NOT want Open Competition links
-            if "useOpensUI" in href:
-                continue
-            # Look for our specific Ramsey ID
-            if str(COURSE_ID) in href or "cid=" in href:
-                handover_url = href.replace("&amp;", "&")
-                if str(COURSE_ID) in href:
-                    break # Perfect match found!
+    token_match = re.search(r'token=([A-Za-z0-9]+)', r_booking.text)
     
-    # Fallback to regex if standard anchor tags didn't catch it
-    if not handover_url:
-        matches = re.findall(r'(https://howdidido-whs\.clubv1\.com/[^"]+)', r_booking.text)
-        for m in matches:
-            if "useOpensUI" not in m:
-                handover_url = m.replace("&amp;", "&")
-                if str(COURSE_ID) in m:
-                    break
-
-    if not handover_url:
-        raise Exception("CRITICAL: Could not find a valid member booking link for the club.")
+    if not token_match:
+        with open("booking_page_dump.html", "w", encoding="utf-8") as f:
+            f.write(r_booking.text)
+        raise Exception("CRITICAL: No handover token found. Saved HTML to booking_page_dump.html")
         
-    print(f"    -> VALIDATED FOUND: {handover_url}")
-    print("    -> Activating session bridge...")
+    extracted_token = token_match.group(1)
+    print(f"    -> Token Extracted: {extracted_token}")
+    
+    # Construct the pristine bridge URL manually
+    handover_url = f"{CLUB_BASE}/HDIDBooking/TeeSheet?courseId={COURSE_ID}&token={extracted_token}"
+    print(f"    -> Activating session bridge: {handover_url}")
     
     r_bridge = _follow_redirects_verbose(session, handover_url)
     
