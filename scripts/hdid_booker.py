@@ -45,7 +45,8 @@ def _follow_redirects_verbose(session, url, method="GET", data=None, headers=Non
             return r
     return r
 
-def hdid_login():
+# THE FIX: Pass target_date into the function
+def hdid_login(target_date):
     session = requests.Session()
     session.headers.update({
         "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -72,7 +73,6 @@ def hdid_login():
     print("\n[*] Hitting www.howdidido.com/Booking to locate handover link...")
     r_booking = _follow_redirects_verbose(session, f"{HDID_BASE}/Booking", headers={"Referer": HDID_BASE})
 
-    # THE FINAL FIX: Extract ONLY the token and build a perfect URL
     print(f"\n[*] Extracting ClubV1 Handover Token for Ramsey (ID: {COURSE_ID})...")
     
     token_match = re.search(r'token=([A-Za-z0-9]+)', r_booking.text)
@@ -85,8 +85,8 @@ def hdid_login():
     extracted_token = token_match.group(1)
     print(f"    -> Token Extracted: {extracted_token}")
     
-    # Construct the pristine bridge URL manually
-    handover_url = f"{CLUB_BASE}/HDIDBooking/TeeSheet?courseId={COURSE_ID}&token={extracted_token}"
+    # THE FIX: Append the date to the URL to satisfy the C# backend
+    handover_url = f"{CLUB_BASE}/HDIDBooking/TeeSheet?courseId={COURSE_ID}&token={extracted_token}&dt={target_date}"
     print(f"    -> Activating session bridge: {handover_url}")
     
     r_bridge = _follow_redirects_verbose(session, handover_url)
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     print(f"Targeting: {target_date} @ {target_time}\n")
 
     try:
-        my_session, secure_referer = hdid_login()
+        my_session, secure_referer = hdid_login(target_date) # Added target_date here
     except Exception as e:
         print(f"CRITICAL: {e}")
         sys.exit(1)
