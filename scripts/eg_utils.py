@@ -151,11 +151,15 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
     payload = {
         "pageNumber":          page_number,
         "pageSize":            page_size,
-        "otherPassportId":     passport_id,
-        "includeCasualScores": True,  # <-- Set to True to catch General Play rounds
+        "includeCasualScores": True,
         "casualScoresOnly":    False,
         "getDefaultFacility":  True,
     }
+    
+    # Only add otherPassportId if it has a value. Passing null breaks the EG API.
+    if passport_id is not None:
+        payload["otherPassportId"] = passport_id
+
     r = session.post(
         SCORES_URL,
         json=payload,
@@ -172,8 +176,18 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
 
     if isinstance(data, list):
         return data
+        
     if isinstance(data, dict):
-        return data.get("scores", data.get("data", []))
+        # Restored robust checking for capitalized keys
+        for key in ("scores", "Scores", "data", "Data", "results", "Results"):
+            if key in data and isinstance(data[key], list):
+                return data[key]
+                
+        # If we get here, EG changed their payload structure entirely
+        log.warning("EG API returned a dict, but couldn't find scores list. Keys present: %s", list(data.keys()))
+        return []
+        
+    log.warning("Unexpected scores API shape: %s", type(data))
     return []
 
 def eg_fetch_scorecard(session, score_id, score_code):
