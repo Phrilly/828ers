@@ -255,4 +255,68 @@ def book_tee_time(session, target_date, target_time):
         timeout=10
     )
 
-    if "Booking Confirmed" in r_confirm.t
+    if "Booking Confirmed" in r_confirm.text or "Thank You" in r_confirm.text:
+        print(" -> SUCCESS! Tee time officially booked.")
+        return True
+    else:
+        print(" -> FAILED during final confirmation step.")
+        conf_soup = BeautifulSoup(r_confirm.text, "html.parser")
+        print(f"    HTTP Status : {r_confirm.status_code}")
+        print(f"    Page title  : {conf_soup.title.string.strip() if conf_soup.title else '(no title)'}")
+        print(f"    Body snippet:\n{r_confirm.text[:500]}")
+        return False
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="828ers HDID Auto Booker")
+    parser.add_argument("--tuesday", action="store_true", help="Book the Tuesday 08:32 slot")
+    parser.add_argument("--friday",  action="store_true", help="Book the Friday 08:00 slot")
+    parser.add_argument("--test",    action="store_true", help="Test mode: target 17:52 in 14 days")
+    args = parser.parse_args()
+
+    if not any([args.tuesday, args.friday, args.test]):
+        print("Error: Use --tuesday, --friday, or --test")
+        sys.exit(1)
+
+    if args.test:
+        target_date_obj = datetime.today() + timedelta(days=14)
+        target_date     = target_date_obj.strftime("%Y-%m-%d")
+        target_time     = "17:52"
+        is_test         = True
+    else:
+        target_date_obj = datetime.today() + timedelta(days=DAYS_IN_ADVANCE)
+        target_date     = target_date_obj.strftime("%Y-%m-%d")
+        is_test         = False
+        if args.tuesday:
+            target_time, expected_weekday = "08:32", 1
+        else:
+            target_time, expected_weekday = "08:00", 4
+
+        if target_date_obj.weekday() != expected_weekday:
+            print(f"CRITICAL: Target date {target_date} is not the correct weekday. Aborting.")
+            sys.exit(1)
+
+    print(f"=== 828ers Auto-Booker {'[TEST MODE]' if is_test else ''} ===")
+    print(f"Targeting: {target_date} @ {target_time}\n")
+
+    try:
+        my_session = hdid_login()
+    except Exception as e:
+        print(f"CRITICAL: {e}")
+        sys.exit(1)
+
+    MAX_ATTEMPTS = 1 if is_test else 30
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        if not is_test:
+            print(f"--- Attempt {attempt} of {MAX_ATTEMPTS} ---")
+
+        try:
+            if book_tee_time(my_session, target_date, target_time):
+                sys.exit(0)
+        except Exception as e:
+            print(f" -> Error during attempt: {e}")
+
+        if attempt < MAX_ATTEMPTS:
+            time.sleep(10)
+
+    print("\n[!] Finished all attempts.")
