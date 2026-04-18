@@ -5,7 +5,7 @@ DB_HOST = '127.0.0.1'
 DB_PORT = 3306
 DB_NAME = 'u271511030_9syka'
 DB_USER = 'u271511030_AFpgR'
-DB_PASSWORD = 'p9bXvxr3xN'
+DB_PASSWORD = '*************'
 
 def test_connection():
     print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Forced IPv4 Localhost) as {DB_USER}...")
