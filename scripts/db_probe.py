@@ -1,15 +1,15 @@
+cat << 'EOF' > db_probe.py
 import pymysql
 import sys
 
-# Hardcoded config for isolated testing - Switched to localhost
-DB_HOST = 'localhost'
+DB_HOST = '127.0.0.1'
 DB_PORT = 3306
 DB_NAME = 'u271511030_9syka'
 DB_USER = 'u271511030_AFpgR'
-DB_PASSWORD = 'p9bXvxr3xN' # Replace with actual password before running
+DB_PASSWORD = 'p9bXvxr3xN'
 
 def test_connection():
-    print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Internal Localhost) as {DB_USER}...")
+    print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Forced IPv4 Localhost) as {DB_USER}...")
     try:
         connection = pymysql.connect(
             host=DB_HOST,
@@ -20,7 +20,7 @@ def test_connection():
             cursorclass=pymysql.cursors.DictCursor,
             connect_timeout=10
         )
-        print("SUCCESS: Database connection established via localhost.")
+        print("SUCCESS: Database connection established via 127.0.0.1.")
         connection.close()
     except pymysql.MySQLError as e:
         print(f"FAILED: MySQL Error: {e}")
@@ -28,7 +28,5 @@ def test_connection():
         print(f"FAILED: General Error: {e}")
 
 if __name__ == "__main__":
-    if DB_PASSWORD == 'YOUR_PASSWORD_HERE':
-        print("ERROR: Please insert the actual database password into db_probe.py before running.")
-        sys.exit(1)
     test_connection()
+EOF
