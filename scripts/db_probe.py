@@ -6,7 +6,7 @@ DB_HOST = 'localhost'
 DB_PORT = 3306
 DB_NAME = 'u271511030_9syka'
 DB_USER = 'u271511030_AFpgR'
-DB_PASSWORD = 'YOUR_PASSWORD_HERE' # Replace with actual password before running
+DB_PASSWORD = 'p9bXvxr3xN' # Replace with actual password before running
 
 def test_connection():
     print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Internal Localhost) as {DB_USER}...")
