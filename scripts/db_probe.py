@@ -1,4 +1,3 @@
-cat << 'EOF' > db_probe.py
 import pymysql
 import sys
 
@@ -6,7 +5,7 @@ DB_HOST = '127.0.0.1'
 DB_PORT = 3306
 DB_NAME = 'u271511030_9syka'
 DB_USER = 'u271511030_AFpgR'
-DB_PASSWORD = 'p9bXvxr3xN'
+DB_PASSWORD = 'Np1cardyt!'
 
 def test_connection():
     print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Forced IPv4 Localhost) as {DB_USER}...")
@@ -29,4 +28,3 @@ def test_connection():
 
 if __name__ == "__main__":
     test_connection()
-EOF
