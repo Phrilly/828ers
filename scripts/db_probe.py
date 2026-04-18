@@ -1,33 +1,34 @@
-import sys, os
-python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
-sys.path.insert(0, os.path.expanduser(f'~/.local/lib/{python_version}/site-packages'))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import socket
 import pymysql
-import config
+import sys
 
-print("DB_HOST =", repr(config.DB_HOST))
-print("DB_PORT =", repr(config.DB_PORT))
-print("DB_NAME =", repr(config.DB_NAME))
-print("DB_USER =", repr(config.DB_USER))
-print("DB_PASSWORD_LEN =", len(config.DB_PASSWORD))
-print("RESOLUTION =", socket.getaddrinfo(config.DB_HOST, config.DB_PORT, type=socket.SOCK_STREAM))
+# Hardcoded config for isolated testing - Switched to localhost
+DB_HOST = 'localhost'
+DB_PORT = 3306
+DB_NAME = 'u271511030_9syka'
+DB_USER = 'u271511030_AFpgR'
+DB_PASSWORD = 'YOUR_PASSWORD_HERE' # Replace with actual password before running
 
-try:
-    conn = pymysql.connect(
-        host=config.DB_HOST,
-        port=config.DB_PORT,
-        db=config.DB_NAME,
-        user=config.DB_USER,
-        password=config.DB_PASSWORD,
-        charset="utf8mb4",
-        autocommit=False,
-        cursorclass=pymysql.cursors.DictCursor,
-    )
-    with conn.cursor() as cur:
-        cur.execute("SELECT DATABASE() AS db, CURRENT_USER() AS current_user, @@hostname AS host")
-        print("CONNECTED =", cur.fetchone())
-    conn.close()
-except Exception as exc:
-    print("CONNECT_ERROR =", repr(exc))
+def test_connection():
+    print(f"Attempting to connect to {DB_NAME} at {DB_HOST} (Internal Localhost) as {DB_USER}...")
+    try:
+        connection = pymysql.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10
+        )
+        print("SUCCESS: Database connection established via localhost.")
+        connection.close()
+    except pymysql.MySQLError as e:
+        print(f"FAILED: MySQL Error: {e}")
+    except Exception as e:
+        print(f"FAILED: General Error: {e}")
+
+if __name__ == "__main__":
+    if DB_PASSWORD == 'YOUR_PASSWORD_HERE':
+        print("ERROR: Please insert the actual database password into db_probe.py before running.")
+        sys.exit(1)
+    test_connection()
