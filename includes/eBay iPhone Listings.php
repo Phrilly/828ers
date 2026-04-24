@@ -21,7 +21,16 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
 
     $token = ebay_iphone_get_token( $client_id, $client_secret );
     if ( ! $token ) {
-        return '<p class="ebay-error">eBay listings unavailable right now.</p>';
+    $response = wp_remote_post( 'https://api.ebay.com/identity/v1/oauth2/token', [
+        'headers' => [
+            'Authorization' => 'Basic ' . base64_encode( EBAY_CLIENT_ID . ':' . EBAY_CLIENT_SECRET ),
+            'Content-Type'  => 'application/x-www-form-urlencoded',
+        ],
+        'body'    => 'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope',
+        'timeout' => 10,
+    ]);
+    $body = wp_remote_retrieve_body($response);
+    return '<p style="color:red;font-size:11px;">' . esc_html($body) . '</p>';
     }
 
     $items = ebay_iphone_fetch( $token, $atts['query'], (int) $atts['limit'], $atts['market'] );
