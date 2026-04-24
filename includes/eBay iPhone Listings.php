@@ -4,6 +4,9 @@
  * Shortcode: [ebay_iphone_listings]
  */
 
+$client_id     = defined('EBAY_CLIENT_ID')     ? EBAY_CLIENT_ID     : '';
+$client_secret = defined('EBAY_CLIENT_SECRET') ? EBAY_CLIENT_SECRET : '';
+
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
