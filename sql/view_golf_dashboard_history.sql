@@ -36,7 +36,8 @@ SELECT
     TRIM(CONCAT(
         CASE WHEN `h`.`esr_triggered` = 1 THEN 'ESR ' ELSE '' END,
         CASE WHEN `h`.`cap_type` IS NOT NULL AND `h`.`cap_type` <> 'NONE' THEN `h`.`cap_type` ELSE '' END
-    )) AS `adj_flag`
+    )) AS `adj_flag`,
+    `s`.`is_excluded` AS `is_excluded`
 FROM
     (((`wp_golf_scores` `s`
 JOIN `wp_golf_players` `p` ON (`p`.`player_id` = `s`.`player_id`))
