@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.0.99
+ * Version:     1.1.00
  * Author:      Philip Dunne
  */
 
@@ -31,6 +31,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/Hero Image Updater.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Rebuild_All_Players.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Golf_Hole_by_Hole.php';
 require_once plugin_dir_path(__FILE__) . 'includes/eBay iPhone Listings.php';
+require_once plugin_dir_path(__FILE__) . 'includes/Golf Eclectic.php';
 
 // ==========================================
 // 2. FRONTEND: Enqueue CSS & JS
@@ -50,6 +51,7 @@ add_action('wp_enqueue_scripts', function () {
         '828ers-mobile'        => 'assets/css/golf-mobile.css',
         '828ers-hole-analysis' => 'assets/css/golf-hole-analysis.css',
         '828ers-ebay-listings' => 'assets/css/ebay-listings.css',
+        '828ers-eclectic' => 'assets/css/golf-eclectic.css',
     ];
 
     $prev_handle = array();
@@ -105,6 +107,7 @@ function golf_system_run_migrations() {
             'view_golf_daily_winners.sql',
             'view_golf_rolling_averages.sql',
             'view_golf_yearly_stats.sql',
+            'view_eclectic.sql',
         ];
 
         foreach ($run_last as $dep_file) {
