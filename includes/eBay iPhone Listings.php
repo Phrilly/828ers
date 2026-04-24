@@ -34,8 +34,21 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
     }
 
     $items = ebay_iphone_fetch( $token, $atts['query'], (int) $atts['limit'], $atts['market'] );
+
     if ( ! $items ) {
-        return '<p class="ebay-error">No listings found.</p>';
+    $url = 'https://api.ebay.com/buy/browse/v1/item_summary/search?' . http_build_query([
+        'q' => $atts['query'], 'limit' => $atts['limit'], 'sort' => 'bestMatch'
+    ]);
+    $response = wp_remote_get( $url, [
+        'headers' => [
+            'Authorization'           => 'Bearer ' . $token,
+            'X-EBAY-C-MARKETPLACE-ID' => $atts['market'],
+            'Content-Type'            => 'application/json',
+        ],
+        'timeout' => 10,
+    ]);
+    $body = wp_remote_retrieve_body($response);
+    return '<pre style="font-size:10px;overflow:auto;">' . esc_html($body) . '</pre>';
     }
 
     return ebay_iphone_render( $items );
