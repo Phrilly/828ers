@@ -16,11 +16,11 @@ SELECT
         ))
     ) AS best_stableford
 FROM wp_golf_hole_scores hs
-JOIN wp_golf_scores        s   ON hs.score_id  = s.score_id
-JOIN wp_golf_players       p   ON s.player_id  = p.player_id
-JOIN wp_golf_holes         h   ON hs.hole_id   = h.hole_id
-JOIN wp_golf_tees          t   ON h.tee_id     = t.tee_id
-JOIN wp_golf_courses       c   ON t.course_id  = c.course_id
+JOIN wp_golf_scores            s   ON hs.score_id  = s.score_id
+JOIN wp_golf_players           p   ON s.player_id  = p.player_id
+JOIN wp_golf_holes             h   ON hs.hole_id   = h.hole_id
+JOIN wp_golf_tees              t   ON h.tee_id     = t.tee_id
+JOIN wp_golf_courses           c   ON t.course_id  = c.course_id
 LEFT JOIN wp_golf_handicap_history hh ON s.score_id = hh.score_id
 WHERE s.is_excluded = 0
   AND c.course_name = 'Ramsey Golf Club'
@@ -30,5 +30,4 @@ GROUP BY
     h.hole_number,
     h.par,
     MONTH(s.date_played),
-    YEAR(s.date_played);
--- END_QUERY
+    YEAR(s.date_played)
