@@ -30,6 +30,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/Golf What If.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Hero Image Updater.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Rebuild_All_Players.php';
 require_once plugin_dir_path(__FILE__) . 'includes/Golf_Hole_by_Hole.php';
+require_once plugin_dir_path(__FILE__) . 'includes/eBay iPhone Listings.php';
 
 // ==========================================
 // 2. FRONTEND: Enqueue CSS & JS
@@ -48,6 +49,7 @@ add_action('wp_enqueue_scripts', function () {
         '828ers-whatif'        => 'assets/css/golf-whatif.css',
         '828ers-mobile'        => 'assets/css/golf-mobile.css',
         '828ers-hole-analysis' => 'assets/css/golf-hole-analysis.css',
+        '828ers-ebay-listings' => 'assets/css/ebay-listings.css',
     ];
 
     $prev_handle = array();
