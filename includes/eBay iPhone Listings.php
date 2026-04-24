@@ -4,9 +4,6 @@
  * Shortcode: [ebay_iphone_listings]
  */
 
-$client_id     = defined('EBAY_CLIENT_ID')     ? EBAY_CLIENT_ID     : '';
-$client_secret = defined('EBAY_CLIENT_SECRET') ? EBAY_CLIENT_SECRET : '';
-
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
@@ -16,81 +13,62 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
         'market' => 'EBAY_GB',
     ], $atts );
 
-    $client_id     = 'YOUR_APP_ID_HERE';
-    $client_secret = 'YOUR_CERT_ID_HERE';
+    $client_id     = defined('EBAY_CLIENT_ID')     ? EBAY_CLIENT_ID     : '';
+    $client_secret = defined('EBAY_CLIENT_SECRET') ? EBAY_CLIENT_SECRET : '';
 
-    $token = ebay_iphone_get_token( $client_id, $client_secret );
-    if ( ! $token ) {
-    $response = wp_remote_post( 'https://api.ebay.com/identity/v1/oauth2/token', [
-        'headers' => [
-            'Authorization' => 'Basic ' . base64_encode( EBAY_CLIENT_ID . ':' . EBAY_CLIENT_SECRET ),
-            'Content-Type'  => 'application/x-www-form-urlencoded',
-        ],
-        'body'    => 'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope',
-        'timeout' => 10,
-    ]);
-    $body = wp_remote_retrieve_body($response);
-    return '<p style="color:red;font-size:11px;">' . esc_html($body) . '</p>';
+    if ( empty($client_id) || empty($client_secret) ) {
+        return '<p class="ebay-error">eBay API credentials not configured.</p>';
     }
 
-    $items = ebay_iphone_fetch( $token, $atts['query'], (int) $atts['limit'], $atts['market'] );
-
-    if ( ! $items ) {
-    $url = 'https://api.ebay.com/buy/browse/v1/item_summary/search?' . http_build_query([
-        'q' => $atts['query'], 'limit' => $atts['limit'], 'sort' => 'bestMatch'
-    ]);
-    $response = wp_remote_get( $url, [
-        'headers' => [
-            'Authorization'           => 'Bearer ' . $token,
-            'X-EBAY-C-MARKETPLACE-ID' => $atts['market'],
-            'Content-Type'            => 'application/json',
-        ],
-        'timeout' => 10,
-    ]);
-    $body = wp_remote_retrieve_body($response);
-    return '<pre style="font-size:10px;overflow:auto;">' . esc_html($body) . '</pre>';
-    }
-
-    return ebay_iphone_render( $items );
-} );
-
-function ebay_iphone_get_token( $client_id, $client_secret ) {
-    $response = wp_remote_post( 'https://api.ebay.com/identity/v1/oauth2/token', [
+    // Step 1: Get token
+    $token_response = wp_remote_post( 'https://api.ebay.com/identity/v1/oauth2/token', [
         'headers' => [
             'Authorization' => 'Basic ' . base64_encode( $client_id . ':' . $client_secret ),
             'Content-Type'  => 'application/x-www-form-urlencoded',
         ],
         'body'    => 'grant_type=client_credentials&scope=https%3A%2F%2Fapi.ebay.com%2Foauth%2Fapi_scope',
-        'timeout' => 10,
+        'timeout' => 15,
     ] );
 
-    if ( is_wp_error( $response ) ) return false;
-    $data = json_decode( wp_remote_retrieve_body( $response ), true );
-    return $data['access_token'] ?? false;
-}
+    if ( is_wp_error( $token_response ) ) {
+        return '<p class="ebay-error">eBay token request failed: ' . esc_html( $token_response->get_error_message() ) . '</p>';
+    }
 
-function ebay_iphone_fetch( $token, $query, $limit, $market ) {
-    $url = 'https://api.ebay.com/buy/browse/v1/item_summary/search?' . http_build_query([
-        'q'     => $query,
-        'limit' => $limit,
+    $token_body = json_decode( wp_remote_retrieve_body( $token_response ), true );
+    $token      = $token_body['access_token'] ?? '';
+
+    if ( empty( $token ) ) {
+        return '<p class="ebay-error">eBay token empty. Response: ' . esc_html( wp_remote_retrieve_body( $token_response ) ) . '</p>';
+    }
+
+    // Step 2: Search listings
+    $search_url = 'https://api.ebay.com/buy/browse/v1/item_summary/search?' . http_build_query([
+        'q'     => $atts['query'],
+        'limit' => (int) $atts['limit'],
         'sort'  => 'bestMatch',
     ]);
 
-    $response = wp_remote_get( $url, [
+    $search_response = wp_remote_get( $search_url, [
         'headers' => [
             'Authorization'           => 'Bearer ' . $token,
-            'X-EBAY-C-MARKETPLACE-ID' => $market,
+            'X-EBAY-C-MARKETPLACE-ID' => $atts['market'],
             'Content-Type'            => 'application/json',
         ],
-        'timeout' => 10,
+        'timeout' => 15,
     ] );
 
-    if ( is_wp_error( $response ) ) return false;
-    $data = json_decode( wp_remote_retrieve_body( $response ), true );
-    return $data['itemSummaries'] ?? false;
-}
+    if ( is_wp_error( $search_response ) ) {
+        return '<p class="ebay-error">eBay search failed: ' . esc_html( $search_response->get_error_message() ) . '</p>';
+    }
 
-function ebay_iphone_render( $items ) {
+    $search_body = json_decode( wp_remote_retrieve_body( $search_response ), true );
+    $items       = $search_body['itemSummaries'] ?? [];
+
+    if ( empty( $items ) ) {
+        return '<p class="ebay-error">No listings found. Raw: ' . esc_html( wp_remote_retrieve_body( $search_response ) ) . '</p>';
+    }
+
+    // Step 3: Render
     ob_start(); ?>
     <div class="ebay-listings-grid">
         <?php foreach ( $items as $item ) :
@@ -120,4 +98,4 @@ function ebay_iphone_render( $items ) {
     </div>
     <?php
     return ob_get_clean();
-}
+} );
