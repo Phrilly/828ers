@@ -174,7 +174,9 @@ function golf_system_run_migrations() {
 
 add_action('admin_init', 'golf_system_run_migrations');
 
-// eBay Marketplace Account Deletion endpoint
+// ==========================================
+// EBAY: Marketplace Account Deletion Endpoint
+// ==========================================
 add_action('rest_api_init', function () {
     register_rest_route('828ers/v1', '/ebay-deletion', [
         'methods'             => ['GET', 'POST'],
@@ -184,14 +186,12 @@ add_action('rest_api_init', function () {
 });
 
 function ebay_deletion_handler(WP_REST_Request $request) {
-    // Handle eBay's challenge verification (GET)
     $challenge = $request->get_param('challenge_code');
     if ($challenge) {
-        $verification_token = 'YOUR_VERIFICATION_TOKEN_HERE'; // set in eBay dashboard
+        $verification_token = '828ers_ebay_verify_2026_26011965'; // must match exactly what you entered in eBay dashboard
         $endpoint_url       = 'https://828ers.im/wp-json/828ers/v1/ebay-deletion';
         $hash = hash('sha256', $challenge . $verification_token . $endpoint_url);
         return new WP_REST_Response(['challengeResponse' => $hash], 200);
     }
-    // Handle POST deletion notifications — log and acknowledge
     return new WP_REST_Response(['acknowledged' => true], 200);
 }
