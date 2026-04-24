@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
     $atts = shortcode_atts([
         'query'  => 'iPhone',
-        'limit'  => 6,
+        'limit'  => 8,
         'market' => 'EBAY_GB',
     ], $atts );
 
@@ -38,14 +38,33 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
     $token      = $token_body['access_token'] ?? '';
 
     if ( empty( $token ) ) {
-        return '<p class="ebay-error">eBay token empty. Response: ' . esc_html( wp_remote_retrieve_body( $token_response ) ) . '</p>';
+        return '<p class="ebay-error">eBay token empty.</p>';
     }
 
     // Step 2: Search listings
+    // Condition IDs:
+    // 2000 = Manufacturer Refurbished
+    // 2010 = Seller Refurbished  
+    // 2020 = Like New / Open Box
+    // 2030 = Excellent - Refurbished
+    // 2040 = Very Good - Refurbished
+    // 2050 = Good - Refurbished
+    // 3000 = Used
+    // We want: Open Box (2020), Excellent Refurbished (2030)
+    // eBay UK "Opened – never used" maps to conditionIds 2020
+    // "Excellent" refurbished maps to 2030
+    // "Pristine" maps to 2000 (manufacturer refurbished / like new)
+
     $search_url = 'https://api.ebay.com/buy/browse/v1/item_summary/search?' . http_build_query([
-        'q'     => $atts['query'],
-        'limit' => (int) $atts['limit'],
-        'sort'  => 'bestMatch',
+        'q'              => $atts['query'],
+        'limit'          => (int) $atts['limit'],
+        'sort'           => 'bestMatch',
+        'filter'         => implode(',', [
+            'price:[200..400]',
+            'priceCurrency:GBP',
+            'itemLocationCountry:GB',
+            'conditionIds:{2000|2020|2030}',
+        ]),
     ]);
 
     $search_response = wp_remote_get( $search_url, [
@@ -65,7 +84,7 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
     $items       = $search_body['itemSummaries'] ?? [];
 
     if ( empty( $items ) ) {
-        return '<p class="ebay-error">No listings found. Raw: ' . esc_html( wp_remote_retrieve_body( $search_response ) ) . '</p>';
+        return '<p class="ebay-error">No listings found.</p>';
     }
 
     // Step 3: Render
@@ -78,6 +97,7 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
             $image    = esc_url( $item['image']['imageUrl'] ?? '' );
             $url      = esc_url( $item['itemWebUrl'] ?? '#' );
             $cond     = esc_html( $item['condition'] ?? '' );
+            $symbol   = ( $currency === 'GBP' ) ? '£' : $currency . ' ';
         ?>
         <div class="ebay-listing-card">
             <a href="<?php echo $url; ?>" target="_blank" rel="noopener noreferrer">
@@ -90,7 +110,7 @@ add_shortcode( 'ebay_iphone_listings', function ( $atts ) {
                 <?php if ( $cond ) : ?>
                     <span class="ebay-listing-condition"><?php echo $cond; ?></span>
                 <?php endif; ?>
-                <p class="ebay-listing-price"><?php echo $currency . ' ' . $price; ?></p>
+                <p class="ebay-listing-price"><?php echo $symbol . $price; ?></p>
                 <a class="ebay-listing-btn" href="<?php echo $url; ?>" target="_blank" rel="noopener noreferrer">View on eBay</a>
             </div>
         </div>
