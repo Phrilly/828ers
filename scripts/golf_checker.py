@@ -6,6 +6,7 @@ Daily checker & historical backfiller for EG API integration.
 import sys
 import os
 import io
+import re
 import time
 import argparse
 import logging
@@ -30,6 +31,7 @@ from eg_utils import (
     parse_gross,
     parse_pcc,
     parse_hi,
+    parse_eg_hole_score,
 )
 
 log_stream = io.StringIO()
@@ -51,9 +53,11 @@ log = logging.getLogger(__name__)
 
 HI_IGNORE_PLAYERS = {"Jay"}
 
+
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
+
 
 def get_conn():
     return pymysql.connect(
@@ -67,6 +71,7 @@ def get_conn():
         cursorclass=pymysql.cursors.DictCursor,
     )
 
+
 def load_players(conn):
     with conn.cursor() as cur:
         cur.execute(
@@ -74,6 +79,7 @@ def load_players(conn):
             "FROM {}golf_players".format(config.DB_PREFIX)
         )
         return {r["name"]: r for r in cur.fetchall()}
+
 
 def load_tees(conn):
     with conn.cursor() as cur:
@@ -87,6 +93,7 @@ def load_tees(conn):
         )
         return cur.fetchall()
 
+
 def get_db_score(conn, player_id, date_played):
     with conn.cursor() as cur:
         cur.execute(
@@ -98,14 +105,22 @@ def get_db_score(conn, player_id, date_played):
         )
         return cur.fetchone()
 
+
 def has_hole_scores(conn, score_id):
+    """
+    Returns True only when all 18 hole rows exist for this round.
+    A round with fewer than 18 rows (e.g. 17 because a missing/asterisk hole
+    was previously silently dropped) will return False so the caller re-runs
+    sync_hole_data, which is safe because it uses ON DUPLICATE KEY UPDATE.
+    """
     with conn.cursor() as cur:
         cur.execute(
             "SELECT COUNT(*) as c FROM {p}golf_hole_scores "
             "WHERE score_id=%s".format(p=config.DB_PREFIX),
             (score_id,)
         )
-        return cur.fetchone()["c"] >= 9
+        return cur.fetchone()["c"] >= 18
+
 
 def update_pcc(conn, score_id, new_pcc):
     with conn.cursor() as cur:
@@ -115,6 +130,7 @@ def update_pcc(conn, score_id, new_pcc):
             (int(new_pcc), score_id),
         )
     conn.commit()
+
 
 def read_local_hi(conn, player_name):
     try:
@@ -130,6 +146,7 @@ def read_local_hi(conn, player_name):
         log.warning("Could not read local HI for %s: %s", player_name, exc)
         return None
 
+
 def verify_trigger_effect(conn, score_id):
     with conn.cursor() as cur:
         cur.execute(
@@ -140,22 +157,57 @@ def verify_trigger_effect(conn, score_id):
         )
         return cur.fetchone() is not None
 
+
 def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
+    """
+    Write hole-by-hole scores for a round, correctly handling all three
+    EG score formats:
+
+      "5"     plain numeric  — normal complete hole
+      "8(7)"  composite      — player entered 8, EG adjusted to 7 for handicap
+      "*"     missing        — hole not entered; round submitted incomplete
+
+    All holes present in the scorecard payload are written.  Missing holes
+    receive NULL gross values and score_status='missing' rather than being
+    silently dropped.
+
+    Uses ON DUPLICATE KEY UPDATE throughout so it is safe to re-run on
+    rounds that were previously partially imported.
+    """
     synced = 0
+    incomplete_count = 0
+
     try:
+        raw_inc = scorecard.get("IncompleteCount")
+        if raw_inc is not None and str(raw_inc).strip() != "":
+            try:
+                incomplete_count = int(float(raw_inc))
+            except (TypeError, ValueError):
+                pass
+
         with conn.cursor() as cur:
             for i in range(1, 19):
-                gross = scorecard.get(f"Hole{i}Score")
-                par = scorecard.get(f"Hole{i}Par")
-                distance = scorecard.get(f"Hole{i}Distance")
+                raw_score = scorecard.get(f"Hole{i}Score")
+                raw_class = scorecard.get(f"Hole{i}ScoreClass")
+                par       = scorecard.get(f"Hole{i}Par")
+                distance  = scorecard.get(f"Hole{i}Distance")
 
-                if gross is None or str(gross).strip() == "":
+                # Skip holes EG has not returned at all (key absent from payload)
+                if raw_score is None:
                     continue
 
-                try:
-                    int_gross = int(float(gross))
-                except (TypeError, ValueError):
-                    continue
+                parsed = parse_eg_hole_score(
+                    raw_score=raw_score,
+                    raw_class=raw_class,
+                    incomplete_count=incomplete_count,
+                )
+
+                log.debug(
+                    "  score_id=%s hole=%d raw=%r class=%r → status=%s gross=%s adj=%s",
+                    db_score_id, i, raw_score, raw_class,
+                    parsed["score_status"], parsed["gross_score"],
+                    parsed["adjusted_gross_score"],
+                )
 
                 safe_par = 0
                 if par is not None and str(par).strip() != "":
@@ -187,15 +239,32 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                 )
                 hole_row = cur.fetchone()
                 if not hole_row:
+                    log.warning(
+                        "  sync_hole_data: could not find/create hole row for "
+                        "tee_id=%s hole=%d — skipping", db_tee_id, i
+                    )
                     continue
 
                 cur.execute(
-                    "INSERT INTO {p}golf_hole_scores (score_id, hole_id, gross_score) "
-                    "VALUES (%s, %s, %s) "
-                    "ON DUPLICATE KEY UPDATE gross_score=VALUES(gross_score)".format(
+                    "INSERT INTO {p}golf_hole_scores "
+                    "(score_id, hole_id, gross_score, adjusted_gross_score, "
+                    " score_status, score_display) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE "
+                    "gross_score=VALUES(gross_score), "
+                    "adjusted_gross_score=VALUES(adjusted_gross_score), "
+                    "score_status=VALUES(score_status), "
+                    "score_display=VALUES(score_display)".format(
                         p=config.DB_PREFIX
                     ),
-                    (db_score_id, hole_row["hole_id"], int_gross),
+                    (
+                        db_score_id,
+                        hole_row["hole_id"],
+                        parsed["gross_score"],
+                        parsed["adjusted_gross_score"],
+                        parsed["score_status"],
+                        parsed["score_display"],
+                    ),
                 )
                 synced += 1
 
@@ -205,15 +274,16 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
     except Exception as exc:
         conn.rollback()
         log.error(
-            "sync_hole_data: rollback triggered after syncing %d hole(s) "
-            "for score_id=%s. Error: %s",
+            "sync_hole_data: rollback after %d hole(s) for score_id=%s. Error: %s",
             synced, db_score_id, exc,
         )
         return 0
 
+
 # ---------------------------------------------------------------------------
 # Dynamic Insertion Helpers
 # ---------------------------------------------------------------------------
+
 
 def resolve_tee(raw, tees_list):
     eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
@@ -248,6 +318,7 @@ def resolve_tee(raw, tees_list):
 
     return None
 
+
 def get_par_from_sources(raw, scorecard=None):
     for val in (raw.get("Par"), raw.get("CoursePar")):
         if val is not None and str(val).strip() != "":
@@ -265,6 +336,7 @@ def get_par_from_sources(raw, scorecard=None):
                     pass
 
     return 72, True
+
 
 def ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=None):
     existing = resolve_tee(raw, tees_list)
@@ -384,6 +456,7 @@ def ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=No
         log.error("  ensure_course_and_tee: DB error — rollback. %s", exc)
         return None
 
+
 def insert_score(conn, player_id, date_played, tee_id, gross_score, pcc):
     try:
         with conn.cursor() as cur:
@@ -413,9 +486,11 @@ def insert_score(conn, player_id, date_played, tee_id, gross_score, pcc):
         log.error("  insert_score: DB error — rollback. %s", exc)
         return None, False
 
+
 # ---------------------------------------------------------------------------
 # Email
 # ---------------------------------------------------------------------------
+
 
 def send_email(subject, body):
     try:
@@ -438,9 +513,11 @@ def send_email(subject, body):
     except Exception as exc:
         log.error("Failed to send email '%s': %s", subject, exc)
 
+
 # ---------------------------------------------------------------------------
 # Handlers
 # ---------------------------------------------------------------------------
+
 
 def run_backfill(session, conn, db_players, tees_list):
     results = []
@@ -539,6 +616,7 @@ def run_backfill(session, conn, db_players, tees_list):
         time.sleep(0.5)
 
     return results, []
+
 
 def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_mode):
     results = []
@@ -821,9 +899,11 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
 
     return results, discrepancy_lines
 
+
 # ---------------------------------------------------------------------------
 # Main checker
 # ---------------------------------------------------------------------------
+
 
 def check(test_mode=False, backfill_mode=False):
     if backfill_mode:
@@ -941,6 +1021,7 @@ def check(test_mode=False, backfill_mode=False):
     body += full_log_contents
 
     send_email(subject, body)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="828ers EG daily score checker")

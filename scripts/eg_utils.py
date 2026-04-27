@@ -34,15 +34,19 @@ HEADERS = {
     "Referer": LOGIN_URL,
 }
 
+
 class EGLoginError(Exception):
     pass
 
+
 # ── Session management ──────────────────────────────────────────────────────
+
 
 def _make_session():
     s = requests.Session()
     s.headers.update(HEADERS)
     return s
+
 
 def _do_fresh_login():
     session = _make_session()
@@ -52,10 +56,10 @@ def _do_fresh_login():
 
     soup = BeautifulSoup(r.text, "html.parser")
     form = soup.find("form", {"method": re.compile("post", re.I)})
-    
+
     if not form:
         raise EGLoginError("No POST form found on login page.")
-        
+
     action = form.get("action", "")
     if action.startswith("http"):
         post_url = action
@@ -89,7 +93,6 @@ def _do_fresh_login():
 
     cwtoken = session.cookies.get("CWApiToken")
     if not cwtoken:
-        # Sometimes EG requires a hop to /my-scores to set the token
         r3 = session.get(f"{BASE}/my-scores", timeout=30, allow_redirects=True, headers={"Referer": BASE})
         r3.raise_for_status()
         cwtoken = session.cookies.get("CWApiToken")
@@ -100,18 +103,18 @@ def _do_fresh_login():
     log.info("EG: Login OK — cookies: %s", list(session.cookies.keys()))
     return session
 
+
 def _load_saved_session():
     if not os.path.exists(SESSION_FILE):
         return None
     try:
         with open(SESSION_FILE, "r") as f:
             data = json.load(f)
-        
-        # EG CWApiToken is typically valid for 24 hours. Cache invalidates after ~22h (80000s)
+
         if time.time() - data.get("timestamp", 0) > 80000:
             log.info("EG: Saved session expired — will re-login")
             return None
-            
+
         session = _make_session()
         requests.utils.cookiejar_from_dict(data.get("cookies", {}), cookiejar=session.cookies)
         log.info("EG: reusing saved session (JSON)")
@@ -123,6 +126,7 @@ def _load_saved_session():
         except OSError:
             pass
         return None
+
 
 def _save_session(session):
     try:
@@ -136,6 +140,7 @@ def _save_session(session):
     except Exception as exc:
         log.warning("EG: Failed to save session to JSON: %s", exc)
 
+
 def eg_login():
     """Return an authenticated EG session, reusing saved session if valid."""
     session = _load_saved_session()
@@ -145,7 +150,9 @@ def eg_login():
     _save_session(session)
     return session
 
+
 # ── API helpers ─────────────────────────────────────────────────────────────
+
 
 def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
     payload = {
@@ -155,8 +162,7 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
         "casualScoresOnly":    False,
         "getDefaultFacility":  True,
     }
-    
-    # Only add otherPassportId if it has a value. Passing null breaks the EG API.
+
     if passport_id is not None:
         payload["otherPassportId"] = passport_id
 
@@ -164,7 +170,7 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
         SCORES_URL,
         json=payload,
         headers={
-            "Content-Type": "application/json", 
+            "Content-Type": "application/json",
             "Accept": "application/json",
             "Referer": f"{BASE}/my-scores",
             "X-Requested-With": "XMLHttpRequest"
@@ -176,19 +182,18 @@ def eg_fetch_scores(session, passport_id, page_size=40, page_number=1):
 
     if isinstance(data, list):
         return data
-        
+
     if isinstance(data, dict):
-        # Restored robust checking for capitalized keys
         for key in ("scores", "Scores", "data", "Data", "results", "Results"):
             if key in data and isinstance(data[key], list):
                 return data[key]
-                
-        # If we get here, EG changed their payload structure entirely
+
         log.warning("EG API returned a dict, but couldn't find scores list. Keys present: %s", list(data.keys()))
         return []
-        
+
     log.warning("Unexpected scores API shape: %s", type(data))
     return []
+
 
 def eg_fetch_scorecard(session, score_id, score_code):
     payload = {"scoreId": score_id, "scoreCode": score_code}
@@ -196,7 +201,7 @@ def eg_fetch_scorecard(session, score_id, score_code):
         SCORE_DETAILS_URL,
         json=payload,
         headers={
-            "Content-Type": "application/json", 
+            "Content-Type": "application/json",
             "Accept": "application/json",
             "Referer": f"{BASE}/my-scores",
             "X-Requested-With": "XMLHttpRequest"
@@ -206,12 +211,13 @@ def eg_fetch_scorecard(session, score_id, score_code):
     r.raise_for_status()
     return r.json()
 
+
 def eg_fetch_hi(session, passport_id):
     r = session.post(
         HI_URL,
         json={"otherPassportId": passport_id},
         headers={
-            "Content-Type": "application/json", 
+            "Content-Type": "application/json",
             "Accept": "application/json",
             "Referer": f"{BASE}/my-overview",
             "X-Requested-With": "XMLHttpRequest"
@@ -220,7 +226,7 @@ def eg_fetch_hi(session, passport_id):
     )
     r.raise_for_status()
     data = r.json()
-    
+
     if isinstance(data, dict):
         for key in ("HandicapIndex", "handicapIndex", "ExactHandicap", "exactHandicap", "value"):
             if key in data and data[key] is not None:
@@ -229,14 +235,16 @@ def eg_fetch_hi(session, passport_id):
         return float(data)
     return None
 
+
 # ── Score field mapping ──────────────────────────────────────────────────────
+
 
 def parse_play_date(raw):
     v = raw.get("PlayDate")
     if not v:
         return None
     v = str(v).strip()
-    
+
     m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", v)
     if m:
         dd, mm, yyyy = m.groups()
@@ -248,6 +256,7 @@ def parse_play_date(raw):
         return f"{yyyy}-{mm}-{dd}"
     return None
 
+
 def parse_gross(raw):
     candidates = [
         raw.get("AdjustedGross"),
@@ -255,7 +264,7 @@ def parse_gross(raw):
         raw.get("Score"),
         raw.get("TotalScore"),
     ]
-    
+
     total_score_text = raw.get("TotalScoreText")
     if total_score_text and isinstance(total_score_text, str):
         m = re.match(r"^\s*(\d+)", total_score_text)
@@ -273,6 +282,7 @@ def parse_gross(raw):
             continue
     return None
 
+
 def parse_pcc(raw):
     candidates = [
         raw.get("Pcc"),
@@ -289,6 +299,7 @@ def parse_pcc(raw):
             continue
     return 0
 
+
 def parse_hi(raw):
     candidates = [
         raw.get("HandicapIndex"),
@@ -303,3 +314,67 @@ def parse_hi(raw):
         except (TypeError, ValueError):
             continue
     return None
+
+
+# ── Hole score parsing ───────────────────────────────────────────────────────
+
+
+def parse_eg_hole_score(raw_score, raw_class=None, incomplete_count=0):
+    """
+    Parse a single EG HoleXScore value into its components.
+
+    EG returns three formats:
+      "5"     plain numeric  — raw and adjusted are equal, round is complete
+      "8(7)"  composite      — player entered 8, EG adjusted to 7 for handicap
+      "*"     missing        — hole was not entered; round submitted incomplete
+
+    Returns a dict:
+      gross_score          int or None  — the player's actual entered strokes
+      adjusted_gross_score int or None  — EG's handicap-adjusted hole value
+      score_status         str          — 'normal' | 'adjusted' | 'missing'
+      score_display        str          — original EG string for traceability
+    """
+    score_text = "" if raw_score is None else str(raw_score).strip()
+    score_class = "" if raw_class is None else str(raw_class).strip().lower()
+
+    # Missing / unentered hole  —  "*" or ScoreClass "is-na"
+    if score_text == "" or score_text == "*" or score_class == "is-na":
+        return {
+            "gross_score":          None,
+            "adjusted_gross_score": None,
+            "score_status":         "missing",
+            "score_display":        score_text or "*",
+        }
+
+    # Composite adjusted score  e.g. "8(7)"
+    m = re.match(r"^\s*(\d+)\((\d+)\)\s*$", score_text)
+    if m:
+        return {
+            "gross_score":          int(m.group(1)),
+            "adjusted_gross_score": int(m.group(2)),
+            "score_status":         "adjusted",
+            "score_display":        score_text,
+        }
+
+    # Plain numeric score  e.g. "5"
+    m = re.match(r"^\s*(\d+)\s*$", score_text)
+    if m:
+        val = int(m.group(1))
+        return {
+            "gross_score":          val,
+            "adjusted_gross_score": val,
+            "score_status":         "normal",
+            "score_display":        score_text,
+        }
+
+    # Unrecognised format — log and treat as missing
+    log.warning(
+        "parse_eg_hole_score: unrecognised format %r (class=%r, incomplete=%s)",
+        score_text, score_class, incomplete_count,
+    )
+    return {
+        "gross_score":          None,
+        "adjusted_gross_score": None,
+        "score_status":         "missing",
+        "score_display":        score_text,
+    }
