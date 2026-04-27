@@ -323,21 +323,22 @@ def parse_eg_hole_score(raw_score, raw_class=None, incomplete_count=0):
     """
     Parse a single EG HoleXScore value into its components.
 
-    EG returns three formats:
-      "5"     plain numeric  — raw and adjusted are equal, round is complete
-      "8(7)"  composite      — player entered 8, EG adjusted to 7 for handicap
-      "*"     missing        — hole was not entered; round submitted incomplete
+    EG returns four formats:
+      "5"     plain numeric     -- normal complete hole
+      "8(7)"  composite         -- player entered 8, EG adjusted to 7 for handicap
+      "*(5)"  auto net double   -- hole not completed, EG assigned net double bogey score
+      "*"     fully missing     -- hole not entered, no EG auto-score assigned
 
     Returns a dict:
-      gross_score          int or None  — the player's actual entered strokes
-      adjusted_gross_score int or None  — EG's handicap-adjusted hole value
-      score_status         str          — 'normal' | 'adjusted' | 'missing'
-      score_display        str          — original EG string for traceability
+      gross_score          int or None  -- the player's actual entered strokes
+      adjusted_gross_score int or None  -- EG's handicap-adjusted hole value
+      score_status         str          -- 'normal' | 'adjusted' | 'missing'
+      score_display        str          -- original EG string for traceability
     """
     score_text = "" if raw_score is None else str(raw_score).strip()
     score_class = "" if raw_class is None else str(raw_class).strip().lower()
 
-    # Missing / unentered hole  —  "*" or ScoreClass "is-na"
+    # Fully missing / unentered hole with no auto-score  --  "*" bare or "is-na" class
     if score_text == "" or score_text == "*" or score_class == "is-na":
         return {
             "gross_score":          None,
@@ -346,7 +347,17 @@ def parse_eg_hole_score(raw_score, raw_class=None, incomplete_count=0):
             "score_display":        score_text or "*",
         }
 
-    # Composite adjusted score  e.g. "8(7)"
+    # EG auto net double bogey  e.g. "*(5)"  --  no raw gross but adjusted value is known
+    m = re.match(r"^\*\((\d+)\)$", score_text)
+    if m:
+        return {
+            "gross_score":          None,
+            "adjusted_gross_score": int(m.group(1)),
+            "score_status":         "adjusted",
+            "score_display":        score_text,
+        }
+
+    # Composite adjusted score  e.g. "8(7)"  --  player entered 8, EG reduced to 7
     m = re.match(r"^\s*(\d+)\((\d+)\)\s*$", score_text)
     if m:
         return {
@@ -367,7 +378,7 @@ def parse_eg_hole_score(raw_score, raw_class=None, incomplete_count=0):
             "score_display":        score_text,
         }
 
-    # Unrecognised format — log and treat as missing
+    # Unrecognised format -- log and treat as missing
     log.warning(
         "parse_eg_hole_score: unrecognised format %r (class=%r, incomplete=%s)",
         score_text, score_class, incomplete_count,
