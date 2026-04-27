@@ -67,7 +67,6 @@ def get_conn():
 # ---------------------------------------------------------------------------
 # Pass 1 — Fix *(N) rows already in the DB (no API needed)
 # ---------------------------------------------------------------------------
-
 def pass1_fix_auto_net_double(conn):
     """
     Find all hole_score rows where score_display looks like *(N) but is
@@ -77,7 +76,7 @@ def pass1_fix_auto_net_double(conn):
 
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT hs_id, score_display "
+            "SELECT score_id, hole_id, score_display "
             "FROM {p}golf_hole_scores "
             "WHERE score_status = 'missing' "
             "  AND score_display REGEXP '^\\\\*\\\\([0-9]+\\\\)$'".format(
@@ -103,8 +102,8 @@ def pass1_fix_auto_net_double(conn):
                 "UPDATE {p}golf_hole_scores "
                 "SET adjusted_gross_score = %s, "
                 "    score_status = 'adjusted' "
-                "WHERE hs_id = %s".format(p=config.DB_PREFIX),
-                (adj, row["hs_id"]),
+                "WHERE score_id = %s AND hole_id = %s".format(p=config.DB_PREFIX),
+                (adj, row["score_id"], row["hole_id"]),
             )
             fixed += 1
 
