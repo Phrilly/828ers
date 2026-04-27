@@ -30,6 +30,7 @@ import config
 from eg_utils import (
     eg_login,
     eg_fetch_scorecard,
+    eg_fetch_scores,
     parse_eg_hole_score,
 )
 
@@ -220,6 +221,8 @@ def pass2_repair_partial_rounds(conn, session):
     """
     Find rounds with 1-17 hole scores and re-sync them from EG API.
     Rounds with 0 holes are too old for EG API and are skipped.
+    eg_score_id/eg_score_code are NOT stored in the DB — they are looked up
+    live from the EG API by matching player + date_played.
     """
     log.info("=== Pass 2: re-syncing partial rounds from EG API ===")
 
@@ -229,16 +232,14 @@ def pass2_repair_partial_rounds(conn, session):
             SELECT
                 s.score_id,
                 s.tee_id,
-                s.eg_score_id,
-                s.eg_score_code,
+                s.player_id,
                 p.name   AS player_name,
                 s.date_played,
-                COUNT(hs.hs_id) AS hole_count
+                COUNT(hs.hole_id) AS hole_count
             FROM {p}golf_scores s
             JOIN {p}golf_players p ON s.player_id = p.player_id
             LEFT JOIN {p}golf_hole_scores hs ON s.score_id = hs.score_id
-            GROUP BY s.score_id, s.tee_id, s.eg_score_id,
-                     s.eg_score_code, p.name, s.date_played
+            GROUP BY s.score_id, s.tee_id, s.player_id, p.name, s.date_played
             HAVING hole_count BETWEEN 1 AND 17
             ORDER BY s.date_played DESC
             """.format(p=config.DB_PREFIX)
@@ -250,31 +251,59 @@ def pass2_repair_partial_rounds(conn, session):
         return 0
 
     log.info("Pass 2: found %d partial rounds to repair.", len(partial_rounds))
+
+    # Build name -> eg_passport_id lookup from config
+    player_eg_map = {p["name"]: p.get("eg_passport_id") for p in config.PLAYERS}
+
     repaired = 0
 
     for row in partial_rounds:
         score_id   = row["score_id"]
         tee_id     = row["tee_id"]
-        eg_sid     = row["eg_score_id"]
-        eg_code    = row["eg_score_code"]
         name       = row["player_name"]
         date_str   = str(row["date_played"])
         hole_count = row["hole_count"]
 
-        if not eg_sid or not eg_code:
+        if name not in player_eg_map:
             log.warning(
-                "  score_id=%s (%s %s) has %d holes but no EG IDs — skipping.",
+                "  score_id=%s (%s %s) has %d holes but player not in config.PLAYERS — skipping.",
                 score_id, name, date_str, hole_count,
             )
             continue
+
+        eg_passport_id = player_eg_map[name]
 
         log.info(
             "  Repairing score_id=%s  %s  %s  (currently %d/18 holes)",
             score_id, name, date_str, hole_count,
         )
 
+        # Re-fetch EG score list for this player and find the matching date
         try:
-            scorecard = eg_fetch_scorecard(session, eg_sid, eg_code)
+            raw_scores = eg_fetch_scores(session, passport_id=eg_passport_id, page_size=100)
+        except Exception as exc:
+            log.error("  EG score list fetch failed for %s: %s", name, exc)
+            time.sleep(1)
+            continue
+
+        eg_score_id   = None
+        eg_score_code = None
+        for raw in (raw_scores or []):
+            eg_date = (raw.get("DatePlayed") or "")[:10]
+            if eg_date == date_str:
+                eg_score_id   = raw.get("ScoreId")
+                eg_score_code = raw.get("ScoreCode")
+                break
+
+        if not eg_score_id or not eg_score_code:
+            log.warning(
+                "  Could not find EG score for %s on %s — skipping.", name, date_str
+            )
+            time.sleep(0.5)
+            continue
+
+        try:
+            scorecard = eg_fetch_scorecard(session, eg_score_id, score_code=eg_score_code)
         except Exception as exc:
             log.error(
                 "  EG scorecard fetch failed for score_id=%s: %s", score_id, exc
@@ -290,9 +319,7 @@ def pass2_repair_partial_rounds(conn, session):
             continue
 
         synced = sync_hole_data(conn, score_id, tee_id, scorecard)
-        log.info(
-            "  score_id=%s: %d hole rows written.", score_id, synced
-        )
+        log.info("  score_id=%s: %d hole rows written.", score_id, synced)
         if synced > 0:
             repaired += 1
 
