@@ -163,9 +163,9 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
     Write hole-by-hole scores for a round, correctly handling all three
     EG score formats:
 
-      "5"     plain numeric  — normal complete hole
+      "5"    plain numeric  — normal complete hole
       "8(7)"  composite      — player entered 8, EG adjusted to 7 for handicap
-      "*"     missing        — hole not entered; round submitted incomplete
+      "*"    missing        — hole not entered; round submitted incomplete
 
     All holes present in the scorecard payload are written.  Missing holes
     receive NULL gross values and score_status='missing' rather than being
@@ -223,6 +223,7 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     except (TypeError, ValueError):
                         pass
 
+                # Keep updating wp_golf_holes so we always have fresh course layouts
                 cur.execute(
                     "INSERT INTO {p}golf_holes (tee_id, hole_number, par, length) "
                     "VALUES (%s, %s, %s, %s) "
@@ -232,22 +233,10 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     (db_tee_id, i, safe_par, safe_dist),
                 )
 
-                cur.execute(
-                    "SELECT hole_id FROM {p}golf_holes "
-                    "WHERE tee_id=%s AND hole_number=%s".format(p=config.DB_PREFIX),
-                    (db_tee_id, i),
-                )
-                hole_row = cur.fetchone()
-                if not hole_row:
-                    log.warning(
-                        "  sync_hole_data: could not find/create hole row for "
-                        "tee_id=%s hole=%d — skipping", db_tee_id, i
-                    )
-                    continue
-
+                # Direct insert using hole_number. No SELECT hole_id required!
                 cur.execute(
                     "INSERT INTO {p}golf_hole_scores "
-                    "(score_id, hole_id, gross_score, adjusted_gross_score, "
+                    "(score_id, hole_number, gross_score, adjusted_gross_score, "
                     " score_status, score_display) "
                     "VALUES (%s, %s, %s, %s, %s, %s) "
                     "ON DUPLICATE KEY UPDATE "
@@ -259,7 +248,7 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     ),
                     (
                         db_score_id,
-                        hole_row["hole_id"],
+                        i,
                         parsed["gross_score"],
                         parsed["adjusted_gross_score"],
                         parsed["score_status"],
@@ -784,13 +773,6 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                                 name, play_date_str
                             )
                             continue
-                    else:
-                        log.error("  AUTO-INSERT failed for %s on %s", name, play_date_str)
-                        player_issues.add(
-                            "  Round NOT inserted (DB error): {} on {}".format(name, play_date_str)
-                        )
-                        status_msgs.add("INSERT FAILED")
-                        continue
                 else:
                     status_msgs.add("CHECKED")
 
