@@ -1,28 +1,44 @@
 CREATE OR REPLACE VIEW view_eclectic AS
 SELECT
     p.player_id,
-    hbh.player_name,
-    hbh.hole_number,
-    hbh.par,
-    MONTH(hbh.date_played)    AS month_num,
-    YEAR(hbh.date_played)     AS year_num,
-    MIN(hbh.gross_score)      AS best_gross,
-    MAX(hbh.stableford_score) AS best_stableford
-FROM view_golf_hole_by_hole hbh
-JOIN wp_golf_scores s  ON hbh.score_id  = s.score_id
-JOIN wp_golf_players p ON s.player_id   = p.player_id
-WHERE hbh.course_name = 'Ramsey Golf Club'
+    p.name                        AS player_name,
+    h.hole_number,
+    h.par,
+    MONTH(s.date_played)          AS month_num,
+    YEAR(s.date_played)           AS year_num,
+    MIN(hs.gross_score)           AS best_gross,
+    -- best stableford using 5/8 eclectic allowance
+    MAX(
+        GREATEST(0,
+            2 + h.par - (
+                hs.gross_score - (
+                    FLOOR(ROUND(hh.course_hcp * 0.625, 0) / 18)
+                    + CASE
+                        WHEN (ROUND(hh.course_hcp * 0.625, 0) % 18) >= h.stroke_index
+                        THEN 1 ELSE 0
+                      END
+                )
+            )
+        )
+    )                             AS best_stableford
+FROM wp_golf_hole_scores hs
+JOIN wp_golf_scores s         ON hs.score_id  = s.score_id
+JOIN wp_golf_players p        ON s.player_id  = p.player_id
+JOIN wp_golf_holes h          ON hs.hole_id   = h.hole_id
+JOIN wp_golf_tees t           ON h.tee_id     = t.tee_id
+JOIN wp_golf_courses c        ON t.course_id  = c.course_id
+JOIN wp_golf_handicap_history hh ON s.score_id = hh.score_id
+WHERE s.is_excluded = 0
+  AND c.course_name = 'Ramsey Golf Club'
   AND (
       SELECT COUNT(DISTINCT s2.player_id)
       FROM wp_golf_scores s2
-      WHERE s2.date_played = hbh.date_played
+      WHERE s2.date_played = s.date_played
         AND s2.tee_id      = s.tee_id
         AND s2.is_excluded = 0
   ) > 1
 GROUP BY
-    p.player_id,
-    hbh.player_name,
-    hbh.hole_number,
-    hbh.par,
-    MONTH(hbh.date_played),
-    YEAR(hbh.date_played);
+    p.player_id, p.name,
+    h.hole_number, h.par,
+    MONTH(s.date_played),
+    YEAR(s.date_played);
