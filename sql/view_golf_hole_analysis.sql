@@ -1,35 +1,43 @@
 DROP VIEW IF EXISTS `view_golf_hole_analysis`;
 -- END_QUERY
+
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_hole_analysis` AS
 WITH BaseScores AS (
-    -- Get the raw hole data and calculate how many shots the player received on this specific hole
-    SELECT 
+    SELECT
         s.player_id,
         t.course_id,
         h.hole_number,
         h.par,
         h.stroke_index,
         hs.gross_score,
-        (FLOOR(COALESCE(hh.playing_hcp, 0) / 18) + 
-         CASE WHEN (COALESCE(hh.playing_hcp, 0) % 18) >= h.stroke_index THEN 1 ELSE 0 END) AS shots_received
+        (
+            FLOOR(COALESCE(hh.playing_hcp, 0) / 18) +
+            CASE
+                WHEN (COALESCE(hh.playing_hcp, 0) % 18) >= h.stroke_index THEN 1
+                ELSE 0
+            END
+        ) AS shots_received
     FROM wp_golf_hole_scores hs
-    JOIN wp_golf_scores s ON hs.score_id = s.score_id
-    JOIN wp_golf_holes h ON hs.hole_id = h.hole_id
-    JOIN wp_golf_tees t ON h.tee_id = t.tee_id
-    LEFT JOIN wp_golf_handicap_history hh ON s.score_id = hh.score_id
+    JOIN wp_golf_scores s
+        ON hs.score_id = s.score_id
+    JOIN wp_golf_holes h
+        ON hs.hole_number = h.hole_number
+       AND h.tee_id = s.tee_id
+    JOIN wp_golf_tees t
+        ON s.tee_id = t.tee_id
+    LEFT JOIN wp_golf_handicap_history hh
+        ON s.score_id = hh.score_id
     WHERE s.is_excluded = 0
 ),
 CalculatedScores AS (
-    -- Calculate Nett Score and Stableford Points per hole
-    SELECT 
+    SELECT
         *,
         (gross_score - shots_received) AS nett_score,
         GREATEST(0, (2 + par) - (gross_score - shots_received)) AS stableford_points
     FROM BaseScores
 ),
 RawStats AS (
-    -- Individual Player Stats
-    SELECT 
+    SELECT
         player_id,
         course_id,
         hole_number,
@@ -52,8 +60,7 @@ RawStats AS (
 
     UNION ALL
 
-    -- "All Players" Aggregate (Represented by player_id = 0)
-    SELECT 
+    SELECT
         0 AS player_id,
         course_id,
         hole_number,
@@ -74,7 +81,7 @@ RawStats AS (
     FROM CalculatedScores
     GROUP BY course_id, hole_number
 )
-SELECT 
+SELECT
     player_id,
     course_id,
     hole_number,
@@ -92,6 +99,10 @@ SELECT
     pars,
     bogeys,
     doubles_plus,
-    RANK() OVER (PARTITION BY player_id, course_id ORDER BY avg_to_par DESC) AS actual_difficulty_rank
+    RANK() OVER (
+        PARTITION BY player_id, course_id
+        ORDER BY avg_to_par DESC
+    ) AS actual_difficulty_rank
 FROM RawStats;
+
 -- END_QUERY
