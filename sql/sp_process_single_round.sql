@@ -129,5 +129,8 @@ sp_label: BEGIN
     SET course_hcp = v_course_hcp, playing_hcp = v_playing_hcp, net_score = v_net_score
     WHERE score_id = p_score_id;
 
+    -- 8. Update the best 8 flags ---
+    CALL sp_refresh_best_8_flags(v_player_id);
+
 END;
 -- END_QUERY
