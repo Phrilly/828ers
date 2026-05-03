@@ -9,41 +9,23 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 add_shortcode( 'golf_eclectic', function () {
     global $wpdb;
 
-    // ── Player order ──────────────────────────────────────────
-    $ordered_names = ['Phil D', 'Phil B', 'Jay', 'Adder'];
+    // ── All data from views — no raw SQL in PHP ───────────────
 
-    // Get all players, then sort to match required order
-    $all_players = $wpdb->get_results(
-        "SELECT player_id, name FROM wp_golf_players ORDER BY name ASC"
+    $players = $wpdb->get_results(
+        "SELECT player_id, name FROM view_eclectic_players"
     );
 
-    // Build ordered player list — only include players in our list
-    $players = [];
-    foreach ( $ordered_names as $ordered_name ) {
-        foreach ( $all_players as $p ) {
-            if ( trim( $p->name ) === $ordered_name ) {
-                $players[] = $p;
-                break;
-            }
-        }
-    }
-
-    // ── Available months (only months that have data) ─────────
     $months_raw = $wpdb->get_results(
-        "SELECT DISTINCT
-            MONTH(s.date_played) AS month_num,
-            YEAR(s.date_played)  AS year_num
-         FROM wp_golf_scores s
-         JOIN wp_golf_tees t   ON s.tee_id    = t.tee_id
-         JOIN wp_golf_courses c ON t.course_id = c.course_id
-         WHERE s.is_excluded = 0
-           AND c.course_name = 'Ramsey Golf Club'
-         ORDER BY year_num DESC, month_num DESC"
+        "SELECT month_num, year_num FROM view_eclectic_months"
     );
 
     if ( empty( $months_raw ) ) {
         return '<p>No eclectic data available.</p>';
     }
+
+    $hole_pars = $wpdb->get_results(
+        "SELECT hole_number, par FROM view_eclectic_holes"
+    );
 
     // ── Selected month/year ───────────────────────────────────
     $selected_month = isset( $_GET['ecl_month'] ) ? (int) $_GET['ecl_month'] : (int) $months_raw[0]->month_num;
@@ -72,24 +54,13 @@ add_shortcode( 'golf_eclectic', function () {
         $data[ $row->player_id ][ (int) $row->hole_number ] = $row;
     }
 
-    // ── Par per hole ──────────────────────────────────────────
-    $hole_pars = $wpdb->get_results(
-        "SELECT DISTINCT h.hole_number, h.par
-         FROM wp_golf_holes h
-         JOIN wp_golf_tees t    ON h.tee_id    = t.tee_id
-         JOIN wp_golf_courses c ON t.course_id = c.course_id
-         WHERE c.course_name = 'Ramsey Golf Club'
-         ORDER BY h.hole_number ASC"
-    );
-
-    // Month name helper
+    // ── Month name helper ─────────────────────────────────────
     $month_names = [
-        1=>'January',2=>'February',3=>'March',4=>'April',
-        5=>'May',6=>'June',7=>'July',8=>'August',
-        9=>'September',10=>'October',11=>'November',12=>'December'
+        1=>'January',  2=>'February', 3=>'March',     4=>'April',
+        5=>'May',      6=>'June',     7=>'July',       8=>'August',
+        9=>'September',10=>'October', 11=>'November',  12=>'December'
     ];
 
-    // Current page URL for form action
     $page_url = get_permalink();
 
     ob_start();
@@ -101,11 +72,11 @@ add_shortcode( 'golf_eclectic', function () {
             <label for="ecl-period">Period:</label>
             <select id="ecl-period" name="ecl_month" onchange="this.form.submit()">
                 <?php foreach ( $months_raw as $m ) :
-                    $selected = ( (int)$m->month_num === $selected_month && (int)$m->year_num === $selected_year ) ? 'selected' : '';
+                    $sel = ( (int)$m->month_num === $selected_month && (int)$m->year_num === $selected_year ) ? 'selected' : '';
                 ?>
                     <option value="<?php echo (int)$m->month_num; ?>"
                             data-year="<?php echo (int)$m->year_num; ?>"
-                            <?php echo $selected; ?>>
+                            <?php echo $sel; ?>>
                         <?php echo esc_html( $month_names[ (int)$m->month_num ] . ' ' . $m->year_num ); ?>
                     </option>
                 <?php endforeach; ?>
@@ -122,7 +93,7 @@ add_shortcode( 'golf_eclectic', function () {
         </script>
 
         <h3 class="eclectic-title">
-            Eclectic — <?php echo esc_html( $month_names[$selected_month] . ' ' . $selected_year ); ?>
+            Monthly Eclectic (&#8541; Handicap) &mdash; <?php echo esc_html( $month_names[$selected_month] . ' ' . $selected_year ); ?>
         </h3>
 
         <div class="eclectic-scroll">
@@ -142,7 +113,7 @@ add_shortcode( 'golf_eclectic', function () {
                     <th></th>
                     <?php foreach ( $players as $p ) : ?>
                         <th class="ecl-sub">Gross</th>
-                        <th class="ecl-sub">Stbf</th>
+                        <th class="ecl-sub">Eclectic</th>
                     <?php endforeach; ?>
                 </tr>
             </thead>
@@ -152,11 +123,10 @@ add_shortcode( 'golf_eclectic', function () {
                 $totals_stbf  = array_fill_keys( array_column( $players, 'player_id' ), 0 );
 
                 foreach ( $hole_pars as $hole ) :
-                    $hole_num = (int) $hole->hole_number;
-                    $par      = (int) $hole->par;
+                    $hole_num  = (int) $hole->hole_number;
+                    $par       = (int) $hole->par;
                     $row_class = ( $hole_num % 2 === 0 ) ? 'ecl-row-even' : 'ecl-row-odd';
 
-                    // Separator after hole 9
                     if ( $hole_num === 10 ) : ?>
                         <tr class="ecl-turn-row">
                             <td colspan="<?php echo 2 + ( count($players) * 2 ); ?>">— Turn —</td>
@@ -168,8 +138,8 @@ add_shortcode( 'golf_eclectic', function () {
                         <td class="ecl-par"><?php echo $par; ?></td>
 
                         <?php foreach ( $players as $p ) :
-                            $pid   = $p->player_id;
-                            $d     = $data[$pid][$hole_num] ?? null;
+                            $pid = $p->player_id;
+                            $d   = $data[$pid][$hole_num] ?? null;
 
                             if ( $d ) :
                                 $gross = (int) $d->best_gross;
@@ -177,7 +147,6 @@ add_shortcode( 'golf_eclectic', function () {
                                 $totals_gross[$pid] += $gross;
                                 $totals_stbf[$pid]  += $stbf;
 
-                                // Gross score class vs par
                                 $diff = $gross - $par;
                                 if     ( $diff <= -2 ) $gross_class = 'ecl-eagle';
                                 elseif ( $diff === -1 ) $gross_class = 'ecl-birdie';
@@ -185,8 +154,7 @@ add_shortcode( 'golf_eclectic', function () {
                                 elseif ( $diff === 1  ) $gross_class = 'ecl-bogey';
                                 else                    $gross_class = 'ecl-double';
 
-                                // Stableford class
-                                if     ( $stbf >= 4 ) $stbf_class = 'ecl-stbf-great';
+                                if     ( $stbf >= 4  ) $stbf_class = 'ecl-stbf-great';
                                 elseif ( $stbf === 3 ) $stbf_class = 'ecl-stbf-good';
                                 elseif ( $stbf === 2 ) $stbf_class = 'ecl-stbf-par';
                                 elseif ( $stbf === 1 ) $stbf_class = 'ecl-stbf-poor';
