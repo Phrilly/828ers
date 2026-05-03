@@ -1,3 +1,5 @@
+DROP VIEW IF EXISTS `view_golf_hole_analysis`;
+-- END_QUERY
 CREATE OR REPLACE ALGORITHM = UNDEFINED VIEW `view_golf_hole_analysis` AS
 WITH BaseScores AS (
     -- Get the raw hole data and calculate how many shots the player received on this specific hole
@@ -92,3 +94,4 @@ SELECT
     doubles_plus,
     RANK() OVER (PARTITION BY player_id, course_id ORDER BY avg_to_par DESC) AS actual_difficulty_rank
 FROM RawStats;
+-- END_QUERY
