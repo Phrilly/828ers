@@ -927,6 +927,21 @@ def check(test_mode=False, backfill_mode=False):
 
         log.info("DB players : %s", list(db_players.keys()))
 
+        if not backfill_mode and not test_mode:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM {p}golf_scores s "
+                    "LEFT JOIN {p}golf_hole_scores hs ON hs.score_id = s.score_id "
+                    "WHERE s.date_played=%s AND s.is_excluded=0 "
+                    "GROUP BY s.score_id HAVING COUNT(hs.hole_number) >= 18 LIMIT 1".format(
+                        p=config.DB_PREFIX
+                    ),
+                    (check_date_str,),
+                )
+                if cur.fetchone():
+                    log.info("Hole-by-hole data already exists for %s -- skipping run.", check_date_str)
+                    return
+
         config_player_names = {p["name"] for p in config.PLAYERS}
         for db_name in db_players.keys():
             if db_name not in config_player_names:
