@@ -51,7 +51,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-HI_IGNORE_PLAYERS = {"Jay"}
+HI_IGNORE_PLAYERS = set()
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,6 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                 par       = scorecard.get(f"Hole{i}Par")
                 distance  = scorecard.get(f"Hole{i}Distance")
 
-                # Skip holes EG has not returned at all (key absent from payload)
                 if raw_score is None:
                     continue
 
@@ -223,7 +222,6 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     except (TypeError, ValueError):
                         pass
 
-                # Keep updating wp_golf_holes so we always have fresh course layouts
                 cur.execute(
                     "INSERT INTO {p}golf_holes (tee_id, hole_number, par, length) "
                     "VALUES (%s, %s, %s, %s) "
@@ -233,7 +231,6 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
                     (db_tee_id, i, safe_par, safe_dist),
                 )
 
-                # Direct insert using hole_number. No SELECT hole_id required!
                 cur.execute(
                     "INSERT INTO {p}golf_hole_scores "
                     "(score_id, hole_number, gross_score, adjusted_gross_score, "
@@ -845,12 +842,6 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                         player_issues.add(
                             "  HI mismatch:  EG={}  Local={}".format(eg_hi_str, local_hi_str)
                         )
-            else:
-                if eg_hi is not None and local_hi is not None and abs(float(eg_hi) - float(local_hi)) > 0.05:
-                    log.info(
-                        "  HI mismatch noted for %s (ignored per Rule 7): EG=%s  Local=%s",
-                        name, eg_hi_str, local_hi_str,
-                    )
         except Exception as e:
             log.error("  Error reading local HI for %s: %s", name, e)
 
@@ -982,38 +973,31 @@ def check(test_mode=False, backfill_mode=False):
         log.info("Backfill complete. No email alerts are generated in backfill mode.")
         return
 
-    log.info("Preparing daily confirmation email...")
+    if not discrepancy_lines:
+        log.info("No alertable discrepancies found; summary email suppressed.")
+        return
+
+    log.info("Preparing discrepancy email...")
     capture_handler.flush()
     full_log_contents = log_stream.getvalue()
 
-    if discrepancy_lines:
-        subject = "{}828ers EG Score Check - DISCREPANCIES FOUND ({})".format(
-            "[TEST] " if test_mode else "", check_date_str
+    subject = "{}828ers EG Score Check - DISCREPANCIES FOUND ({})".format(
+        "[TEST] " if test_mode else "", check_date_str
+    )
+    body = (
+        "{}The following discrepancies were found between EG and the "
+        "828ers DB for scores dated {}:\n\n".format(
+            "*** TEST MODE -- checking today's scores ***\n\n" if test_mode else "",
+            check_date_str,
         )
-        body = (
-            "{}The following discrepancies were found between EG and the "
-            "828ers DB for scores dated {}:\n\n".format(
-                "*** TEST MODE -- checking today's scores ***\n\n" if test_mode else "",
-                check_date_str,
-            )
-        )
-        body += "\n\n".join(discrepancy_lines)
-        body += (
-            "\n\n---\n"
-            "Note: any PCC corrections have been applied to the DB automatically "
-            "and are not included in this alert (Rule 6).\n"
-            "Jay's HI discrepancy is always suppressed (Rule 7).\n"
-            "Missing rounds may have been auto-inserted into the DB.\n\n"
-        )
-    else:
-        subject = "{}828ers EG Score Check - OK ({})".format(
-            "[TEST] " if test_mode else "", check_date_str
-        )
-        body = (
-            "The daily England Golf sync completed successfully. "
-            "No alertable discrepancies were found.\n\n"
-        )
-
+    )
+    body += "\n\n".join(discrepancy_lines)
+    body += (
+        "\n\n---\n"
+        "Note: any PCC corrections have been applied to the DB automatically "
+        "and are not included in this alert (Rule 6).\n"
+        "Missing rounds may have been auto-inserted into the DB.\n\n"
+    )
     body += "=== FULL RUN LOG ===\n"
     body += full_log_contents
 
