@@ -51,7 +51,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-HI_IGNORE_PLAYERS = set("Jay")
+HI_IGNORE_PLAYERS = set(["Jay"])
 
 
 # ---------------------------------------------------------------------------
