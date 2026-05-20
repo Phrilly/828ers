@@ -51,3 +51,4 @@ scripts/eg_session.pkl
 scripts/cron.log
 scripts/golf_checker.log
 scripts/eg_session.json
+__pycache__/
