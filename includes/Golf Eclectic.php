@@ -33,9 +33,9 @@ add_shortcode( 'golf_eclectic', function () {
 
     // ── Selected Allowance Mapping (Strictly Whitelisted) ─────
     $allowance_map = [
-        '5_8' => ['col' => 'best_stableford',    'label' => '62.5%' Handicap'],
-        '1_2' => ['col' => 'best_stableford_50', 'label' => '50%    Handicap'],
-        '3_4' => ['col' => 'best_stableford_75', 'label' => '75%    Handicap'],
+        '5_8' => ['col' => 'best_stableford',    'label' => '⅝ Handicap'],
+        '1_2' => ['col' => 'best_stableford_50', 'label' => '½ Handicap'],
+        '3_4' => ['col' => 'best_stableford_75', 'label' => '¾ Handicap'],
     ];
 
     $selected_allowance = isset( $_GET['ecl_allowance'] ) && array_key_exists( $_GET['ecl_allowance'], $allowance_map ) 
