@@ -1,7 +1,6 @@
 DROP VIEW IF EXISTS `view_eclectic`;
--- END_QUERY
 
-CREATE OR REPLACE VIEW `view_eclectic` AS
+CREATE VIEW `view_eclectic` AS
 SELECT
     p.player_id,
     p.name AS player_name,
@@ -10,6 +9,8 @@ SELECT
     MONTH(s.date_played) AS month_num,
     YEAR(s.date_played) AS year_num,
     MIN(hs.gross_score) AS best_gross,
+
+    -- 1. Default 5/8th (0.625) Calculation
     MAX(
         GREATEST(
             0,
@@ -23,7 +24,40 @@ SELECT
                 )
             )
         )
-    ) AS best_stableford
+    ) AS best_stableford,
+
+    -- 2. New 1/2 (0.50) Calculation
+    MAX(
+        GREATEST(
+            0,
+            2 + h.par - (
+                hs.gross_score - (
+                    FLOOR(ROUND(hh.course_hcp * 0.50, 0) / 18)
+                    + CASE
+                        WHEN (ROUND(hh.course_hcp * 0.50, 0) % 18) >= h.stroke_index
+                        THEN 1 ELSE 0
+                      END
+                )
+            )
+        )
+    ) AS best_stableford_50,
+
+    -- 3. New 3/4 (0.75) Calculation
+    MAX(
+        GREATEST(
+            0,
+            2 + h.par - (
+                hs.gross_score - (
+                    FLOOR(ROUND(hh.course_hcp * 0.75, 0) / 18)
+                    + CASE
+                        WHEN (ROUND(hh.course_hcp * 0.75, 0) % 18) >= h.stroke_index
+                        THEN 1 ELSE 0
+                      END
+                )
+            )
+        )
+    ) AS best_stableford_75
+
 FROM wp_golf_hole_scores hs
 JOIN wp_golf_scores s
     ON hs.score_id = s.score_id
@@ -54,5 +88,3 @@ GROUP BY
     h.par,
     MONTH(s.date_played),
     YEAR(s.date_played);
-
--- END_QUERY

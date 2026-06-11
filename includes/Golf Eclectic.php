@@ -31,7 +31,24 @@ add_shortcode( 'golf_eclectic', function () {
     $selected_month = isset( $_GET['ecl_month'] ) ? (int) $_GET['ecl_month'] : (int) $months_raw[0]->month_num;
     $selected_year  = isset( $_GET['ecl_year'] )  ? (int) $_GET['ecl_year']  : (int) $months_raw[0]->year_num;
 
+    // ── Selected Allowance Mapping (Strictly Whitelisted) ─────
+    $allowance_map = [
+        '5_8' => ['col' => 'best_stableford',    'label' => '⅝ Handicap'],
+        '1_2' => ['col' => 'best_stableford_50', 'label' => '½ Handicap'],
+        '3_4' => ['col' => 'best_stableford_75', 'label' => '¾ Handicap'],
+    ];
+
+    $selected_allowance = isset( $_GET['ecl_allowance'] ) && array_key_exists( $_GET['ecl_allowance'], $allowance_map ) 
+        ? $_GET['ecl_allowance'] 
+        : '5_8';
+
+    $stbf_col = $allowance_map[$selected_allowance]['col'];
+    $allowance_label = $allowance_map[$selected_allowance]['label'];
+
     // ── Fetch eclectic data ───────────────────────────────────
+    // Suppress errors temporarily so we can handle them gracefully
+    $suppress_previous = $wpdb->suppress_errors( true );
+    
     $rows = $wpdb->get_results( $wpdb->prepare(
         "SELECT
             player_id,
@@ -39,7 +56,7 @@ add_shortcode( 'golf_eclectic', function () {
             hole_number,
             par,
             best_gross,
-            best_stableford
+            {$stbf_col} AS best_stableford
          FROM view_eclectic
          WHERE month_num = %d
            AND year_num  = %d
@@ -48,17 +65,28 @@ add_shortcode( 'golf_eclectic', function () {
         $selected_year
     ) );
 
+    // If the view hasn't been updated with the new columns yet, catch it safely.
+    if ( $wpdb->last_error ) {
+        $wpdb->suppress_errors( $suppress_previous );
+        return '<div style="padding: 20px; background: #fff3f3; border-left: 4px solid #d63638;">
+                    <strong>Database Notice:</strong> The eclectic views need to be updated to support ' . esc_html($allowance_label) . ' scoring.
+                </div>';
+    }
+    $wpdb->suppress_errors( $suppress_previous );
+
     // ── Index data: [player_id][hole_number] = row ────────────
     $data = [];
-    foreach ( $rows as $row ) {
-        $data[ $row->player_id ][ (int) $row->hole_number ] = $row;
+    if ( $rows ) {
+        foreach ( $rows as $row ) {
+            $data[ $row->player_id ][ (int) $row->hole_number ] = $row;
+        }
     }
 
     // ── Month name helper ─────────────────────────────────────
     $month_names = [
         1=>'January',  2=>'February', 3=>'March',     4=>'April',
-        5=>'May',      6=>'June',     7=>'July',       8=>'August',
-        9=>'September',10=>'October', 11=>'November',  12=>'December'
+        5=>'May',      6=>'June',     7=>'July',      8=>'August',
+        9=>'September',10=>'October', 11=>'November', 12=>'December'
     ];
 
     $page_url = get_permalink();
@@ -67,10 +95,11 @@ add_shortcode( 'golf_eclectic', function () {
     ?>
     <div class="eclectic-wrap">
 
-        <?php // ── Month/Year selector ──────────────────────────── ?>
+        <?php // ── Filters ────────────────────────────────────────── ?>
         <form class="eclectic-filter" method="GET" action="<?php echo esc_url( $page_url ); ?>">
+            
             <label for="ecl-period">Period:</label>
-            <select id="ecl-period" name="ecl_month" onchange="this.form.submit()">
+            <select id="ecl-period" name="ecl_month" class="ecl-auto-submit">
                 <?php foreach ( $months_raw as $m ) :
                     $sel = ( (int)$m->month_num === $selected_month && (int)$m->year_num === $selected_year ) ? 'selected' : '';
                 ?>
@@ -82,18 +111,37 @@ add_shortcode( 'golf_eclectic', function () {
                 <?php endforeach; ?>
             </select>
             <input type="hidden" name="ecl_year" id="ecl-year" value="<?php echo $selected_year; ?>">
+
+            <label for="ecl-allowance" style="margin-left: 10px;">Allowance:</label>
+            <select id="ecl-allowance" name="ecl_allowance" class="ecl-auto-submit">
+                <?php foreach ( $allowance_map as $key => $adata ) :
+                    $sel = ( $selected_allowance === $key ) ? 'selected' : '';
+                ?>
+                    <option value="<?php echo esc_attr($key); ?>" <?php echo $sel; ?>>
+                        <?php echo esc_html($adata['label']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            
+            <noscript>
+                <button type="submit" style="margin-left:10px; padding:6px 12px; cursor:pointer;">View</button>
+            </noscript>
         </form>
 
         <script>
-        document.getElementById('ecl-period').addEventListener('change', function() {
-            var opt = this.options[this.selectedIndex];
-            document.getElementById('ecl-year').value = opt.getAttribute('data-year');
-            this.form.submit();
+        document.querySelectorAll('.ecl-auto-submit').forEach(function(el) {
+            el.addEventListener('change', function() {
+                if (this.id === 'ecl-period') {
+                    var opt = this.options[this.selectedIndex];
+                    document.getElementById('ecl-year').value = opt.getAttribute('data-year');
+                }
+                this.form.submit();
+            });
         });
         </script>
 
         <h3 class="eclectic-title">
-            Monthly Eclectic (&#8541; Handicap) &mdash; <?php echo esc_html( $month_names[$selected_month] . ' ' . $selected_year ); ?>
+            Monthly Eclectic (<?php echo esc_html( $allowance_label ); ?>) &mdash; <?php echo esc_html( $month_names[$selected_month] . ' ' . $selected_year ); ?>
         </h3>
 
         <div class="eclectic-scroll">
@@ -119,6 +167,7 @@ add_shortcode( 'golf_eclectic', function () {
             </thead>
             <tbody>
                 <?php
+                // Initialize totals safely
                 $totals_gross = array_fill_keys( array_column( $players, 'player_id' ), 0 );
                 $totals_stbf  = array_fill_keys( array_column( $players, 'player_id' ), 0 );
 
@@ -139,7 +188,7 @@ add_shortcode( 'golf_eclectic', function () {
 
                         <?php foreach ( $players as $p ) :
                             $pid = $p->player_id;
-                            $d   = $data[$pid][$hole_num] ?? null;
+                            $d   = isset($data[$pid][$hole_num]) ? $data[$pid][$hole_num] : null;
 
                             if ( $d ) :
                                 $gross = (int) $d->best_gross;
