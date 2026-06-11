@@ -33,9 +33,9 @@ add_shortcode( 'golf_eclectic', function () {
 
     // ── Selected Allowance Mapping (Strictly Whitelisted) ─────
     $allowance_map = [
-        '5_8' => ['col' => 'best_stableford',    'label' => '⅝ Handicap'],
-        '1_2' => ['col' => 'best_stableford_50', 'label' => '½ Handicap'],
-        '3_4' => ['col' => 'best_stableford_75', 'label' => '¾ Handicap'],
+        '5_8' => ['col' => 'best_stableford',    'label' => '0.625 Handicap'],
+        '1_2' => ['col' => 'best_stableford_50', 'label' => '0.50 Handicap'],
+        '3_4' => ['col' => 'best_stableford_75', 'label' => '0.75 Handicap'],
     ];
 
     $selected_allowance = isset( $_GET['ecl_allowance'] ) && array_key_exists( $_GET['ecl_allowance'], $allowance_map ) 
@@ -46,7 +46,6 @@ add_shortcode( 'golf_eclectic', function () {
     $allowance_label = $allowance_map[$selected_allowance]['label'];
 
     // ── Fetch eclectic data ───────────────────────────────────
-    // Suppress errors temporarily so we can handle them gracefully
     $suppress_previous = $wpdb->suppress_errors( true );
     
     $rows = $wpdb->get_results( $wpdb->prepare(
@@ -65,7 +64,6 @@ add_shortcode( 'golf_eclectic', function () {
         $selected_year
     ) );
 
-    // If the view hasn't been updated with the new columns yet, catch it safely.
     if ( $wpdb->last_error ) {
         $wpdb->suppress_errors( $suppress_previous );
         return '<div style="padding: 20px; background: #fff3f3; border-left: 4px solid #d63638;">
@@ -167,7 +165,6 @@ add_shortcode( 'golf_eclectic', function () {
             </thead>
             <tbody>
                 <?php
-                // Initialize totals safely
                 $totals_gross = array_fill_keys( array_column( $players, 'player_id' ), 0 );
                 $totals_stbf  = array_fill_keys( array_column( $players, 'player_id' ), 0 );
 
