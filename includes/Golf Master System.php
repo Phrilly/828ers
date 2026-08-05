@@ -502,6 +502,14 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
         if (!$player || !$tee || !$gross) continue;
 
+        $tee_row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT course_rating, slope_rating, par FROM {$tees_table} WHERE tee_id = %d",
+                $tee
+            )
+        );
+        if (!$tee_row) continue;
+
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
             'date_played'    => $date,
@@ -511,6 +519,11 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             'putts'          => isset($r['putts']) ? (int) $r['putts'] : 0,
             'gir'            => isset($r['gir'])   ? (int) $r['gir']   : 0,
             'is_excluded'    => 0,
+            'round_course_rating' => (float) $tee_row->course_rating,
+            'round_slope_rating'  => (int) $tee_row->slope_rating,
+            'round_par'           => (int) $tee_row->par,
+            'rating_source'       => 'manual_placeholder',
+            'rating_updated_at'   => current_time('mysql'),
         ]);
 
         if ($ok) {
@@ -590,6 +603,7 @@ add_action('wp_ajax_golf_final_action_update', function () {
     global $wpdb;
 
     $scores_table = $wpdb->prefix . 'golf_scores';
+    $tees_table   = $wpdb->prefix . 'golf_tees';
     $history_view = 'view_golf_dashboard_history';
 
     $score_id = isset($_POST['score_id']) ? (int) $_POST['score_id'] : 0;
@@ -603,17 +617,33 @@ add_action('wp_ajax_golf_final_action_update', function () {
     }
 
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
+    $new_tee = isset($_POST['tee']) ? (int) $_POST['tee'] : 0;
+
+    $tee_row = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT course_rating, slope_rating, par FROM {$tees_table} WHERE tee_id = %d",
+            $new_tee
+        )
+    );
+    if (!$tee_row) {
+        wp_send_json_error(['message' => 'Invalid tee selected.']);
+    }
 
     $updated = $wpdb->update(
         $scores_table,
         [
             'date_played'    => $new_date,
-            'tee_id'         => isset($_POST['tee'])   ? (int) $_POST['tee']   : 0,
+            'tee_id'         => $new_tee,
             'gross_score'    => isset($_POST['gross']) ? (int) $_POST['gross'] : 0,
             'pcc_adjustment' => isset($_POST['pcc'])   ? (int) $_POST['pcc']   : 0,
             'putts'          => isset($_POST['putts']) ? (int) $_POST['putts'] : 0,
             'gir'            => isset($_POST['gir'])   ? (int) $_POST['gir']   : 0,
             'is_excluded'    => $is_excluded,
+            'round_course_rating' => (float) $tee_row->course_rating,
+            'round_slope_rating'  => (int) $tee_row->slope_rating,
+            'round_par'           => (int) $tee_row->par,
+            'rating_source'       => 'manual_placeholder',
+            'rating_updated_at'   => current_time('mysql'),
         ],
         ['score_id' => $score_id],
         null,
