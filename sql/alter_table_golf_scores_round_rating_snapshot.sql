@@ -16,4 +16,4 @@ ALTER TABLE `wp_golf_scores`
 
 ALTER TABLE `wp_golf_scores`
     ADD COLUMN IF NOT EXISTS `rating_updated_at` DATETIME NULL AFTER `rating_source`;
--- END_QUERY
+-- END_QUERY - 1
