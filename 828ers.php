@@ -175,7 +175,10 @@ function golf_system_run_migrations() {
     }
 }
 
-add_action('admin_init', 'golf_system_run_migrations');
+// Safety switch: keep migrations off unless explicitly enabled.
+if ( defined('GOLF_ENABLE_MIGRATIONS') && GOLF_ENABLE_MIGRATIONS ) {
+    add_action('admin_init', 'golf_system_run_migrations');
+}
 
 // ==========================================
 // EBAY: Marketplace Account Deletion Endpoint
