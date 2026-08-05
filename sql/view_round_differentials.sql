@@ -8,7 +8,7 @@ select
     `s`.`score_id` AS `score_id`,
     `s`.`date_played` AS `date_played`,
     `s`.`gross_score` AS `gross_score`,
-    round((`s`.`gross_score` - `t`.`course_rating` - coalesce(`s`.`pcc_adjustment`, 0)) * 113 / `t`.`slope_rating`, 1) AS `differential`,
+    round((`s`.`gross_score` - coalesce(`s`.`round_course_rating`, `t`.`course_rating`) - coalesce(`s`.`pcc_adjustment`, 0)) * 113 / coalesce(`s`.`round_slope_rating`, `t`.`slope_rating`), 1) AS `differential`,
     (
     select
         count(0) + 1

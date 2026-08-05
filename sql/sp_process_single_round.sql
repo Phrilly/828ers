@@ -25,9 +25,11 @@ sp_label: BEGIN
     DECLARE v_playing_hcp   INT;
     DECLARE v_net_score     INT;
 
-    SELECT s.player_id, s.date_played, s.gross_score,
-           COALESCE(s.pcc_adjustment, 0),
-           t.course_rating, t.slope_rating, t.par
+        SELECT s.player_id, s.date_played, s.gross_score,
+            COALESCE(s.pcc_adjustment, 0),
+            COALESCE(s.round_course_rating, t.course_rating),
+            COALESCE(s.round_slope_rating, t.slope_rating),
+            COALESCE(s.round_par, t.par)
     INTO   v_player_id, v_date_played, v_gross_score, v_pcc,
            v_course_rating, v_slope_rating, v_par
     FROM   wp_golf_scores s
