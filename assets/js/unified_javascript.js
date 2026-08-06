@@ -231,50 +231,10 @@ function golfSaveAll() {
 
         alert("Successfully saved " + rounds.length + " round(s).");
 
-        const $anyTeeSelect  = jQuery(".golf-edit-box .ed-tee").first();
-        const teeOptionsHtml = $anyTeeSelect.length ? $anyTeeSelect.html() : "";
-        const $historicBox   = jQuery(".golf-edit-box");
-        const $header        = $historicBox.find(".golf-grid-header").first();
-
-        (res.data.rows || []).forEach(function (r) {
-          const countClass = parseInt(r.is_counting, 10) === 1 ? "count-circle" : "";
-
-          // New rows from bulk save are never excluded (is_excluded always 0 from entry form)
-          const rowHtml = `
-            <div class="golf-grid-row edit-row" id="row-${escapeAttr(r.score_id)}">
-              <div><strong>${escapeHtml(r.player_name)}</strong></div>
-              <input type="date" class="golf-input ed-date" value="${escapeAttr(r.date_played)}">
-              <select class="golf-input ed-tee">${teeOptionsHtml}</select>
-              <input type="number" class="golf-input ed-gross tc" value="${escapeAttr(r.gross_score)}">
-              <input type="number" class="golf-input ed-pcc tc" value="${escapeAttr(r.pcc_adjustment)}">
-              <input type="number" class="golf-input ed-putts tc" value="${escapeAttr(r.putts)}">
-              <input type="number" class="golf-input ed-gir tc" value="${escapeAttr(r.gir)}">
-              <div class="tc"><input type="checkbox" class="golf-input ed-excl" value="1" title="Exclude from handicap"></div>
-              <div class="computed tc ed-net">
-                  <span class="net-val ${countClass}">${escapeHtml(r.net_score)}</span>
-              </div>
-              <div class="tc action-btns">
-                <button class="golf-btn btn-save" onclick="ajaxUpdate(${escapeAttr(r.score_id)})">SAVE</button>
-                <button class="golf-btn btn-del" onclick="ajaxDelete(${escapeAttr(r.score_id)})">DEL</button>
-              </div>
-            </div>
-          `;
-
-          $header.after(rowHtml);
-          jQuery("#row-" + r.score_id).find(".ed-tee").val(String(r.tee_id));
-        });
-
-        // Clear entry form rows
-        jQuery(".entry-row").each(function () {
-          const $row = jQuery(this);
-          $row.find(".in-player").val("");
-          $row.find(".in-gross").val("");
-          $row.find(".in-putts").val("");
-          $row.find(".in-gir").val("");
-          $row.find(".in-pcc").val("0");
-          $row.find(".status-cell").text("-");
-          // Date and tee intentionally left as-is — ready for the next group of rounds
-        });
+        // Reload the page so the historic grid, counting dots, and totals all refresh from the database.
+        window.setTimeout(function () {
+          window.location.reload();
+        }, 500);
       },
       "json"
     )
