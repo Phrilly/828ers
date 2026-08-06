@@ -64,6 +64,39 @@ function golf_828ers_get_js_tee_map() {
     return $map;
 }
 
+function golf_828ers_resolve_tee_row($tee_id, $course_id = 0, $tee_colour = '') {
+    global $wpdb;
+
+    $tees_table = $wpdb->prefix . 'golf_tees';
+    $tee_id = (int) $tee_id;
+    $course_id = (int) $course_id;
+    $tee_colour = trim((string) $tee_colour);
+
+    if ($tee_id > 0) {
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT tee_id, course_id, tee_colour, course_rating, slope_rating, par FROM {$tees_table} WHERE tee_id = %d",
+                $tee_id
+            )
+        );
+        if ($row) {
+            return $row;
+        }
+    }
+
+    if ($course_id > 0 && $tee_colour !== '') {
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT tee_id, course_id, tee_colour, course_rating, slope_rating, par FROM {$tees_table} WHERE course_id = %d AND tee_colour = %s",
+                $course_id,
+                $tee_colour
+            )
+        );
+    }
+
+    return null;
+}
+
 /* ============================
    1) TOP FORM: 4-Row Entry
    Shortcode: [golf_scorecard_entry]
@@ -496,18 +529,15 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
     foreach ($rounds as $r) {
         $player = isset($r['player_id']) ? (int) $r['player_id'] : 0;
         $tee    = isset($r['tee'])       ? (int) $r['tee']       : 0;
+        $course = isset($r['course_id']) ? (int) $r['course_id'] : 0;
+        $tee_colour = isset($r['tee_text']) ? sanitize_text_field($r['tee_text']) : '';
         $gross  = isset($r['gross'])     ? (int) $r['gross']     : 0;
         $date   = isset($r['date'])      ? sanitize_text_field($r['date']) : '';
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
         if (!$player || !$tee || !$gross) continue;
 
-        $tee_row = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT course_rating, slope_rating, par FROM {$tees_table} WHERE tee_id = %d",
-                $tee
-            )
-        );
+        $tee_row = golf_828ers_resolve_tee_row($tee, $course, $tee_colour);
         if (!$tee_row) continue;
 
         $ok = $wpdb->insert($scores_table, [
@@ -618,13 +648,10 @@ add_action('wp_ajax_golf_final_action_update', function () {
 
     $is_excluded = isset($_POST['excluded']) ? (int) (bool) $_POST['excluded'] : 0;
     $new_tee = isset($_POST['tee']) ? (int) $_POST['tee'] : 0;
+    $new_course = isset($_POST['course_id']) ? (int) $_POST['course_id'] : 0;
+    $new_tee_colour = isset($_POST['tee_text']) ? sanitize_text_field($_POST['tee_text']) : '';
 
-    $tee_row = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT course_rating, slope_rating, par FROM {$tees_table} WHERE tee_id = %d",
-            $new_tee
-        )
-    );
+    $tee_row = golf_828ers_resolve_tee_row($new_tee, $new_course, $new_tee_colour);
     if (!$tee_row) {
         wp_send_json_error(['message' => 'Invalid tee selected.']);
     }

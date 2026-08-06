@@ -163,6 +163,8 @@ function golfSaveAll() {
     const player_id   = $row.find(".in-player").val();
     const player_name = $row.find(".in-player option:selected").text().trim();
     const date        = $row.find(".in-date").val();
+    const course_id   = $row.find(".in-course").val();
+    const tee_text    = $row.find(".in-tee option:selected").text().trim();
     const tee         = $row.find(".in-tee").val();
     const gross       = $row.find(".in-gross").val();
 
@@ -185,6 +187,8 @@ function golfSaveAll() {
       rounds.push({
         player_id: player_id,
         date:      date,
+        course_id: course_id,
+        tee_text:  tee_text,
         tee:       tee,
         gross:     gross,
         pcc:       $row.find(".in-pcc").val(),
