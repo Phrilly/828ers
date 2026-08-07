@@ -447,13 +447,47 @@ def insert_score(conn, player_id, date_played, tee_id, gross_score, pcc):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT score_id FROM {p}golf_scores WHERE player_id=%s AND date_played=%s".format(
+                "SELECT score_id, tee_id, gross_score, pcc_adjustment FROM {p}golf_scores WHERE player_id=%s AND date_played=%s".format(
                     p=config.DB_PREFIX
                 ),
                 (player_id, date_played),
             )
             existing = cur.fetchone()
             if existing:
+                tee_row = None
+                cur.execute(
+                    "SELECT tee_id, course_id, tee_colour, course_rating, slope_rating, par FROM {p}golf_tees WHERE tee_id=%s".format(
+                        p=config.DB_PREFIX
+                    ),
+                    (tee_id,),
+                )
+                tee_row = cur.fetchone()
+
+                if tee_row is None:
+                    cur.execute(
+                        "UPDATE {p}golf_scores SET tee_id=%s, gross_score=%s, pcc_adjustment=%s WHERE score_id=%s".format(
+                            p=config.DB_PREFIX
+                        ),
+                        (tee_id, gross_score, pcc, existing["score_id"]),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE {p}golf_scores SET tee_id=%s, gross_score=%s, pcc_adjustment=%s, round_course_rating=%s, round_slope_rating=%s, round_par=%s, rating_source=%s, rating_updated_at=%s WHERE score_id=%s".format(
+                            p=config.DB_PREFIX
+                        ),
+                        (
+                            tee_id,
+                            gross_score,
+                            pcc,
+                            float(tee_row["course_rating"]),
+                            int(tee_row["slope_rating"]),
+                            int(tee_row["par"]),
+                            "eg_import",
+                            datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                            existing["score_id"],
+                        ),
+                    )
+                conn.commit()
                 return existing["score_id"], False
 
             cur.execute(
