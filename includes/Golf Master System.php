@@ -64,6 +64,49 @@ function golf_828ers_get_js_tee_map() {
     return $map;
 }
 
+function golf_828ers_sync_tee_stats($tee_id, $course_id = 0, $tee_colour = '', $course_rating = null, $slope_rating = null, $par = null) {
+    global $wpdb;
+
+    $tees_table = $wpdb->prefix . 'golf_tees';
+    $tee_id = (int) $tee_id;
+    $course_id = (int) $course_id;
+    $tee_colour = trim((string) $tee_colour);
+
+    if ($tee_id <= 0 && ($course_id <= 0 || $tee_colour === '')) {
+        return false;
+    }
+
+    $data = [];
+    if ($course_rating !== null) {
+        $data['course_rating'] = (float) $course_rating;
+    }
+    if ($slope_rating !== null) {
+        $data['slope_rating'] = (int) $slope_rating;
+    }
+    if ($par !== null) {
+        $data['par'] = (int) $par;
+    }
+
+    if (empty($data)) {
+        return false;
+    }
+
+    $where = [];
+    $where_format = [];
+
+    if ($tee_id > 0) {
+        $where['tee_id'] = $tee_id;
+        $where_format[] = '%d';
+    } else {
+        $where['course_id'] = $course_id;
+        $where['tee_colour'] = $tee_colour;
+        $where_format[] = '%d';
+        $where_format[] = '%s';
+    }
+
+    return $wpdb->update($tees_table, $data, $where, null, $where_format);
+}
+
 function golf_828ers_resolve_tee_row($tee_id, $course_id = 0, $tee_colour = '') {
     global $wpdb;
 
@@ -540,6 +583,12 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
         $tee_row = golf_828ers_resolve_tee_row($tee, $course, $tee_colour);
         if (!$tee_row) continue;
 
+        $round_course_rating = (float) $tee_row->course_rating;
+        $round_slope_rating  = (int) $tee_row->slope_rating;
+        $round_par           = (int) $tee_row->par;
+
+        golf_828ers_sync_tee_stats($tee, $course, $tee_colour, $round_course_rating, $round_slope_rating, $round_par);
+
         $ok = $wpdb->insert($scores_table, [
             'player_id'      => $player,
             'date_played'    => $date,
@@ -549,9 +598,9 @@ add_action('wp_ajax_golf_final_action_bulk_save', function () {
             'putts'          => isset($r['putts']) ? (int) $r['putts'] : 0,
             'gir'            => isset($r['gir'])   ? (int) $r['gir']   : 0,
             'is_excluded'    => 0,
-            'round_course_rating' => (float) $tee_row->course_rating,
-            'round_slope_rating'  => (int) $tee_row->slope_rating,
-            'round_par'           => (int) $tee_row->par,
+            'round_course_rating' => $round_course_rating,
+            'round_slope_rating'  => $round_slope_rating,
+            'round_par'           => $round_par,
             'rating_source'       => 'manual_placeholder',
             'rating_updated_at'   => current_time('mysql'),
         ]);
@@ -656,6 +705,12 @@ add_action('wp_ajax_golf_final_action_update', function () {
         wp_send_json_error(['message' => 'Invalid tee selected.']);
     }
 
+    $round_course_rating = (float) $tee_row->course_rating;
+    $round_slope_rating  = (int) $tee_row->slope_rating;
+    $round_par           = (int) $tee_row->par;
+
+    golf_828ers_sync_tee_stats($new_tee, $new_course, $new_tee_colour, $round_course_rating, $round_slope_rating, $round_par);
+
     $updated = $wpdb->update(
         $scores_table,
         [
@@ -666,9 +721,9 @@ add_action('wp_ajax_golf_final_action_update', function () {
             'putts'          => isset($_POST['putts']) ? (int) $_POST['putts'] : 0,
             'gir'            => isset($_POST['gir'])   ? (int) $_POST['gir']   : 0,
             'is_excluded'    => $is_excluded,
-            'round_course_rating' => (float) $tee_row->course_rating,
-            'round_slope_rating'  => (int) $tee_row->slope_rating,
-            'round_par'           => (int) $tee_row->par,
+            'round_course_rating' => $round_course_rating,
+            'round_slope_rating'  => $round_slope_rating,
+            'round_par'           => $round_par,
             'rating_source'       => 'manual_placeholder',
             'rating_updated_at'   => current_time('mysql'),
         ],
