@@ -13,7 +13,7 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 # --- CRITICAL FIX FOR HOSTINGER CRON ---
 python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
@@ -272,15 +272,23 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
 
 
 def resolve_tee(raw, tees_list):
-    eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
     marker = (raw.get("Marker") or "").strip().lower()
 
+    if marker:
+        for t in tees_list:
+            try:
+                if t.get("tee_colour") and str(t["tee_colour"]).strip().lower() == marker:
+                    return t
+            except (TypeError, ValueError):
+                continue
+
+    eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
     if eg_facility_id and marker:
         try:
             eg_fac_int = int(eg_facility_id)
             for t in tees_list:
                 try:
-                    if int(t.get("eg_club_id") or 0) == eg_fac_int and t["tee_colour"].lower() == marker:
+                    if int(t.get("eg_club_id") or 0) == eg_fac_int and str(t.get("tee_colour") or "").strip().lower() == marker:
                         return t
                 except (TypeError, ValueError):
                     continue
@@ -594,26 +602,25 @@ def run_backfill(session, conn, db_players, tees_list):
                 except Exception as exc:
                     log.error("  BACKFILL scorecard fetch error for %s on %s: %s", name, play_date_str, exc)
 
-            if not db_score:
-                if eg_gross is None:
-                    continue
+            if eg_gross is None:
+                continue
 
-                tee_row = ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=scorecard)
-                if tee_row is None:
-                    continue
+            tee_row = ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=scorecard)
+            if tee_row is None:
+                continue
 
-                score_id, inserted = insert_score(
-                    conn,
-                    player_id=player_id,
-                    date_played=play_date_str,
-                    tee_id=tee_row["tee_id"],
-                    gross_score=eg_gross,
-                    pcc=eg_pcc,
-                )
+            score_id, inserted = insert_score(
+                conn,
+                player_id=player_id,
+                date_played=play_date_str,
+                tee_id=tee_row["tee_id"],
+                gross_score=eg_gross,
+                pcc=eg_pcc,
+            )
 
-                if score_id:
-                    db_score = get_db_score(conn, player_id, play_date_str)
-                    action_count += 1
+            if score_id:
+                db_score = get_db_score(conn, player_id, play_date_str)
+                action_count += 1
 
             if not db_score:
                 continue
@@ -734,76 +741,70 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
 
                 db_score = get_db_score(conn, player_id, play_date_str)
 
-                if db_score is None:
-                    log.info(
-                        "  No DB record for %s on %s — attempting auto-insert from EG data",
+                tee_row = ensure_course_and_tee(
+                    conn, raw, tees_list, player_issues=player_issues, scorecard=scorecard
+                )
+
+                if tee_row is None:
+                    log.warning(
+                        "  Cannot insert score for %s on %s: tee could not be resolved or created.",
                         name, play_date_str
                     )
-
-                    tee_row = ensure_course_and_tee(
-                        conn, raw, tees_list, player_issues=player_issues, scorecard=scorecard
-                    )
-
-                    if tee_row is None:
-                        log.warning(
-                            "  Cannot insert score for %s on %s: tee could not be resolved or created.",
-                            name, play_date_str
+                    player_issues.add(
+                        "  Missing round NOT inserted: tee unresolvable for {} on {} "
+                        "(EG marker={}, facility={})".format(
+                            name, play_date_str,
+                            (raw.get("Marker") or "").strip(), eg_facility
                         )
+                    )
+                    status_msgs.add("TEE UNRESOLVABLE — NOT INSERTED")
+                    continue
+
+                score_id, inserted = insert_score(
+                    conn,
+                    player_id=player_id,
+                    date_played=play_date_str,
+                    tee_id=tee_row["tee_id"],
+                    gross_score=eg_gross,
+                    pcc=eg_pcc,
+                )
+
+                if score_id:
+                    if inserted:
+                        log.info(
+                            "  AUTO-INSERTED/UPSERTED score for %s on %s: gross=%s, tee='%s' (id=%s), pcc=%s → score_id=%s",
+                            name, play_date_str, eg_gross,
+                            tee_row["tee_colour"], tee_row["tee_id"], eg_pcc, score_id
+                        )
+                        status_msgs.add("AUTO-INSERTED")
+                    else:
+                        log.info(
+                            "  UPDATED existing score for %s on %s from EG feed: score_id=%s",
+                            name, play_date_str, score_id
+                        )
+                        status_msgs.add("UPDATED")
+
+                    if not verify_trigger_effect(conn, score_id):
                         player_issues.add(
-                            "  Missing round NOT inserted: tee unresolvable for {} on {} "
-                            "(EG marker={}, facility={})".format(
-                                name, play_date_str,
-                                (raw.get("Marker") or "").strip(), eg_facility
-                            )
-                        )
-                        status_msgs.add("TEE UNRESOLVABLE — NOT INSERTED")
-                        continue
-
-                    score_id, inserted = insert_score(
-                        conn,
-                        player_id=player_id,
-                        date_played=play_date_str,
-                        tee_id=tee_row["tee_id"],
-                        gross_score=eg_gross,
-                        pcc=eg_pcc,
-                    )
-
-                    if score_id:
-                        if inserted:
-                            log.info(
-                                "  AUTO-INSERTED score for %s on %s: gross=%s, tee='%s' (id=%s), pcc=%s → score_id=%s",
-                                name, play_date_str, eg_gross,
-                                tee_row["tee_colour"], tee_row["tee_id"], eg_pcc, score_id
-                            )
-                            status_msgs.add("AUTO-INSERTED")
-                        else:
-                            log.warning(
-                                "  Duplicate guard prevented second insert for %s on %s — using existing score_id=%s",
-                                name, play_date_str, score_id
-                            )
-                            status_msgs.add("ALREADY EXISTS")
-
-                        if not verify_trigger_effect(conn, score_id):
-                            player_issues.add(
-                                "  Handicap history missing after insert for {} on {} — trigger may not have run".format(
-                                    name, play_date_str
-                                )
-                            )
-
-                        if scorecard:
-                            synced_count = sync_hole_data(conn, score_id, tee_row["tee_id"], scorecard)
-                            if synced_count > 0:
-                                log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
-                            else:
-                                log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
-
-                        db_score = get_db_score(conn, player_id, play_date_str)
-                        if db_score is None:
-                            log.error(
-                                "  Could not reload db_score after insert for %s on %s — skipping checks",
+                            "  Handicap history missing after insert for {} on {} — trigger may not have run".format(
                                 name, play_date_str
                             )
-                            continue
+                        )
+
+                    if scorecard:
+                        synced_count = sync_hole_data(conn, score_id, tee_row["tee_id"], scorecard)
+                        if synced_count > 0:
+                            log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
+                        else:
+                            log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
+
+                    db_score = get_db_score(conn, player_id, play_date_str)
+                    if db_score is None:
+                        log.error(
+                            "  Could not reload db_score after insert for %s on %s — skipping checks",
+                            name, play_date_str
+                        )
+                        continue
                 else:
                     status_msgs.add("CHECKED")
 
