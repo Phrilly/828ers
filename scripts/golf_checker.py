@@ -296,7 +296,9 @@ def resolve_tee(
 ) -> Optional[Mapping[str, Any]]:
     marker = (raw.get("Marker") or "").strip().lower()
     eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
-    facility_name = (raw.get("FacilityName") or raw.get("CourseName") or "").strip().lower()
+    facility_name = normalize_course_name(
+        raw.get("FacilityName") or raw.get("CourseName") or ""
+    )
 
     if eg_facility_id and marker:
         try:
@@ -313,12 +315,22 @@ def resolve_tee(
     if facility_name and marker:
         for t in tees_list:
             if (
-                str(t.get("course_name") or "").strip().lower() == facility_name
+                normalize_course_name(t.get("course_name") or "") == facility_name
                 and str(t.get("tee_colour") or "").strip().lower() == marker
             ):
                 return t
 
     return None
+
+
+def normalize_course_name(value: Any) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower())
+    normalized = re.sub(
+        r"\s+(golf\s+club|golf\s+course)$",
+        "",
+        normalized,
+    )
+    return " ".join(normalized.split())
 
 
 def tee_ratings_differ(
@@ -423,6 +435,27 @@ def ensure_course_and_tee(
             )
             row = cur.fetchone()
             if row:
+                course_id = row["course_id"]
+                course_name = row["course_name"]
+                stored_eg_club_id = row["eg_club_id"]
+
+        if course_id is None and facility_name:
+            cur.execute(
+                "SELECT course_id, course_name, eg_club_id "
+                "FROM {p}golf_courses".format(p=config.DB_PREFIX)
+            )
+            normalized_name = normalize_course_name(facility_name)
+            matching_courses = [
+                row
+                for row in cur.fetchall()
+                if normalize_course_name(row.get("course_name")) == normalized_name
+            ]
+            if len(matching_courses) > 1:
+                raise FeedDataError(
+                    f"Multiple database courses match England Golf course {facility_name!r}"
+                )
+            if matching_courses:
+                row = matching_courses[0]
                 course_id = row["course_id"]
                 course_name = row["course_name"]
                 stored_eg_club_id = row["eg_club_id"]

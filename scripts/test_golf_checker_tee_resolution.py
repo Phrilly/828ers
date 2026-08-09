@@ -37,6 +37,7 @@ from golf_checker import (
     ensure_course_and_tee,
     insert_score,
     load_recent_manual_dates,
+    normalize_course_name,
     process_eg_round,
     resolve_tee,
 )
@@ -158,6 +159,39 @@ class EnglandGolfRatingTests(unittest.TestCase):
 
 
 class TeeResolutionTests(unittest.TestCase):
+    def test_normalizes_common_course_name_suffixes(
+        self: "TeeResolutionTests",
+    ) -> None:
+        self.assertEqual(
+            normalize_course_name("Ramsey"),
+            normalize_course_name("Ramsey Golf Club"),
+        )
+        self.assertEqual(
+            normalize_course_name("Example Golf Course"),
+            "example",
+        )
+
+    def test_matches_ramsey_to_ramsey_golf_club(
+        self: "TeeResolutionTests",
+    ) -> None:
+        tees = [
+            {
+                "tee_id": 7,
+                "tee_colour": "White",
+                "course_id": 1,
+                "course_name": "Ramsey Golf Club",
+                "eg_club_id": 101345,
+            }
+        ]
+
+        result = resolve_tee(
+            make_raw(FacilityId=None, FacilityName="Ramsey"),
+            tees,
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["course_id"], 1)
+
     def test_matches_course_and_colour_not_first_colour(
         self: "TeeResolutionTests",
     ) -> None:
