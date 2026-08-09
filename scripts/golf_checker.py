@@ -14,6 +14,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta, datetime
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 # --- CRITICAL FIX FOR HOSTINGER CRON ---
 python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
@@ -32,6 +33,9 @@ from eg_utils import (
     parse_pcc,
     parse_hi,
     parse_eg_hole_score,
+    parse_eg_round_ratings,
+    EGRatingError,
+    EGRoundRatings,
 )
 
 log_stream = io.StringIO()
@@ -52,6 +56,10 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 HI_IGNORE_PLAYERS = set(["Jay"])
+
+
+class FeedDataError(ValueError):
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -97,9 +105,11 @@ def load_tees(conn):
 def get_db_score(conn, player_id, date_played):
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT s.score_id, s.gross_score, s.tee_id, s.pcc_adjustment, t.tee_colour "
+            "SELECT s.score_id, s.gross_score, s.tee_id, s.pcc_adjustment, "
+            "t.tee_colour, t.course_id, c.course_name "
             "FROM {p}golf_scores s "
             "LEFT JOIN {p}golf_tees t ON s.tee_id = t.tee_id "
+            "LEFT JOIN {p}golf_courses c ON t.course_id = c.course_id "
             "WHERE s.player_id=%s AND s.date_played=%s".format(p=config.DB_PREFIX),
             (player_id, date_played),
         )
@@ -120,16 +130,6 @@ def has_hole_scores(conn, score_id):
             (score_id,)
         )
         return cur.fetchone()["c"] >= 18
-
-
-def update_pcc(conn, score_id, new_pcc):
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE {p}golf_scores SET pcc_adjustment=%s "
-            "WHERE score_id=%s".format(p=config.DB_PREFIX),
-            (int(new_pcc), score_id),
-        )
-    conn.commit()
 
 
 def read_local_hi(conn, player_name):
@@ -156,6 +156,25 @@ def verify_trigger_effect(conn, score_id):
             (score_id,),
         )
         return cur.fetchone() is not None
+
+
+def load_recent_manual_dates(
+    conn: Any,
+    player_id: int,
+    check_date: str,
+) -> Sequence[str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT DISTINCT date_played "
+            "FROM {p}golf_scores "
+            "WHERE player_id=%s "
+            "AND rating_source='manual_placeholder' "
+            "AND date_played BETWEEN DATE_SUB(%s, INTERVAL 7 DAY) AND %s".format(
+                p=config.DB_PREFIX
+            ),
+            (player_id, check_date, check_date),
+        )
+        return [str(row["date_played"]) for row in cur.fetchall()]
 
 
 def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
@@ -271,18 +290,14 @@ def sync_hole_data(conn, db_score_id, db_tee_id, scorecard):
 # ---------------------------------------------------------------------------
 
 
-def resolve_tee(raw, tees_list):
+def resolve_tee(
+    raw: Mapping[str, Any],
+    tees_list: Sequence[Mapping[str, Any]],
+) -> Optional[Mapping[str, Any]]:
     marker = (raw.get("Marker") or "").strip().lower()
-
-    if marker:
-        for t in tees_list:
-            try:
-                if t.get("tee_colour") and str(t["tee_colour"]).strip().lower() == marker:
-                    return t
-            except (TypeError, ValueError):
-                continue
-
     eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
+    facility_name = (raw.get("FacilityName") or raw.get("CourseName") or "").strip().lower()
+
     if eg_facility_id and marker:
         try:
             eg_fac_int = int(eg_facility_id)
@@ -295,224 +310,434 @@ def resolve_tee(raw, tees_list):
         except (TypeError, ValueError):
             pass
 
-    cr = raw.get("CourseRating")
-    sl = raw.get("Slope")
-    if cr and sl:
-        try:
-            eg_cr = float(cr)
-            eg_sl = int(sl)
-            for t in tees_list:
-                try:
-                    if abs(float(t["course_rating"]) - eg_cr) < 0.2 and int(t["slope_rating"]) == eg_sl:
-                        return t
-                except (TypeError, ValueError):
-                    continue
-        except (TypeError, ValueError):
-            pass
+    if facility_name and marker:
+        for t in tees_list:
+            if (
+                str(t.get("course_name") or "").strip().lower() == facility_name
+                and str(t.get("tee_colour") or "").strip().lower() == marker
+            ):
+                return t
 
     return None
 
 
-def get_par_from_sources(raw, scorecard=None):
-    for val in (raw.get("Par"), raw.get("CoursePar")):
-        if val is not None and str(val).strip() != "":
-            try:
-                return int(float(val)), False
-            except (TypeError, ValueError):
-                pass
-
-    if scorecard:
-        for val in (scorecard.get("TotalPar"),):
-            if val is not None and str(val).strip() != "":
-                try:
-                    return int(float(val)), False
-                except (TypeError, ValueError):
-                    pass
-
-    return 72, True
+def tee_ratings_differ(
+    tee_row: Mapping[str, Any],
+    ratings: EGRoundRatings,
+) -> bool:
+    try:
+        return (
+            round(float(tee_row["course_rating"]), 1) != ratings.course_rating
+            or int(tee_row["slope_rating"]) != ratings.slope_rating
+            or int(tee_row["par"]) != ratings.par
+        )
+    except (KeyError, TypeError, ValueError):
+        return True
 
 
-def ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=None):
+def ensure_course_and_tee(
+    conn: Any,
+    raw: Mapping[str, Any],
+    tees_list: Sequence[Mapping[str, Any]],
+    ratings: EGRoundRatings,
+    preview: bool = False,
+) -> Dict[str, Any]:
     existing = resolve_tee(raw, tees_list)
     if existing:
-        return existing
+        changed = tee_ratings_differ(existing, ratings)
+        resolved = dict(existing)
+        resolved["course_rating"] = ratings.course_rating
+        resolved["slope_rating"] = ratings.slope_rating
+        resolved["par"] = ratings.par
+        resolved["ratings_changed"] = changed
+
+        if changed:
+            log.info(
+                "  %s tee ratings for course='%s', tee='%s': "
+                "CR %s -> %.1f, Slope %s -> %d, Par %s -> %d",
+                "WOULD UPDATE" if preview else "UPDATING",
+                existing.get("course_name") or existing.get("course_id"),
+                existing.get("tee_colour"),
+                existing.get("course_rating"),
+                ratings.course_rating,
+                existing.get("slope_rating"),
+                ratings.slope_rating,
+                existing.get("par"),
+                ratings.par,
+            )
+            if not preview:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE {p}golf_tees "
+                        "SET course_rating=%s, slope_rating=%s, par=%s "
+                        "WHERE tee_id=%s".format(p=config.DB_PREFIX),
+                        (
+                            ratings.course_rating,
+                            ratings.slope_rating,
+                            ratings.par,
+                            existing["tee_id"],
+                        ),
+                    )
+
+        return resolved
 
     eg_facility_id = raw.get("FacilityId") or raw.get("ClubId")
     facility_name = (raw.get("FacilityName") or raw.get("CourseName") or "").strip()
     marker = (raw.get("Marker") or "").strip()
-    cr = raw.get("CourseRating")
-    sl = raw.get("Slope")
 
     if not marker:
-        log.warning("  ensure_course_and_tee: no Marker in EG record — cannot insert tee")
-        return None
+        raise FeedDataError("England Golf record has no tee colour (Marker)")
 
-    if not cr or not sl:
-        log.warning("  ensure_course_and_tee: missing CourseRating/Slope in EG record — cannot insert tee")
-        return None
+    if not eg_facility_id and not facility_name:
+        raise FeedDataError("England Golf record has no course or facility")
 
-    try:
-        cr_float = float(cr)
-        sl_int = int(sl)
-    except (TypeError, ValueError) as exc:
-        log.warning("  ensure_course_and_tee: could not parse numeric fields: %s", exc)
-        return None
+    with conn.cursor() as cur:
+        course_id = None
+        course_name = facility_name
+        stored_eg_club_id = None
 
-    par_int, guessed_par = get_par_from_sources(raw, scorecard=scorecard)
-
-    try:
-        with conn.cursor() as cur:
-            course_id = None
-
-            if eg_facility_id:
-                try:
-                    cur.execute(
-                        "SELECT course_id FROM {p}golf_courses WHERE eg_club_id=%s".format(p=config.DB_PREFIX),
-                        (int(eg_facility_id),)
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        course_id = row["course_id"]
-                except (TypeError, ValueError):
-                    pass
-
-            if course_id is None and facility_name:
+        if eg_facility_id:
+            try:
                 cur.execute(
-                    "SELECT course_id FROM {p}golf_courses WHERE course_name=%s".format(p=config.DB_PREFIX),
-                    (facility_name,)
+                    "SELECT course_id, course_name, eg_club_id "
+                    "FROM {p}golf_courses WHERE eg_club_id=%s".format(
+                        p=config.DB_PREFIX
+                    ),
+                    (int(eg_facility_id),)
                 )
                 row = cur.fetchone()
                 if row:
                     course_id = row["course_id"]
+                    course_name = row["course_name"]
+                    stored_eg_club_id = row["eg_club_id"]
+            except (TypeError, ValueError):
+                pass
 
-            if course_id is None:
-                insert_name = facility_name or f"EG Course {eg_facility_id or 'Unknown'}"
+        if course_id is None and facility_name:
+            cur.execute(
+                "SELECT course_id, course_name, eg_club_id "
+                "FROM {p}golf_courses WHERE course_name=%s".format(
+                    p=config.DB_PREFIX
+                ),
+                (facility_name,)
+            )
+            row = cur.fetchone()
+            if row:
+                course_id = row["course_id"]
+                course_name = row["course_name"]
+                stored_eg_club_id = row["eg_club_id"]
+
+        eg_club_id_value = None
+        if eg_facility_id:
+            try:
+                eg_club_id_value = int(eg_facility_id)
+            except (TypeError, ValueError):
                 eg_club_id_value = None
-                if eg_facility_id:
-                    try:
-                        eg_club_id_value = int(eg_facility_id)
-                    except (TypeError, ValueError):
-                        eg_club_id_value = None
 
-                cur.execute(
-                    "INSERT INTO {p}golf_courses (course_name, eg_club_id) VALUES (%s, %s)".format(p=config.DB_PREFIX),
-                    (insert_name, eg_club_id_value)
-                )
-                course_id = cur.lastrowid
+        if course_id is None:
+            insert_name = facility_name or f"EG Course {eg_facility_id}"
+            if preview:
                 log.info(
-                    "  AUTO-ADDED course: '%s' (course_id=%s, eg_club_id=%s)",
-                    insert_name, course_id, eg_club_id_value
+                    "  WOULD CREATE course='%s' (EG facility=%s) and tee='%s'",
+                    insert_name,
+                    eg_club_id_value,
+                    marker,
                 )
+                return {
+                    "tee_id": None,
+                    "course_id": None,
+                    "tee_colour": marker,
+                    "course_rating": ratings.course_rating,
+                    "slope_rating": ratings.slope_rating,
+                    "par": ratings.par,
+                    "course_name": insert_name,
+                    "eg_club_id": eg_club_id_value,
+                    "ratings_changed": True,
+                    "would_create": True,
+                }
 
             cur.execute(
-                "SELECT tee_id FROM {p}golf_tees WHERE course_id=%s AND tee_colour=%s".format(
-                    p=config.DB_PREFIX
-                ),
-                (course_id, marker)
+                "INSERT INTO {p}golf_courses (course_name, eg_club_id) "
+                "VALUES (%s, %s)".format(p=config.DB_PREFIX),
+                (insert_name, eg_club_id_value)
             )
-            tee_row = cur.fetchone()
+            course_id = cur.lastrowid
+            course_name = insert_name
+            stored_eg_club_id = eg_club_id_value
+            log.info(
+                "  AUTO-ADDED course: '%s' (course_id=%s, eg_club_id=%s)",
+                insert_name, course_id, eg_club_id_value
+            )
 
-            if tee_row:
-                tee_id = tee_row["tee_id"]
-                log.info("  Tee '%s' already exists for course_id=%s (tee_id=%s)", marker, course_id, tee_id)
-            else:
-                cur.execute(
-                    "INSERT INTO {p}golf_tees (course_id, tee_colour, course_rating, slope_rating, par) "
-                    "VALUES (%s, %s, %s, %s, %s)".format(p=config.DB_PREFIX),
-                    (course_id, marker, cr_float, sl_int, par_int)
-                )
-                tee_id = cur.lastrowid
+        cur.execute(
+            "SELECT tee_id, course_id, tee_colour, course_rating, slope_rating, par "
+            "FROM {p}golf_tees WHERE course_id=%s AND tee_colour=%s".format(
+                p=config.DB_PREFIX
+            ),
+            (course_id, marker)
+        )
+        tee_row = cur.fetchone()
+
+        if tee_row:
+            tee_row["course_name"] = course_name
+            tee_row["eg_club_id"] = stored_eg_club_id
+            changed = tee_ratings_differ(tee_row, ratings)
+            resolved = dict(tee_row)
+            resolved["course_rating"] = ratings.course_rating
+            resolved["slope_rating"] = ratings.slope_rating
+            resolved["par"] = ratings.par
+            resolved["ratings_changed"] = changed
+
+            if changed:
                 log.info(
-                    "  AUTO-ADDED tee: '%s' for course_id=%s (tee_id=%s, CR=%.1f, Slope=%d, Par=%d)",
-                    marker, course_id, tee_id, cr_float, sl_int, par_int
+                    "  %s tee ratings for course='%s', tee='%s': "
+                    "CR %s -> %.1f, Slope %s -> %d, Par %s -> %d",
+                    "WOULD UPDATE" if preview else "UPDATING",
+                    course_name,
+                    marker,
+                    tee_row["course_rating"],
+                    ratings.course_rating,
+                    tee_row["slope_rating"],
+                    ratings.slope_rating,
+                    tee_row["par"],
+                    ratings.par,
                 )
-
-        conn.commit()
-
-        tees_list.clear()
-        tees_list.extend(load_tees(conn))
-
-        if guessed_par and player_issues is not None:
-            player_issues.add(
-                "  Auto-added course/tee used guessed par 72 for '{}' / '{}' — please verify manually".format(
-                    facility_name or "Unknown course", marker
-                )
-            )
-
-        new_tee = resolve_tee(raw, tees_list)
-        if not new_tee:
-            new_tee = next((t for t in tees_list if t["tee_id"] == tee_id), None)
-
-        return new_tee
-
-    except Exception as exc:
-        conn.rollback()
-        log.error("  ensure_course_and_tee: DB error — rollback. %s", exc)
-        return None
-
-
-def insert_score(conn, player_id, date_played, tee_id, gross_score, pcc):
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT score_id, tee_id, gross_score, pcc_adjustment FROM {p}golf_scores WHERE player_id=%s AND date_played=%s".format(
-                    p=config.DB_PREFIX
-                ),
-                (player_id, date_played),
-            )
-            existing = cur.fetchone()
-            if existing:
-                tee_row = None
-                cur.execute(
-                    "SELECT tee_id, course_id, tee_colour, course_rating, slope_rating, par FROM {p}golf_tees WHERE tee_id=%s".format(
-                        p=config.DB_PREFIX
-                    ),
-                    (tee_id,),
-                )
-                tee_row = cur.fetchone()
-
-                if tee_row is None:
+                if not preview:
                     cur.execute(
-                        "UPDATE {p}golf_scores SET tee_id=%s, gross_score=%s, pcc_adjustment=%s WHERE score_id=%s".format(
-                            p=config.DB_PREFIX
-                        ),
-                        (tee_id, gross_score, pcc, existing["score_id"]),
-                    )
-                else:
-                    cur.execute(
-                        "UPDATE {p}golf_scores SET tee_id=%s, gross_score=%s, pcc_adjustment=%s, round_course_rating=%s, round_slope_rating=%s, round_par=%s, rating_source=%s, rating_updated_at=%s WHERE score_id=%s".format(
-                            p=config.DB_PREFIX
-                        ),
+                        "UPDATE {p}golf_tees "
+                        "SET course_rating=%s, slope_rating=%s, par=%s "
+                        "WHERE tee_id=%s".format(p=config.DB_PREFIX),
                         (
-                            tee_id,
-                            gross_score,
-                            pcc,
-                            float(tee_row["course_rating"]),
-                            int(tee_row["slope_rating"]),
-                            int(tee_row["par"]),
-                            "eg_import",
-                            datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                            existing["score_id"],
+                            ratings.course_rating,
+                            ratings.slope_rating,
+                            ratings.par,
+                            tee_row["tee_id"],
                         ),
                     )
-                conn.commit()
-                return existing["score_id"], False
+            return resolved
 
-            cur.execute(
-                "INSERT INTO {p}golf_scores "
-                "(player_id, date_played, tee_id, gross_score, pcc_adjustment) "
-                "VALUES (%s, %s, %s, %s, %s)".format(p=config.DB_PREFIX),
-                (player_id, date_played, tee_id, gross_score, pcc)
+        if preview:
+            log.info(
+                "  WOULD CREATE tee='%s' for course='%s' with CR=%.1f, Slope=%d, Par=%d",
+                marker,
+                course_name,
+                ratings.course_rating,
+                ratings.slope_rating,
+                ratings.par,
             )
-            new_id = cur.lastrowid
+            return {
+                "tee_id": None,
+                "course_id": course_id,
+                "tee_colour": marker,
+                "course_rating": ratings.course_rating,
+                "slope_rating": ratings.slope_rating,
+                "par": ratings.par,
+                "course_name": course_name,
+                "eg_club_id": stored_eg_club_id,
+                "ratings_changed": True,
+                "would_create": True,
+            }
 
-        conn.commit()
-        return new_id, True
+        cur.execute(
+            "INSERT INTO {p}golf_tees "
+            "(course_id, tee_colour, course_rating, slope_rating, par) "
+            "VALUES (%s, %s, %s, %s, %s)".format(p=config.DB_PREFIX),
+            (
+                course_id,
+                marker,
+                ratings.course_rating,
+                ratings.slope_rating,
+                ratings.par,
+            )
+        )
+        tee_id = cur.lastrowid
+        log.info(
+            "  AUTO-ADDED tee: '%s' for course_id=%s "
+            "(tee_id=%s, CR=%.1f, Slope=%d, Par=%d)",
+            marker,
+            course_id,
+            tee_id,
+            ratings.course_rating,
+            ratings.slope_rating,
+            ratings.par,
+        )
 
-    except Exception as exc:
-        conn.rollback()
-        log.error("  insert_score: DB error — rollback. %s", exc)
-        return None, False
+    return {
+        "tee_id": tee_id,
+        "course_id": course_id,
+        "tee_colour": marker,
+        "course_rating": ratings.course_rating,
+        "slope_rating": ratings.slope_rating,
+        "par": ratings.par,
+        "course_name": course_name,
+        "eg_club_id": stored_eg_club_id,
+        "ratings_changed": True,
+        "would_create": False,
+    }
+
+
+def insert_score(
+    conn: Any,
+    player_id: int,
+    date_played: str,
+    tee_row: Mapping[str, Any],
+    gross_score: int,
+    pcc: int,
+    ratings: EGRoundRatings,
+    preview: bool = False,
+) -> Tuple[Optional[int], bool]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT s.score_id, s.tee_id, s.gross_score, s.pcc_adjustment, "
+            "t.course_id, t.tee_colour "
+            "FROM {p}golf_scores s "
+            "LEFT JOIN {p}golf_tees t ON t.tee_id=s.tee_id "
+            "WHERE s.player_id=%s AND s.date_played=%s "
+            "ORDER BY s.score_id".format(p=config.DB_PREFIX),
+            (player_id, date_played),
+        )
+        existing_rows = cur.fetchall()
+
+        if len(existing_rows) > 1:
+            raise FeedDataError(
+                f"Multiple database rounds exist for player_id={player_id} on {date_played}"
+            )
+
+        existing = existing_rows[0] if existing_rows else None
+        if existing:
+            same_course = (
+                tee_row.get("course_id") is not None
+                and existing.get("course_id") is not None
+                and int(tee_row["course_id"]) == int(existing["course_id"])
+            )
+            same_tee_colour = (
+                str(tee_row.get("tee_colour") or "").strip().lower()
+                == str(existing.get("tee_colour") or "").strip().lower()
+            )
+            if not same_course or not same_tee_colour:
+                raise FeedDataError(
+                    "Existing round does not match England Golf course and tee: "
+                    "DB course_id={}, tee={!r}; EG course_id={}, tee={!r}".format(
+                        existing.get("course_id"),
+                        existing.get("tee_colour"),
+                        tee_row.get("course_id"),
+                        tee_row.get("tee_colour"),
+                    )
+                )
+
+            log.info(
+                "  %s existing score_id=%s with gross=%s, PCC=%s, "
+                "CR=%.1f, Slope=%d, Par=%d",
+                "WOULD OVERWRITE" if preview else "OVERWRITING",
+                existing["score_id"],
+                gross_score,
+                pcc,
+                ratings.course_rating,
+                ratings.slope_rating,
+                ratings.par,
+            )
+            if not preview:
+                cur.execute(
+                    "UPDATE {p}golf_scores SET "
+                    "tee_id=%s, gross_score=%s, pcc_adjustment=%s, "
+                    "round_course_rating=%s, round_slope_rating=%s, round_par=%s, "
+                    "rating_source=%s, rating_updated_at=%s "
+                    "WHERE score_id=%s".format(p=config.DB_PREFIX),
+                    (
+                        tee_row["tee_id"],
+                        gross_score,
+                        pcc,
+                        ratings.course_rating,
+                        ratings.slope_rating,
+                        ratings.par,
+                        "eg_import",
+                        datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        existing["score_id"],
+                    ),
+                )
+            return existing["score_id"], False
+
+        log.info(
+            "  %s new score with gross=%s, PCC=%s, CR=%.1f, Slope=%d, Par=%d",
+            "WOULD INSERT" if preview else "INSERTING",
+            gross_score,
+            pcc,
+            ratings.course_rating,
+            ratings.slope_rating,
+            ratings.par,
+        )
+        if preview:
+            return None, True
+
+        if tee_row.get("tee_id") is None:
+            raise FeedDataError("Cannot insert a score without a database tee")
+
+        cur.execute(
+            "INSERT INTO {p}golf_scores "
+            "(player_id, date_played, tee_id, gross_score, pcc_adjustment, "
+            "round_course_rating, round_slope_rating, round_par, "
+            "rating_source, rating_updated_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)".format(
+                p=config.DB_PREFIX
+            ),
+            (
+                player_id,
+                date_played,
+                tee_row["tee_id"],
+                gross_score,
+                pcc,
+                ratings.course_rating,
+                ratings.slope_rating,
+                ratings.par,
+                "eg_import",
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            )
+        )
+        return cur.lastrowid, True
+
+
+def process_eg_round(
+    conn: Any,
+    raw: Mapping[str, Any],
+    scorecard: Optional[Mapping[str, Any]],
+    tees_list: List[Mapping[str, Any]],
+    player_id: int,
+    date_played: str,
+    gross_score: int,
+    pcc: int,
+    preview: bool = False,
+) -> Tuple[Optional[int], bool, Dict[str, Any], EGRoundRatings]:
+    ratings = parse_eg_round_ratings(raw, scorecard=scorecard)
+
+    try:
+        tee_row = ensure_course_and_tee(
+            conn,
+            raw,
+            tees_list,
+            ratings,
+            preview=preview,
+        )
+        score_id, inserted = insert_score(
+            conn,
+            player_id=player_id,
+            date_played=date_played,
+            tee_row=tee_row,
+            gross_score=gross_score,
+            pcc=pcc,
+            ratings=ratings,
+            preview=preview,
+        )
+        if preview:
+            conn.rollback()
+        else:
+            conn.commit()
+            tees_list.clear()
+            tees_list.extend(load_tees(conn))
+        return score_id, inserted, tee_row, ratings
+    except Exception:
+        if not preview:
+            conn.rollback()
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +818,6 @@ def run_backfill(session, conn, db_players, tees_list):
             eg_score_id = raw.get("ScoreId")
             eg_score_code = raw.get("ScoreCode")
 
-            db_score = get_db_score(conn, player_id, play_date_str)
             scorecard = None
 
             if eg_score_id and eg_score_code:
@@ -605,19 +829,35 @@ def run_backfill(session, conn, db_players, tees_list):
             if eg_gross is None:
                 continue
 
-            tee_row = ensure_course_and_tee(conn, raw, tees_list, player_issues=None, scorecard=scorecard)
-            if tee_row is None:
+            try:
+                score_id, inserted, tee_row, ratings = process_eg_round(
+                    conn,
+                    raw=raw,
+                    scorecard=scorecard,
+                    tees_list=tees_list,
+                    player_id=player_id,
+                    date_played=play_date_str,
+                    gross_score=eg_gross,
+                    pcc=eg_pcc,
+                )
+            except (EGRatingError, FeedDataError) as exc:
+                log.warning(
+                    "  BACKFILL skipped %s on %s: %s",
+                    name,
+                    play_date_str,
+                    exc,
+                )
+                continue
+            except Exception as exc:
+                log.error(
+                    "  BACKFILL failed %s on %s: %s",
+                    name,
+                    play_date_str,
+                    exc,
+                )
                 continue
 
-            score_id, inserted = insert_score(
-                conn,
-                player_id=player_id,
-                date_played=play_date_str,
-                tee_id=tee_row["tee_id"],
-                gross_score=eg_gross,
-                pcc=eg_pcc,
-            )
-
+            db_score = None
             if score_id:
                 db_score = get_db_score(conn, player_id, play_date_str)
                 action_count += 1
@@ -645,7 +885,15 @@ def run_backfill(session, conn, db_players, tees_list):
     return results, []
 
 
-def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_mode):
+def run_daily_check(
+    session,
+    conn,
+    db_players,
+    tees_list,
+    check_date_str,
+    test_mode,
+    preview_mode=False,
+):
     results = []
     discrepancy_lines = []
 
@@ -688,10 +936,29 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
             })
             continue
 
+        target_dates = {check_date_str}
+        try:
+            recent_manual_dates = load_recent_manual_dates(
+                conn,
+                player_id,
+                check_date_str,
+            )
+            target_dates.update(recent_manual_dates)
+            if recent_manual_dates:
+                log.info(
+                    "  Rechecking unresolved manual dates: %s",
+                    ", ".join(sorted(recent_manual_dates)),
+                )
+        except Exception as exc:
+            log.error("  Could not load recent manual dates for %s: %s", name, exc)
+            player_issues.add(
+                "  Could not identify recent manual rounds awaiting England Golf"
+            )
+
         target_records = [
             (parse_play_date(r), r)
             for r in raw_scores
-            if parse_play_date(r) == check_date_str
+            if parse_play_date(r) in target_dates
         ]
 
         if not target_records:
@@ -739,74 +1006,106 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                     except Exception as e:
                         log.error("  Error fetching scorecard before insert/check: %s", e)
 
-                db_score = get_db_score(conn, player_id, play_date_str)
-
-                tee_row = ensure_course_and_tee(
-                    conn, raw, tees_list, player_issues=player_issues, scorecard=scorecard
-                )
-
-                if tee_row is None:
+                try:
+                    score_id, inserted, tee_row, ratings = process_eg_round(
+                        conn,
+                        raw=raw,
+                        scorecard=scorecard,
+                        tees_list=tees_list,
+                        player_id=player_id,
+                        date_played=play_date_str,
+                        gross_score=eg_gross,
+                        pcc=eg_pcc,
+                        preview=preview_mode,
+                    )
+                except (EGRatingError, FeedDataError) as exc:
+                    issue = (
+                        "  England Golf round not processed for {} on {}: {} "
+                        "(course={}, tee={})"
+                    ).format(
+                        name,
+                        play_date_str,
+                        exc,
+                        raw.get("FacilityName") or raw.get("CourseName") or eg_facility,
+                        (raw.get("Marker") or "").strip(),
+                    )
+                    player_issues.add(issue)
                     log.warning(
-                        "  Cannot insert score for %s on %s: tee could not be resolved or created.",
-                        name, play_date_str
+                        "  England Golf round not processed for %s on %s: %s",
+                        name,
+                        play_date_str,
+                        exc,
                     )
-                    player_issues.add(
-                        "  Missing round NOT inserted: tee unresolvable for {} on {} "
-                        "(EG marker={}, facility={})".format(
-                            name, play_date_str,
-                            (raw.get("Marker") or "").strip(), eg_facility
-                        )
+                    status_msgs.add("EG DATA INVALID — NOT PROCESSED")
+                    continue
+                except Exception as exc:
+                    issue = "  Database update failed for {} on {}: {}".format(
+                        name,
+                        play_date_str,
+                        exc,
                     )
-                    status_msgs.add("TEE UNRESOLVABLE — NOT INSERTED")
+                    player_issues.add(issue)
+                    log.error(
+                        "  Database update failed for %s on %s: %s",
+                        name,
+                        play_date_str,
+                        exc,
+                    )
+                    status_msgs.add("DB UPDATE FAILED")
                     continue
 
-                score_id, inserted = insert_score(
-                    conn,
-                    player_id=player_id,
-                    date_played=play_date_str,
-                    tee_id=tee_row["tee_id"],
-                    gross_score=eg_gross,
-                    pcc=eg_pcc,
+                log.info(
+                    "  EG ratings: CR=%.1f, Slope=%d, Par=%d (source=%s)",
+                    ratings.course_rating,
+                    ratings.slope_rating,
+                    ratings.par,
+                    ratings.par_source,
                 )
 
-                if score_id:
-                    if inserted:
-                        log.info(
-                            "  AUTO-INSERTED/UPSERTED score for %s on %s: gross=%s, tee='%s' (id=%s), pcc=%s → score_id=%s",
-                            name, play_date_str, eg_gross,
-                            tee_row["tee_colour"], tee_row["tee_id"], eg_pcc, score_id
-                        )
-                        status_msgs.add("AUTO-INSERTED")
-                    else:
-                        log.info(
-                            "  UPDATED existing score for %s on %s from EG feed: score_id=%s",
-                            name, play_date_str, score_id
-                        )
-                        status_msgs.add("UPDATED")
+                if preview_mode:
+                    status_msgs.add(
+                        "PREVIEW — WOULD INSERT" if inserted else "PREVIEW — WOULD OVERWRITE"
+                    )
+                    continue
 
-                    if not verify_trigger_effect(conn, score_id):
-                        player_issues.add(
-                            "  Handicap history missing after insert for {} on {} — trigger may not have run".format(
-                                name, play_date_str
-                            )
-                        )
-
-                    if scorecard:
-                        synced_count = sync_hole_data(conn, score_id, tee_row["tee_id"], scorecard)
-                        if synced_count > 0:
-                            log.info("  Hole sync OK: %d hole scores written for score_id=%s", synced_count, score_id)
-                        else:
-                            log.warning("  Hole sync returned 0 rows for score_id=%s", score_id)
-
-                    db_score = get_db_score(conn, player_id, play_date_str)
-                    if db_score is None:
-                        log.error(
-                            "  Could not reload db_score after insert for %s on %s — skipping checks",
-                            name, play_date_str
-                        )
-                        continue
+                if inserted:
+                    log.info(
+                        "  AUTO-INSERTED score for %s on %s: gross=%s, "
+                        "tee='%s' (id=%s), pcc=%s, score_id=%s",
+                        name,
+                        play_date_str,
+                        eg_gross,
+                        tee_row["tee_colour"],
+                        tee_row["tee_id"],
+                        eg_pcc,
+                        score_id,
+                    )
+                    status_msgs.add("AUTO-INSERTED")
                 else:
-                    status_msgs.add("CHECKED")
+                    log.info(
+                        "  OVERWROTE existing score for %s on %s from EG feed: score_id=%s",
+                        name,
+                        play_date_str,
+                        score_id,
+                    )
+                    status_msgs.add("OVERWROTE MANUAL/EXISTING")
+
+                if not verify_trigger_effect(conn, score_id):
+                    player_issues.add(
+                        "  Handicap history missing after score write for {} on {} — trigger may not have run".format(
+                            name,
+                            play_date_str,
+                        )
+                    )
+
+                db_score = get_db_score(conn, player_id, play_date_str)
+                if db_score is None:
+                    log.error(
+                        "  Could not reload db_score after score write for %s on %s — skipping checks",
+                        name,
+                        play_date_str,
+                    )
+                    continue
 
                 score_id = db_score["score_id"]
                 db_gross = db_score["gross_score"]
@@ -814,30 +1113,14 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
                 db_pcc = db_score["pcc_adjustment"]
                 db_tee_col = db_score["tee_colour"] or "UNKNOWN"
 
-                eg_tee_row = resolve_tee(raw, tees_list)
-                eg_tee_id = eg_tee_row["tee_id"] if eg_tee_row else None
-                eg_tee_col = eg_tee_row["tee_colour"] if eg_tee_row else "UNKNOWN"
+                eg_tee_id = tee_row["tee_id"]
+                eg_tee_col = tee_row["tee_colour"]
 
                 log.info("  DB:  gross=%s  tee=%s (id=%s)  pcc=%s", db_gross, db_tee_col, db_tee_id, db_pcc)
                 log.info(
                     "  EG → DB tee match:  EG tee=%s (id=%s)  DB tee=%s (id=%s)",
                     eg_tee_col, eg_tee_id, db_tee_col, db_tee_id,
                 )
-
-                if eg_pcc != 0:
-                    if int(eg_pcc) != int(db_pcc):
-                        log.info(
-                            "  PCC UPDATED %s %s: DB had %s --> EG says %s (no email per Rule 6)",
-                            name, play_date_str, db_pcc, eg_pcc,
-                        )
-                        try:
-                            update_pcc(conn, score_id, eg_pcc)
-                        except Exception as exc:
-                            log.error("  PCC update failed for %s on %s: %s", name, play_date_str, exc)
-                    else:
-                        log.info("  PCC already matches EG: %s -- no update needed", eg_pcc)
-                else:
-                    log.info("  PCC is 0 on EG -- no PCC update required")
 
                 if eg_gross is not None and db_gross is not None:
                     if int(eg_gross) != int(db_gross):
@@ -913,7 +1196,7 @@ def run_daily_check(session, conn, db_players, tees_list, check_date_str, test_m
 # ---------------------------------------------------------------------------
 
 
-def check(test_mode=False, backfill_mode=False):
+def check(test_mode=False, backfill_mode=False, preview_mode=False):
     if backfill_mode:
         check_date_str = "BACKFILL_MODE"
         log.info("=== 828ers EG Check - BACKFILL MODE ===")
@@ -927,17 +1210,25 @@ def check(test_mode=False, backfill_mode=False):
     else:
         check_date = date.today() - timedelta(days=1)
         check_date_str = check_date.isoformat()
-        log.info("=== 828ers EG Daily Check - %s ===", date.today())
+        log.info(
+            "=== 828ers EG Daily Check - %s%s ===",
+            date.today(),
+            " [PREVIEW]" if preview_mode else "",
+        )
         log.info("Checking EG scores for yesterday: %s", check_date_str)
+
+    if preview_mode:
+        log.info("PREVIEW MODE: England Golf and database data will be read, but no changes will be saved.")
 
     try:
         session = eg_login()
     except Exception as exc:
         log.error("EG login failed: %s", exc)
-        send_email(
-            "828ers EG Score Check - LOGIN FAILED",
-            f"Could not log into EG API.\n\n=== RUN LOG ===\n{log_stream.getvalue()}"
-        )
+        if not preview_mode:
+            send_email(
+                "828ers EG Score Check - LOGIN FAILED",
+                f"Could not log into EG API.\n\n=== RUN LOG ===\n{log_stream.getvalue()}"
+            )
         sys.exit(1)
 
     conn = None
@@ -953,21 +1244,6 @@ def check(test_mode=False, backfill_mode=False):
 
         log.info("DB players : %s", list(db_players.keys()))
 
-        if not backfill_mode and not test_mode:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT 1 FROM {p}golf_scores s "
-                    "LEFT JOIN {p}golf_hole_scores hs ON hs.score_id = s.score_id "
-                    "WHERE s.date_played=%s AND s.is_excluded=0 "
-                    "GROUP BY s.score_id HAVING COUNT(hs.hole_number) >= 18 LIMIT 1".format(
-                        p=config.DB_PREFIX
-                    ),
-                    (check_date_str,),
-                )
-                if cur.fetchone():
-                    log.info("Hole-by-hole data already exists for %s -- skipping run.", check_date_str)
-                    return
-
         config_player_names = {p["name"] for p in config.PLAYERS}
         for db_name in db_players.keys():
             if db_name not in config_player_names:
@@ -976,20 +1252,33 @@ def check(test_mode=False, backfill_mode=False):
         if backfill_mode:
             results, discrepancy_lines = run_backfill(session, conn, db_players, tees_list)
         else:
-            results, discrepancy_lines = run_daily_check(session, conn, db_players, tees_list, check_date_str, test_mode)
+            results, discrepancy_lines = run_daily_check(
+                session,
+                conn,
+                db_players,
+                tees_list,
+                check_date_str,
+                test_mode,
+                preview_mode=preview_mode,
+            )
 
     except Exception as exc:
         log.error("DB connection or main loop failed: %s", exc)
-        send_email(
-            "828ers EG Score Check - RUN FAILED",
-            f"An unexpected error occurred during execution.\n\n=== RUN LOG ===\n{log_stream.getvalue()}"
-        )
+        if not preview_mode:
+            send_email(
+                "828ers EG Score Check - RUN FAILED",
+                f"An unexpected error occurred during execution.\n\n=== RUN LOG ===\n{log_stream.getvalue()}"
+            )
         sys.exit(1)
     finally:
         if conn:
             conn.close()
 
-    mode_label = " [TEST MODE]" if test_mode else (" [BACKFILL MODE]" if backfill_mode else "")
+    mode_label = (
+        " [PREVIEW MODE]"
+        if preview_mode
+        else (" [TEST MODE]" if test_mode else (" [BACKFILL MODE]" if backfill_mode else ""))
+    )
     log.info("")
     log.info("=== CHECK COMPLETE%s ===", mode_label)
     log.info("%-14s  %-26s  %-6s  %-8s  %s", "Player", "Status", "Issues", "EG HI", "Local HI")
@@ -1006,6 +1295,10 @@ def check(test_mode=False, backfill_mode=False):
 
     if backfill_mode:
         log.info("Backfill complete. No email alerts are generated in backfill mode.")
+        return
+
+    if preview_mode:
+        log.info("Preview complete. No database changes or email alerts were generated.")
         return
 
     if not discrepancy_lines:
@@ -1049,5 +1342,15 @@ if __name__ == "__main__":
         "--backfill", action="store_true",
         help="Backfill mode: fetch all historical scorecards that are missing from the local DB",
     )
+    parser.add_argument(
+        "--preview", action="store_true",
+        help="Read EG and database data and report proposed changes without writing to the database",
+    )
     args = parser.parse_args()
-    check(test_mode=args.test, backfill_mode=args.backfill)
+    if args.preview and args.backfill:
+        parser.error("--preview cannot be combined with --backfill")
+    check(
+        test_mode=args.test,
+        backfill_mode=args.backfill,
+        preview_mode=args.preview,
+    )
