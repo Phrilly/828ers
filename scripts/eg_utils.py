@@ -14,6 +14,8 @@ import time
 import json
 import re
 import logging
+import math
+from typing import Any, Mapping, NamedTuple, Optional
 import requests
 from bs4 import BeautifulSoup
 
@@ -37,6 +39,17 @@ HEADERS = {
 
 class EGLoginError(Exception):
     pass
+
+
+class EGRatingError(ValueError):
+    pass
+
+
+class EGRoundRatings(NamedTuple):
+    course_rating: float
+    slope_rating: int
+    par: int
+    par_source: str
 
 
 # ── Session management ──────────────────────────────────────────────────────
@@ -237,6 +250,101 @@ def eg_fetch_hi(session, passport_id):
 
 
 # ── Score field mapping ──────────────────────────────────────────────────────
+
+
+def _parse_finite_number(value: Any, field_name: str) -> float:
+    if value is None or str(value).strip() == "":
+        raise EGRatingError(f"England Golf field {field_name} is missing")
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise EGRatingError(
+            f"England Golf field {field_name} is not numeric: {value!r}"
+        ) from exc
+
+    if not math.isfinite(number):
+        raise EGRatingError(
+            f"England Golf field {field_name} is not a finite number: {value!r}"
+        )
+
+    return number
+
+
+def _parse_whole_number(value: Any, field_name: str) -> int:
+    number = _parse_finite_number(value, field_name)
+    if not number.is_integer():
+        raise EGRatingError(
+            f"England Golf field {field_name} must be a whole number: {value!r}"
+        )
+    return int(number)
+
+
+def parse_eg_round_ratings(
+    raw: Mapping[str, Any],
+    scorecard: Optional[Mapping[str, Any]] = None,
+) -> EGRoundRatings:
+    course_rating = round(
+        _parse_finite_number(raw.get("CourseRating"), "CourseRating"),
+        1,
+    )
+    if not 40.0 <= course_rating <= 100.0:
+        raise EGRatingError(
+            f"England Golf CourseRating is outside the supported 18-hole range: {course_rating}"
+        )
+
+    slope_rating = _parse_whole_number(raw.get("Slope"), "Slope")
+    if not 55 <= slope_rating <= 155:
+        raise EGRatingError(
+            f"England Golf Slope is outside the WHS range: {slope_rating}"
+        )
+
+    par_value = None
+    par_source = ""
+    for field_name in ("Par", "CoursePar"):
+        value = raw.get(field_name)
+        if value is not None and str(value).strip() != "":
+            par_value = value
+            par_source = field_name
+            break
+
+    if par_value is None and scorecard is not None:
+        value = scorecard.get("TotalPar")
+        if value is not None and str(value).strip() != "":
+            par_value = value
+            par_source = "TotalPar"
+
+    par = _parse_whole_number(par_value, par_source or "Par/CoursePar/TotalPar")
+    if not 54 <= par <= 90:
+        raise EGRatingError(
+            f"England Golf par is outside the supported 18-hole range: {par}"
+        )
+
+    if scorecard is not None:
+        hole_pars = []
+        for hole_number in range(1, 19):
+            value = scorecard.get(f"Hole{hole_number}Par")
+            if value is None or str(value).strip() == "":
+                hole_pars = []
+                break
+            hole_pars.append(
+                _parse_whole_number(value, f"Hole{hole_number}Par")
+            )
+
+        if hole_pars and sum(hole_pars) != par:
+            raise EGRatingError(
+                "England Golf round par {} does not match the 18-hole total {}".format(
+                    par,
+                    sum(hole_pars),
+                )
+            )
+
+    return EGRoundRatings(
+        course_rating=course_rating,
+        slope_rating=slope_rating,
+        par=par,
+        par_source=par_source,
+    )
 
 
 def parse_play_date(raw):
