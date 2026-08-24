@@ -139,6 +139,11 @@ The correct tee is found by course or facility and tee colour together. Tee
 colour alone is not sufficient because different courses can each have a tee
 called White, Yellow, or another shared colour.
 
+When England Golf omits its facility ID, course names are compared after
+removing punctuation and an optional trailing `Golf Club` or `Golf Course`.
+This allows a safe match such as `Ramsey` to `Ramsey Golf Club` without using
+partial-name matching.
+
 After finding the correct tee, the feed compares its course rating, slope
 rating, and par with England Golf. When they differ, `wp_golf_tees` is updated
 from England Golf. The old and new values are written to the server log.
