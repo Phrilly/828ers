@@ -14,7 +14,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta, datetime
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 # --- CRITICAL FIX FOR HOSTINGER CRON ---
 python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
@@ -55,7 +55,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-HI_IGNORE_PLAYERS = set(["Jay"])
+HI_IGNORE_PLAYERS = set()
 
 
 class FeedDataError(ValueError):
@@ -918,16 +918,24 @@ def run_backfill(session, conn, db_players, tees_list):
     return results, []
 
 
+def parse_iso_date(value: str) -> date:
+    """Python 3.6-compatible ISO date parser."""
+    try:
+        return date.fromisoformat(value)
+    except AttributeError:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+
+
 def build_target_date_set(
     from_date_str: Optional[str] = None,
     to_date_str: Optional[str] = None,
     default_date_str: Optional[str] = None,
-) -> set[str]:
+) -> Set[str]:
     if from_date_str or to_date_str:
         if not from_date_str or not to_date_str:
             raise ValueError("Both --from and --to must be provided for a custom date range.")
-        start_date = date.fromisoformat(from_date_str)
-        end_date = date.fromisoformat(to_date_str)
+        start_date = parse_iso_date(from_date_str)
+        end_date = parse_iso_date(to_date_str)
         if end_date < start_date:
             raise ValueError("The --to date must be on or after the --from date.")
         return {
