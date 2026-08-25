@@ -34,6 +34,7 @@ install_dependency_stubs()
 from eg_utils import EGRatingError, EGRoundRatings, parse_eg_round_ratings
 from golf_checker import (
     FeedDataError,
+    build_target_date_set,
     ensure_course_and_tee,
     insert_score,
     load_recent_manual_dates,
@@ -123,6 +124,27 @@ def make_scorecard(total_par: int = 72) -> Dict[str, Any]:
 
 
 class EnglandGolfRatingTests(unittest.TestCase):
+    def test_build_target_date_set_includes_full_range(
+        self: "EnglandGolfRatingTests",
+    ) -> None:
+        dates = build_target_date_set("2026-08-07", "2026-08-16")
+
+        self.assertEqual(
+            dates,
+            {
+                "2026-08-07",
+                "2026-08-08",
+                "2026-08-09",
+                "2026-08-10",
+                "2026-08-11",
+                "2026-08-12",
+                "2026-08-13",
+                "2026-08-14",
+                "2026-08-15",
+                "2026-08-16",
+            },
+        )
+
     def test_reads_and_checks_all_round_ratings(
         self: "EnglandGolfRatingTests",
     ) -> None:

@@ -918,6 +918,26 @@ def run_backfill(session, conn, db_players, tees_list):
     return results, []
 
 
+def build_target_date_set(
+    from_date_str: Optional[str] = None,
+    to_date_str: Optional[str] = None,
+    default_date_str: Optional[str] = None,
+) -> set[str]:
+    if from_date_str or to_date_str:
+        if not from_date_str or not to_date_str:
+            raise ValueError("Both --from and --to must be provided for a custom date range.")
+        start_date = date.fromisoformat(from_date_str)
+        end_date = date.fromisoformat(to_date_str)
+        if end_date < start_date:
+            raise ValueError("The --to date must be on or after the --from date.")
+        return {
+            (start_date + timedelta(days=offset)).isoformat()
+            for offset in range((end_date - start_date).days + 1)
+        }
+
+    return {default_date_str} if default_date_str else set()
+
+
 def run_daily_check(
     session,
     conn,
@@ -926,6 +946,8 @@ def run_daily_check(
     check_date_str,
     test_mode,
     preview_mode=False,
+    from_date_str=None,
+    to_date_str=None,
 ):
     results = []
     discrepancy_lines = []
@@ -969,24 +991,30 @@ def run_daily_check(
             })
             continue
 
-        target_dates = {check_date_str}
-        try:
-            recent_manual_dates = load_recent_manual_dates(
-                conn,
-                player_id,
-                check_date_str,
-            )
-            target_dates.update(recent_manual_dates)
-            if recent_manual_dates:
-                log.info(
-                    "  Rechecking unresolved manual dates: %s",
-                    ", ".join(sorted(recent_manual_dates)),
+        target_dates = build_target_date_set(
+            from_date_str=from_date_str,
+            to_date_str=to_date_str,
+            default_date_str=check_date_str,
+        )
+
+        if not from_date_str and not to_date_str:
+            try:
+                recent_manual_dates = load_recent_manual_dates(
+                    conn,
+                    player_id,
+                    check_date_str,
                 )
-        except Exception as exc:
-            log.error("  Could not load recent manual dates for %s: %s", name, exc)
-            player_issues.add(
-                "  Could not identify recent manual rounds awaiting England Golf"
-            )
+                target_dates.update(recent_manual_dates)
+                if recent_manual_dates:
+                    log.info(
+                        "  Rechecking unresolved manual dates: %s",
+                        ", ".join(sorted(recent_manual_dates)),
+                    )
+            except Exception as exc:
+                log.error("  Could not load recent manual dates for %s: %s", name, exc)
+                player_issues.add(
+                    "  Could not identify recent manual rounds awaiting England Golf"
+                )
 
         target_records = [
             (parse_play_date(r), r)
@@ -1229,12 +1257,16 @@ def run_daily_check(
 # ---------------------------------------------------------------------------
 
 
-def check(test_mode=False, backfill_mode=False, preview_mode=False):
+def check(test_mode=False, backfill_mode=False, preview_mode=False, from_date=None, to_date=None):
     if backfill_mode:
         check_date_str = "BACKFILL_MODE"
         log.info("=== 828ers EG Check - BACKFILL MODE ===")
         log.info("Fetching all historical records to sync missing scores and hole-by-hole data.")
         log.info("Emails and general mismatch checks are suppressed during backfill.")
+    elif from_date and to_date:
+        check_date_str = f"{from_date} to {to_date}"
+        log.info("=== 828ers EG Daily Check - custom range %s to %s ===", from_date, to_date)
+        log.info("Checking EG scores for custom date range: %s to %s", from_date, to_date)
     elif test_mode:
         check_date = date.today()
         check_date_str = check_date.isoformat()
@@ -1293,6 +1325,8 @@ def check(test_mode=False, backfill_mode=False, preview_mode=False):
                 check_date_str,
                 test_mode,
                 preview_mode=preview_mode,
+                from_date_str=from_date,
+                to_date_str=to_date,
             )
 
     except Exception as exc:
@@ -1379,11 +1413,27 @@ if __name__ == "__main__":
         "--preview", action="store_true",
         help="Read EG and database data and report proposed changes without writing to the database",
     )
+    parser.add_argument(
+        "--from", "--from-date",
+        dest="from_date",
+        help="Custom EG check start date (YYYY-MM-DD). Requires --to.",
+    )
+    parser.add_argument(
+        "--to", "--to-date",
+        dest="to_date",
+        help="Custom EG check end date (YYYY-MM-DD). Requires --from.",
+    )
     args = parser.parse_args()
     if args.preview and args.backfill:
         parser.error("--preview cannot be combined with --backfill")
+    if (args.from_date or args.to_date) and not (args.from_date and args.to_date):
+        parser.error("--from and --to must be supplied together for a custom date range")
+    if args.backfill and (args.from_date or args.to_date):
+        parser.error("--backfill cannot be combined with a custom date range")
     check(
         test_mode=args.test,
         backfill_mode=args.backfill,
         preview_mode=args.preview,
+        from_date=args.from_date,
+        to_date=args.to_date,
     )
