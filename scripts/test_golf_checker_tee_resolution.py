@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from datetime import date
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from unittest.mock import patch
 
@@ -39,6 +40,7 @@ from golf_checker import (
     insert_score,
     load_recent_manual_dates,
     normalize_course_name,
+    parse_iso_date,
     process_eg_round,
     resolve_tee,
 )
@@ -144,6 +146,9 @@ class EnglandGolfRatingTests(unittest.TestCase):
                 "2026-08-16",
             },
         )
+
+    def test_parse_iso_date_supports_python_36_style(self) -> None:
+        self.assertEqual(parse_iso_date("2026-08-07"), date(2026, 8, 7))
 
     def test_reads_and_checks_all_round_ratings(
         self: "EnglandGolfRatingTests",
