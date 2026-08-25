@@ -75,7 +75,7 @@ sp_label: BEGIN
     UPDATE wp_golf_handicap_history SET hcp_unadjusted = v_hcp_unadj WHERE score_id = p_score_id;
 
     -- 4. ESR Check
-    IF v_diff_raw < v_hcp_before - 7.0 THEN
+    IF v_diff_raw <= v_hcp_before - 7.0 THEN
         SET v_esr_amount = CASE WHEN v_diff_raw < v_hcp_before - 10.0 THEN -2.00 ELSE -1.00 END;
         
         UPDATE wp_golf_handicap_history h
@@ -85,6 +85,11 @@ sp_label: BEGIN
             ORDER BY date_played DESC, score_id DESC LIMIT 20
         ) AS l20 ON h.score_id = l20.score_id
         SET h.esr_adj = h.esr_adj + v_esr_amount, h.differential = h.diff_raw + h.esr_adj + v_esr_amount;
+
+        UPDATE wp_golf_handicap_history
+        SET esr_triggered = 1,
+            esr_amount = v_esr_amount
+        WHERE score_id = p_score_id;
 
         -- Recalculate working average after ESR
         SELECT ROUND(AVG(d), 3) INTO v_hcp_working
