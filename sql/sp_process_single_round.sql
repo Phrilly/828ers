@@ -3,7 +3,7 @@ DROP PROCEDURE IF EXISTS `sp_process_single_round`;
 
 CREATE PROCEDURE `sp_process_single_round`(IN p_score_id INT)
 sp_label: BEGIN
--- WATERMARK 1.0.75 --
+-- WATERMARK 1.1.22 --
     DECLARE v_player_id     INT;
     DECLARE v_date_played   DATE;
     DECLARE v_gross_score   INT;
