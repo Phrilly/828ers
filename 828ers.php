@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.1.23
+ * Version:     1.1.24
  * Author:      Philip Dunne
  */
 
@@ -79,6 +79,23 @@ add_action('wp_enqueue_scripts', function () {
 });
 
 // ==========================================
+function golf_migration_log_procedure_state(&$audit_log, $procedure_name, $phase) {
+    global $wpdb;
+
+    if (empty($procedure_name)) {
+        return;
+    }
+
+    $exists = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.routines WHERE ROUTINE_SCHEMA = DATABASE() AND ROUTINE_TYPE = 'PROCEDURE' AND ROUTINE_NAME = %s",
+            $procedure_name
+        )
+    );
+
+    $audit_log[] = "PROC STATE: {$phase} `{$procedure_name}` -> exists=" . (int) $exists;
+}
+
 // 3. BACKEND: Database Migration Pipeline
 // ==========================================
 function golf_system_run_migrations() {
@@ -150,8 +167,55 @@ function golf_system_run_migrations() {
 
                 $preview = substr(str_replace("\n", " ", $query), 0, 30) . "...";
 
+                $procedure_name = null;
+                if (preg_match('/^\s*DROP\s+PROCEDURE\s+IF\s+EXISTS\s+`?([A-Za-z0-9_]+)`?/i', $query, $matches)) {
+                    $procedure_name = $matches[1];
+                    golf_migration_log_procedure_state($audit_log, $procedure_name, 'before drop');
+                } elseif (preg_match('/^\s*CREATE\s+PROCEDURE\s+`?([A-Za-z0-9_]+)`?/i', $query, $matches)) {
+                    $procedure_name = $matches[1];
+                    golf_migration_log_procedure_state($audit_log, $procedure_name, 'before create');
+                }
+
                 $result = $wpdb->query($query);
                 $db_error = $wpdb->last_error;
+
+                if ($procedure_name !== null) {
+                    if ($result !== false) {
+                        golf_migration_log_procedure_state($audit_log, $procedure_name, 'after execute');
+                    } elseif (stripos((string) $db_error, 'already exists') !== false) {
+                        golf_migration_log_procedure_state($audit_log, $procedure_name, 'after failed create');
+                    }
+                }
+
+                if (
+                    $result === false
+                    && preg_match('/^\s*CREATE\s+PROCEDURE\s+`?([A-Za-z0-9_]+)`?/i', $query, $matches)
+                    && stripos((string) $db_error, 'already exists') !== false
+                ) {
+                    $procedure_name = $matches[1];
+                    $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> CREATE PROCEDURE already exists; attempting DROP and retry for `{$procedure_name}`.";
+
+                    $drop_result = $wpdb->query("DROP PROCEDURE IF EXISTS `{$procedure_name}`");
+                    $drop_error = $wpdb->last_error;
+
+                    golf_migration_log_procedure_state($audit_log, $procedure_name, 'after explicit drop before retry');
+
+                    if ($drop_result !== false) {
+                        $result = $wpdb->query($query);
+                        $db_error = $wpdb->last_error;
+
+                        if ($result === false) {
+                            $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> RETRY FAILED after DROP. DB Error: {$db_error}";
+                            golf_migration_log_procedure_state($audit_log, $procedure_name, 'after failed retry create');
+                        } else {
+                            $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> RETRY SUCCESS after DROP. Rows affected: {$result}";
+                            golf_migration_log_procedure_state($audit_log, $procedure_name, 'after successful retry create');
+                        }
+                    } else {
+                        $db_error = $drop_error;
+                        $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> DROP before retry failed. DB Error: {$db_error}";
+                    }
+                }
 
                 if ($result === false) {
                     $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> HARD FAIL. DB Error: {$db_error}";
