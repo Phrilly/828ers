@@ -2,7 +2,7 @@
 /**
  * Plugin Name: 828ers Golf Handicap System
  * Description: Automated WHS Handicap Tracking, Dashboards, and Git-Triggered Migrations.
- * Version:     1.1.25
+ * Version:     1.1.26
  * Author:      Philip Dunne
  */
 
@@ -79,6 +79,12 @@ add_action('wp_enqueue_scripts', function () {
 });
 
 // ==========================================
+function golf_migration_write_audit_log($audit_log) {
+    $timestamp = gmdate('Y-m-d H:i:s T');
+    $payload = implode("\n", $audit_log);
+    update_option('golf_migration_audit_log', $timestamp . "\n" . $payload);
+}
+
 function golf_migration_log_context(&$audit_log, $label = 'RUN') {
     global $wpdb;
 
@@ -116,6 +122,14 @@ function golf_migration_log_procedure_state(&$audit_log, $procedure_name, $phase
 // 3. BACKEND: Database Migration Pipeline
 // ==========================================
 function golf_system_run_migrations() {
+    static $migration_has_started = false;
+
+    if ($migration_has_started) {
+        return;
+    }
+
+    $migration_has_started = true;
+
     global $wpdb;
     $installed_ver = get_option('golf_plugin_db_version');
 
@@ -128,7 +142,7 @@ function golf_system_run_migrations() {
 
         if (empty($files)) {
             $audit_log[] = "CRITICAL FAIL: No .sql files found in directory: " . $sql_dir;
-            update_option('golf_migration_audit_log', implode("\n", $audit_log));
+            golf_migration_write_audit_log($audit_log);
             return;
         }
 
@@ -239,7 +253,7 @@ function golf_system_run_migrations() {
 
                 if ($result === false) {
                     $audit_log[] = "EXEC: Block {$block_num} [{$preview}] -> HARD FAIL. DB Error: {$db_error}";
-                    update_option('golf_migration_audit_log', implode("\n", $audit_log));
+                    golf_migration_write_audit_log($audit_log);
                     return;
                 } else {
                     if (!empty($db_error)) {
@@ -254,15 +268,13 @@ function golf_system_run_migrations() {
 
         update_option('golf_plugin_db_version', GOLF_PLUGIN_VERSION);
         $audit_log[] = "COMPLETED: Version successfully bumped to " . GOLF_PLUGIN_VERSION;
-        update_option('golf_migration_audit_log', implode("\n", $audit_log));
+        golf_migration_write_audit_log($audit_log);
         delete_option('golf_migration_last_error');
     }
 }
 
-// Safety switch: keep migrations off unless explicitly enabled.
-if ( defined('GOLF_ENABLE_MIGRATIONS') && GOLF_ENABLE_MIGRATIONS ) {
-    add_action('admin_init', 'golf_system_run_migrations');
-}
+add_action('plugins_loaded', 'golf_system_run_migrations');
+add_action('admin_init', 'golf_system_run_migrations');
 
 // ==========================================
 // EBAY: Marketplace Account Deletion Endpoint
