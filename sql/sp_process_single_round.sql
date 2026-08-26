@@ -91,8 +91,8 @@ sp_label: BEGIN
             esr_amount = v_esr_amount
         WHERE score_id = p_score_id;
 
-        -- Recalculate working average after ESR
-        SELECT ROUND(AVG(d), 3) INTO v_hcp_working
+        -- Recalculate working average after ESR, then round to the Handicap Index before capping
+        SELECT ROUND(AVG(d), 3) INTO v_hcp_unadj
         FROM (
             SELECT differential AS d FROM (
                 SELECT differential FROM wp_golf_handicap_history WHERE player_id = v_player_id
@@ -100,6 +100,7 @@ sp_label: BEGIN
                 ORDER BY date_played DESC, score_id DESC LIMIT 20
             ) AS l20 ORDER BY differential ASC LIMIT 8
         ) AS b8;
+        SET v_hcp_working = ROUND(v_hcp_unadj, 1);
     END IF;
 
     -- 5. Soft/Hard Cap Math (Use the rounded Handicap Index as the cap input)
