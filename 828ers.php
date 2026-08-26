@@ -79,6 +79,23 @@ add_action('wp_enqueue_scripts', function () {
 });
 
 // ==========================================
+function golf_migration_log_context(&$audit_log, $label = 'RUN') {
+    global $wpdb;
+
+    $db_name = $wpdb->get_var('SELECT DATABASE()');
+    $db_user = $wpdb->get_var('SELECT USER()');
+    $db_version = $wpdb->get_var('SELECT VERSION()');
+    $db_host = defined('DB_HOST') ? DB_HOST : 'unknown';
+    $table_prefix = isset($wpdb->prefix) ? $wpdb->prefix : 'unknown';
+
+    $audit_log[] = "DB CONTEXT: {$label} timestamp=" . gmdate('Y-m-d H:i:s T')
+        . " db_name=" . (string) $db_name
+        . " db_user=" . (string) $db_user
+        . " db_host=" . (string) $db_host
+        . " table_prefix=" . (string) $table_prefix
+        . " server_version=" . (string) $db_version;
+}
+
 function golf_migration_log_procedure_state(&$audit_log, $procedure_name, $phase) {
     global $wpdb;
 
@@ -140,6 +157,8 @@ function golf_system_run_migrations() {
         // --------------------------------------
 
         $audit_log[] = "INIT: Found " . count($files) . " files. Starting processing...";
+        golf_migration_log_context($audit_log, 'MIGRATION_START');
+        $audit_log[] = "PLUGIN VERSION: " . GOLF_PLUGIN_VERSION . " | INSTALLED DB VERSION: " . (string) $installed_ver;
 
         $wpdb->hide_errors();
 
@@ -166,6 +185,7 @@ function golf_system_run_migrations() {
                 }
 
                 $preview = substr(str_replace("\n", " ", $query), 0, 30) . "...";
+                $audit_log[] = "EXEC: Block {$block_num} START timestamp=" . gmdate('Y-m-d H:i:s T') . " preview=" . $preview;
 
                 $procedure_name = null;
                 if (preg_match('/^\s*DROP\s+PROCEDURE\s+IF\s+EXISTS\s+`?([A-Za-z0-9_]+)`?/i', $query, $matches)) {
