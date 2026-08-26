@@ -71,7 +71,7 @@ sp_label: BEGIN
         ) AS last20 ORDER BY differential ASC LIMIT 8
     ) AS best8;
     
-    SET v_hcp_working = v_hcp_unadj;
+    SET v_hcp_working = ROUND(v_hcp_unadj, 1);
     UPDATE wp_golf_handicap_history SET hcp_unadjusted = v_hcp_unadj WHERE score_id = p_score_id;
 
     -- 4. ESR Check
@@ -102,7 +102,7 @@ sp_label: BEGIN
         ) AS b8;
     END IF;
 
-    -- 5. Soft/Hard Cap Math (Perform on Raw v_hcp_working)
+    -- 5. Soft/Hard Cap Math (Use the rounded Handicap Index as the cap input)
     SELECT COALESCE(MIN(hcp_after), v_hcp_working) INTO v_low_hi_365
     FROM wp_golf_handicap_history WHERE player_id = v_player_id
     AND date_played >= DATE_SUB(v_date_played, INTERVAL 1 YEAR)
