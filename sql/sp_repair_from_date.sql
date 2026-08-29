@@ -33,7 +33,7 @@ BEGIN
     readloop: LOOP
         FETCH cur INTO v_score_id;
         IF v_done THEN LEAVE readloop; END IF;
-        CALL sp_process_single_round(v_score_id);
+        CALL sp_process_single_round(v_score_id, 0);
     END LOOP;
     CLOSE cur;
 

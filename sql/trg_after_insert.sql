@@ -51,7 +51,7 @@ BEGIN
         CALL sp_repair_from_date(NEW.player_id, COALESCE(v_safe_start, NEW.date_played));
     ELSE
         -- Just process the single new round.
-        CALL sp_process_single_round(NEW.score_id);
+        CALL sp_process_single_round(NEW.score_id, 1);
     END IF;
 END;
 -- END_QUERY

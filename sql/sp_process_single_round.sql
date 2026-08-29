@@ -1,7 +1,10 @@
 DROP PROCEDURE IF EXISTS `sp_process_single_round`;
 -- END_QUERY
 
-CREATE PROCEDURE `sp_process_single_round`(IN p_score_id INT)
+CREATE PROCEDURE `sp_process_single_round`(
+    IN p_score_id INT,
+    IN p_refresh_best_8 TINYINT
+)
 sp_label: BEGIN
 -- WATERMARK 1.1.26 --
     DECLARE v_player_id     INT;
@@ -101,6 +104,11 @@ sp_label: BEGIN
             ) AS l20 ORDER BY differential ASC LIMIT 8
         ) AS b8;
         SET v_hcp_working = ROUND(v_hcp_unadj, 1);
+    ELSE
+        UPDATE wp_golf_handicap_history
+        SET esr_triggered = 0,
+            esr_amount = 0.0
+        WHERE score_id = p_score_id;
     END IF;
 
     -- 5. Soft/Hard Cap Math (Use the rounded Handicap Index as the cap input)
@@ -137,8 +145,10 @@ sp_label: BEGIN
     SET course_hcp = v_course_hcp, playing_hcp = v_playing_hcp, net_score = v_net_score
     WHERE score_id = p_score_id;
 
-    -- 8. Update the best 8 flags ---
-    CALL sp_refresh_best_8_flags(v_player_id);
+    -- 8. Update the best 8 flags when this is not part of a repair replay.
+    IF p_refresh_best_8 = 1 THEN
+        CALL sp_refresh_best_8_flags(v_player_id);
+    END IF;
 
 END;
 -- END_QUERY
