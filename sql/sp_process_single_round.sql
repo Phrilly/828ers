@@ -6,7 +6,7 @@ CREATE PROCEDURE `sp_process_single_round`(
     IN p_refresh_best_8 TINYINT
 )
 sp_label: BEGIN
--- WATERMARK 1.1.26 --
+-- WATERMARK 1.1.32 --
     DECLARE v_player_id     INT;
     DECLARE v_date_played   DATE;
     DECLARE v_gross_score   INT;
@@ -81,13 +81,23 @@ sp_label: BEGIN
     IF v_diff_raw <= v_hcp_before - 7.0 THEN
         SET v_esr_amount = CASE WHEN v_diff_raw < v_hcp_before - 10.0 THEN -2.00 ELSE -1.00 END;
         
+        -- Apply the ESR first, then derive the differential from the stored
+        -- adjustment. Assignment order is not guaranteed for joined updates.
         UPDATE wp_golf_handicap_history h
         INNER JOIN (
             SELECT score_id FROM wp_golf_handicap_history WHERE player_id = v_player_id
             AND (date_played < v_date_played OR (date_played = v_date_played AND score_id <= p_score_id))
             ORDER BY date_played DESC, score_id DESC LIMIT 20
         ) AS l20 ON h.score_id = l20.score_id
-        SET h.esr_adj = h.esr_adj + v_esr_amount, h.differential = h.diff_raw + h.esr_adj + v_esr_amount;
+        SET h.esr_adj = h.esr_adj + v_esr_amount;
+
+        UPDATE wp_golf_handicap_history h
+        INNER JOIN (
+            SELECT score_id FROM wp_golf_handicap_history WHERE player_id = v_player_id
+            AND (date_played < v_date_played OR (date_played = v_date_played AND score_id <= p_score_id))
+            ORDER BY date_played DESC, score_id DESC LIMIT 20
+        ) AS l20 ON h.score_id = l20.score_id
+        SET h.differential = h.diff_raw + h.esr_adj;
 
         UPDATE wp_golf_handicap_history
         SET esr_triggered = 1,
@@ -104,6 +114,9 @@ sp_label: BEGIN
             ) AS l20 ORDER BY differential ASC LIMIT 8
         ) AS b8;
         SET v_hcp_working = ROUND(v_hcp_unadj, 1);
+        UPDATE wp_golf_handicap_history
+        SET hcp_unadjusted = v_hcp_unadj
+        WHERE score_id = p_score_id;
     ELSE
         UPDATE wp_golf_handicap_history
         SET esr_triggered = 0,
