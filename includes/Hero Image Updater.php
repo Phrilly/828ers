@@ -65,8 +65,8 @@ function golf_update_latest_winner_hero_image() {
             'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Proper-Portrait.png' 
         ],
         3 => [ 
-            'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Champ-Young-scaled.jpg', 
-            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/03/Peoples-Portrait-Young.png' 
+            'landscape' => 'https://828ers.im/wp-content/uploads/2026/09/Gemini_Generated_Image_a04zo0a04zo0a04z.png',
+            'portrait'  => 'https://828ers.im/wp-content/uploads/2026/09/Gemini_Generated_Image_oyp0lioyp0lioyp0.png'
         ],
         4 => [ 
             'landscape' => 'https://828ers.im/wp-content/uploads/2026/03/Adder.png', 
