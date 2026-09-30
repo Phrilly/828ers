@@ -6,9 +6,10 @@ CREATE PROCEDURE `sp_process_single_round`(
     IN p_refresh_best_8 TINYINT
 )
 sp_label: BEGIN
--- WATERMARK 1.1.32 --
+-- WATERMARK 1.1.33 --
     DECLARE v_player_id     INT;
     DECLARE v_date_played   DATE;
+    DECLARE v_previous_score_date DATE;
     DECLARE v_gross_score   INT;
     DECLARE v_pcc           DECIMAL(4,1);
     DECLARE v_course_rating DECIMAL(4,1);
@@ -125,9 +126,20 @@ sp_label: BEGIN
     END IF;
 
     -- 5. Soft/Hard Cap Math (Use the rounded Handicap Index as the cap input)
+    -- Rule 5.7: the Low Handicap Index established when the previous
+    -- acceptable score was processed is used for the current score.
+    SET v_previous_score_date = (
+        SELECT date_played
+        FROM wp_golf_handicap_history
+        WHERE player_id = v_player_id
+        AND (date_played < v_date_played OR (date_played = v_date_played AND score_id < p_score_id))
+        ORDER BY date_played DESC, score_id DESC
+        LIMIT 1
+    );
+
     SELECT COALESCE(MIN(hcp_after), v_hcp_working) INTO v_low_hi_365
     FROM wp_golf_handicap_history WHERE player_id = v_player_id
-    AND date_played >= DATE_SUB(v_date_played, INTERVAL 1 YEAR)
+    AND date_played >= DATE_SUB(v_previous_score_date, INTERVAL 1 YEAR)
     AND (date_played < v_date_played OR (date_played = v_date_played AND score_id < p_score_id));
 
     SET v_cap_original = v_hcp_working;
